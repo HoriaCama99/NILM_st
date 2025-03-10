@@ -114,7 +114,7 @@ banner_path = "ECMX_linkedinheader_SN.png"
 try:
     # Display banner image
     banner_image = Image.open(banner_path)
-    st.image(banner_image, use_column_width=True)
+    st.image(banner_image, use_container_width=True)
 except Exception as e:
     st.warning(f"Banner image not found at {banner_path}. Please update the path in the code.")
 
