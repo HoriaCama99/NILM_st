@@ -109,7 +109,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # Banner with hardcoded path
-banner_path = "/home/data/pecan_street/ECMX_linkedinheader_SN.png" 
+banner_path = "ECMX_linkedinheader_SN.png" 
 
 try:
     # Display banner image
@@ -119,7 +119,7 @@ except Exception as e:
     st.warning(f"Banner image not found at {banner_path}. Please update the path in the code.")
 
 # Convert the sample data to a DataFrame
-df = pd.read_csv('/home/data/pecan_street/disagg_sample.csv') 
+df = pd.read_csv('disagg_sample.csv') 
 
 # Page title and introduction
 st.title("Energy Disaggregation Model: Sample Output")
