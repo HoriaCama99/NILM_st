@@ -163,7 +163,7 @@ st.markdown("""
     
     /* Override sidebar in both modes */
     [data-testid="stSidebar"] {
-        background-color: #515D9A !important;
+        background-color: #B8BCF3 !important;
         color: #FFFFFF !important;
     }
     
