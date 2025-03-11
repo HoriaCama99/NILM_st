@@ -125,7 +125,7 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# Add this to your existing CSS block
+
 st.markdown("""
 <style>
     /* Hide Streamlit Navigation Elements */
@@ -149,6 +149,86 @@ st.markdown("""
     }
     .st-emotion-cache-eczjsme {
         display: none !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Force theme to stay consistent regardless of system settings
+st.markdown("""
+<style>
+    /* Force light theme and override dark mode detection */
+    .stApp {
+        background-color: #FFFFFF !important;
+    }
+    
+    /* Override sidebar in both modes */
+    [data-testid="stSidebar"] {
+        background-color: #515D9A !important;
+        color: #FFFFFF !important;
+    }
+    
+    /* Sidebar elements */
+    [data-testid="stSidebar"] .stRadio label,
+    [data-testid="stSidebar"] .stMultiSelect label,
+    [data-testid="stSidebar"] .stSelectbox label,
+    [data-testid="stSidebar"] .stExpander,
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] span {
+        color: #FFFFFF !important;
+    }
+    
+    /* Sidebar expander */
+    [data-testid="stSidebar"] .streamlit-expanderHeader {
+        color: #FFFFFF !important;
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        border-color: rgba(255, 255, 255, 0.2) !important;
+    }
+    
+    /* Sidebar selectbox/multiselect dropdown */
+    .stSidebar .stMultiSelect div[data-baseweb="select"] span {
+        color: #202842 !important;
+    }
+    
+    /* Force dark purple text everywhere in main content */
+    .main p, .main li, .main label {
+        color: #202842 !important;
+    }
+    
+    /* Override any automatic color scheme changes */
+    @media (prefers-color-scheme: dark) {
+        .stApp {
+            background-color: #FFFFFF !important;
+        }
+        
+        .main p, .main li, .main label, .main div {
+            color: #202842 !important;
+        }
+        
+        h1, h2, h3, h4, h5, h6 {
+            color: #515D9A !important;
+        }
+    }
+    
+    /* Radio buttons in sidebar */
+    [data-testid="stSidebar"] .stRadio label span {
+        color: #FFFFFF !important;
+    }
+    
+    /* Info boxes */
+    .stAlert {
+        background-color: rgba(81, 93, 154, 0.2) !important;
+        color: #202842 !important;
+    }
+    
+    /* Table styling */
+    .dataframe th {
+        background-color: #515D9A !important;
+        color: white !important;
+    }
+    
+    .dataframe td {
+        background-color: #FFFFFF !important;
+        color: #202842 !important;
     }
 </style>
 """, unsafe_allow_html=True)
