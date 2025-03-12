@@ -642,19 +642,19 @@ else:  # Performance Metrics page
                     'EV Charging': 80.2603,
                     'AC Usage': 76.6360,
                     'PV Usage': 92.5777,
-                    'Water Heater': 29.2893
+                    'WH Usage': 29.2893
                 },
                 'FPR': {
                     'EV Charging': 0.1961,
                     'AC Usage': 0.3488,
                     'PV Usage': 0.1579,
-                    'Water Heater': 0.0000
+                    'WH Usage': 0.0000
                 },
                 'TECA': {
                     'EV Charging': 0.7185,
                     'AC Usage': 0.6713,
                     'PV Usage': 0.8602,
-                    'Water Heater': 0.3000
+                    'WH Usage': 0.3000
                 }
             },
             'V2': {
@@ -662,19 +662,19 @@ else:  # Performance Metrics page
                     'EV Charging': 82.4146,
                     'AC Usage': 76.6360,
                     'PV Usage': 92.5777,
-                    'Water Heater': 29.2893
+                    'WH Usage': 29.2893
                 },
                 'FPR': {
                     'EV Charging': 0.1667,
                     'AC Usage': 0.3488,
                     'PV Usage': 0.1579,
-                    'Water Heater': 0.0000
+                    'WH Usage': 0.0000
                 },
                 'TECA': {
                     'EV Charging': 0.7544,
                     'AC Usage': 0.6519,
                     'PV Usage': 0.8812,
-                    'Water Heater': 0.3107
+                    'WH Usage': 0.3107
                 }
             },
             'V3': {
@@ -682,19 +682,19 @@ else:  # Performance Metrics page
                     'EV Charging': 81.8612,
                     'AC Usage': 73.0220,
                     'PV Usage': 92.0629,
-                    'Water Heater': 29.2893
+                    'WH Usage': 29.2893
                 },
                 'FPR': {
                     'EV Charging': 0.1667,
                     'AC Usage': 0.4419,
                     'PV Usage': 0.1754,
-                    'Water Heater': 0.0000
+                    'WH Usage': 0.0000
                 },
                 'TECA': {
                     'EV Charging': 0.7179,
                     'AC Usage': 0.6606,
                     'PV Usage': 0.8513,
-                    'Water Heater': 0.0582
+                    'WH Usage': 0.0582
                 }
             },
             'V4': {
@@ -702,19 +702,19 @@ else:  # Performance Metrics page
                     'EV Charging': 85.8123,
                     'AC Usage': 76.3889,
                     'PV Usage': 91.5448,
-                    'Water Heater': 29.2893
+                    'WH Usage': 29.2893
                 },
                 'FPR': {
                     'EV Charging': 0.1176,
                     'AC Usage': 0.1977,
                     'PV Usage': 0.1930,
-                    'Water Heater': 0.0000
+                    'WH Usage': 0.0000
                 },
                 'TECA': {
                     'EV Charging': 0.7741,
                     'AC Usage': 0.6718,
                     'PV Usage': 0.8395,
-                    'Water Heater': -0.0181
+                    'WH Usage': -0.0181
                 }
             }
         }
@@ -781,7 +781,7 @@ else:  # Performance Metrics page
     # After the sidebar elements but before the Key metrics display
     st.markdown(f"""
     This dashboard presents performance metrics for the **{selected_model}** model 
-    in detecting EV Charging, AC Usage, PV Usage, and Water Heater consumption patterns. For this benchmark, we have used four versions of the model (V1-V4), each with different hyperparameters and training strategies.
+    in detecting EV Charging, AC Usage, PV Usage, and WH Usage consumption patterns. For this benchmark, we have used four versions of the model (V1-V4), each with different hyperparameters and training strategies.
     """)
 
     # Main content area for Performance Metrics page
@@ -798,7 +798,7 @@ else:  # Performance Metrics page
         'EV Charging': primary_purple,
         'AC Usage': green,
         'PV Usage': cream,
-        'Water Heater': salmon
+        'WH Usage': salmon
     }
 
     # Display metric cards for each device type
@@ -838,7 +838,7 @@ else:  # Performance Metrics page
 
     # Calculate percentages
     sample_composition = {
-        'Device Type': ['EV Charging', 'AC Usage', 'PV Usage', 'Water Heater'],
+        'Device Type': ['EV Charging', 'AC Usage', 'PV Usage', 'WH Usage'],
         'Negative Class (%)': [64.56, 54.43, 36.08, 91.14],
         'Positive Class (%)': [35.44, 45.57, 63.92, 8.86]
     }
@@ -871,7 +871,7 @@ else:  # Performance Metrics page
     # Add an explanatory note about class imbalance
     st.caption(f"""
     Sample composition shows the distribution of positive and negative examples in our test dataset.
-    Water Heater detection has a significant class imbalance ({sample_df['Positive Class (%)'][3]:.2f}% positive),
+    WH Usage detection has a significant class imbalance ({sample_df['Positive Class (%)'][3]:.2f}% positive),
     which may partially explain the lower performance metrics for this device type.
     """)
 
@@ -904,7 +904,7 @@ else:  # Performance Metrics page
                 "EV Charging": primary_purple,
                 "AC Usage": green,
                 "PV Usage": cream,
-                "Water Heater": salmon
+                "WH Usage": salmon
             },
             template="plotly_white"
         )
@@ -944,7 +944,7 @@ else:  # Performance Metrics page
                 "EV Charging": primary_purple,
                 "AC Usage": green,
                 "PV Usage": cream,
-                "Water Heater": salmon
+                "WH Usage": salmon
             },
             template="plotly_white"
         )
@@ -984,7 +984,7 @@ else:  # Performance Metrics page
                 "EV Charging": primary_purple,
                 "AC Usage": green,
                 "PV Usage": cream,
-                "Water Heater": salmon
+                "WH Usage": salmon
             },
             template="plotly_white"
         )
@@ -1085,9 +1085,9 @@ else:  # Performance Metrics page
             labels = ['No PV', 'PV Detected']
             title = 'PV Usage Detection'
             cmap = 'Oranges'
-        else:  # Water Heater
+        else:  # WH Usage
             labels = ['No WH', 'WH Detected']
-            title = 'Water Heater Detection'
+            title = 'WH Usage Detection'
             cmap = 'Reds'
 
         # Create and display the selected confusion matrix
@@ -1104,7 +1104,7 @@ else:  # Performance Metrics page
     st.markdown(f"""
     - The **{selected_model}** model shows strong performance across most device types, with PV Usage detection being particularly accurate.
     - EV Charging detection shows excellent balance between DPSPerc ({models_data[selected_model]['DPSPerc']['EV Charging']:.2f}%) and low false positives ({models_data[selected_model]['FPR']['EV Charging']:.4f}).
-    - Water Heater detection remains challenging with lower DPSPerc, suggesting further model improvements are needed for this specific device type.
+    - WH Usage detection remains challenging with lower DPSPerc, suggesting further model improvements are needed for this specific device type.
     - PV Usage detection achieves the highest DPSPerc ({models_data[selected_model]['DPSPerc']['PV Usage']:.2f}%) and TECA ({models_data[selected_model]['TECA']['PV Usage'] * 100:.2f}%) among all device types.
     """)
 
