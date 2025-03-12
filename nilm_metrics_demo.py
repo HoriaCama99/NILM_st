@@ -637,7 +637,7 @@ else:  # Performance Metrics page
     def load_performance_data():
         # Data for all models
         models_data = {
-            'old': {
+            'V1': {
                 'DPSPerc': {
                     'EV Charging': 80.2603,
                     'AC Usage': 76.6360,
@@ -657,7 +657,7 @@ else:  # Performance Metrics page
                     'Water Heater': 0.3000
                 }
             },
-            'old2': {
+            'V2': {
                 'DPSPerc': {
                     'EV Charging': 82.4146,
                     'AC Usage': 76.6360,
@@ -677,7 +677,7 @@ else:  # Performance Metrics page
                     'Water Heater': 0.3107
                 }
             },
-            'old3': {
+            'V3': {
                 'DPSPerc': {
                     'EV Charging': 81.8612,
                     'AC Usage': 73.0220,
@@ -697,7 +697,7 @@ else:  # Performance Metrics page
                     'Water Heater': 0.0582
                 }
             },
-            'best_ev': {
+            'V4': {
                 'DPSPerc': {
                     'EV Charging': 85.8123,
                     'AC Usage': 76.3889,
@@ -729,16 +729,16 @@ else:  # Performance Metrics page
     # Model selection in sidebar
     selected_model = st.sidebar.selectbox(
         "Select Model",
-        ["old", "old2", "old3", "best_ev"],
-        index=3,  # Default to best_ev
-        format_func=lambda x: x.replace("_", " ").title()
+        ["V1", "V2", "V3", "V4"],
+        index=3,  # Default to V4
+        format_func=lambda x: x  # No need to transform the names anymore
     )
 
     # Add device type filter in sidebar
     device_types = st.sidebar.multiselect(
         "Select Device Types",
-        ["EV Charging", "AC Usage", "PV Usage", "Water Heater"],
-        default=["EV Charging", "AC Usage", "PV Usage", "Water Heater"]
+        ["EV Charging", "AC Usage", "PV Usage", "WH Usage"],
+        default=["EV Charging", "AC Usage", "PV Usage", "WH Usage"]
     )
 
     # Add fallback mechanism for empty device selection
@@ -780,12 +780,12 @@ else:  # Performance Metrics page
 
     # After the sidebar elements but before the Key metrics display
     st.markdown(f"""
-    This dashboard presents performance metrics for the **{selected_model.replace('_', ' ').title()}** model 
-    in detecting EV Charging, AC Usage, PV Usage, and Water Heater consumption patterns. For this benchmark, we have used four versions of the model, each with different hyperparameters and training strategies, old, old2, old3, and best_ev.
+    This dashboard presents performance metrics for the **{selected_model}** model 
+    in detecting EV Charging, AC Usage, PV Usage, and Water Heater consumption patterns. For this benchmark, we have used four versions of the model (V1-V4), each with different hyperparameters and training strategies.
     """)
 
     # Main content area for Performance Metrics page
-    st.subheader(f"Model: {selected_model.replace('_', ' ').title()}")
+    st.subheader(f"Model: {selected_model}")
 
     # Key metrics display section
     st.markdown("### Key Metrics")
@@ -823,11 +823,11 @@ else:  # Performance Metrics page
                 delta_color="normal"
             )
             
-            # TECA
+            # TECA - convert to percentage
             teca_value = models_data[selected_model]['TECA'][device]
             st.metric(
-                "TECA", 
-                f"{teca_value:.4f}",
+                "TECA (%)", 
+                f"{teca_value * 100:.2f}%",
                 delta=None,
                 delta_color="normal"
             )
@@ -884,10 +884,10 @@ else:  # Performance Metrics page
     with metric_tabs[0]:  # DPSPerc tab
         # Create bar chart for DPSPerc across models and devices
         dpsperc_data = []
-        for model in ["old", "old2", "old3", "best_ev"]:
+        for model in ["V1", "V2", "V3", "V4"]:
             for device in device_types:
                 dpsperc_data.append({
-                    "Model": model.replace("_", " ").title(),
+                    "Model": model,
                     "Device": device,
                     "DPSPerc (%)": models_data[model]["DPSPerc"][device]
                 })
@@ -924,10 +924,10 @@ else:  # Performance Metrics page
     with metric_tabs[1]:  # FPR tab
         # Create bar chart for FPR across models and devices
         fpr_data = []
-        for model in ["old", "old2", "old3", "best_ev"]:
+        for model in ["V1", "V2", "V3", "V4"]:
             for device in device_types:
                 fpr_data.append({
-                    "Model": model.replace("_", " ").title(),
+                    "Model": model,
                     "Device": device,
                     "FPR": models_data[model]["FPR"][device]
                 })
@@ -964,12 +964,12 @@ else:  # Performance Metrics page
     with metric_tabs[2]:  # TECA tab
         # Create bar chart for TECA across models and devices
         teca_data = []
-        for model in ["old", "old2", "old3", "best_ev"]:
+        for model in ["V1", "V2", "V3", "V4"]:
             for device in device_types:
                 teca_data.append({
-                    "Model": model.replace("_", " ").title(),
+                    "Model": model,
                     "Device": device,
-                    "TECA": models_data[model]["TECA"][device]
+                    "TECA (%)": models_data[model]["TECA"][device] * 100
                 })
         
         teca_df = pd.DataFrame(teca_data)
@@ -977,7 +977,7 @@ else:  # Performance Metrics page
         fig = px.bar(
             teca_df, 
             x="Model", 
-            y="TECA", 
+            y="TECA (%)", 
             color="Device",
             barmode="group",
             color_discrete_map={
@@ -992,7 +992,7 @@ else:  # Performance Metrics page
         fig.update_layout(
             title="Total Energy Correctly Assigned Across Models (Higher is Better)",
             xaxis_title="Model",
-            yaxis_title="TECA",
+            yaxis_title="TECA (%)",
             legend_title="Device",
             paper_bgcolor=white,
             plot_bgcolor=white,
@@ -1015,7 +1015,7 @@ else:  # Performance Metrics page
             radar_data[device] = [
                 models_data[selected_model]['DPSPerc'][device]/100,  # DPSPerc scaled to 0-1
                 1 - models_data[selected_model]['FPR'][device],      # Invert FPR (higher is better)
-                max(0, models_data[selected_model]['TECA'][device])  # TECA capped at 0 minimum
+                max(0, models_data[selected_model]['TECA'][device])  # TECA already in 0-1 range
             ]
 
         # Create radar chart
@@ -1045,7 +1045,7 @@ else:  # Performance Metrics page
         )
 
         st.plotly_chart(fig, use_container_width=True)
-        st.caption(f"Performance metrics for {selected_model.replace('_', ' ').title()} model across all dimensions")
+        st.caption(f"Performance metrics for {selected_model} model across all dimensions")
 
     with viz_col2:
         # Add device selector for confusion matrix
@@ -1097,23 +1097,23 @@ else:  # Performance Metrics page
                   yticklabels=[f'No {selected_device.split()[0]}', f'{selected_device.split()[0]} Present'])
         plt.title(title)
         st.pyplot(fig)
-        st.caption(f"Confusion matrix for {selected_device} detection (%) with {selected_model.replace('_', ' ').title()} model")
+        st.caption(f"Confusion matrix for {selected_device} detection (%) with {selected_model} model")
 
     # Key findings section
     st.markdown("### Key Findings")
     st.markdown(f"""
-    - The **{selected_model.replace('_', ' ').title()}** model shows strong performance across most device types, with PV Usage detection being particularly accurate.
+    - The **{selected_model}** model shows strong performance across most device types, with PV Usage detection being particularly accurate.
     - EV Charging detection shows excellent balance between DPSPerc ({models_data[selected_model]['DPSPerc']['EV Charging']:.2f}%) and low false positives ({models_data[selected_model]['FPR']['EV Charging']:.4f}).
     - Water Heater detection remains challenging with lower DPSPerc, suggesting further model improvements are needed for this specific device type.
-    - PV Usage detection achieves the highest DPSPerc ({models_data[selected_model]['DPSPerc']['PV Usage']:.2f}%) and TECA ({models_data[selected_model]['TECA']['PV Usage']:.4f}) among all device types.
+    - PV Usage detection achieves the highest DPSPerc ({models_data[selected_model]['DPSPerc']['PV Usage']:.2f}%) and TECA ({models_data[selected_model]['TECA']['PV Usage'] * 100:.2f}%) among all device types.
     """)
 
     # Add model comparison insights
-    if selected_model == "best_ev":
+    if selected_model == "V4":
         st.markdown("""
         **Model Comparison Insights:**
-        - The Best EV model achieves the highest EV Charging DPSPerc (85.81%) with the lowest FPR (0.1176), offering the most accurate EV detection.
-        - AC Usage detection shows comparable performance across models, with the Best EV model providing the best balance of accuracy and false positives.
+        - The V4 model achieves the highest EV Charging DPSPerc (85.81%) with the lowest FPR (0.1176), offering the most accurate EV detection.
+        - AC Usage detection shows comparable performance across models, with the V4 model providing the best balance of accuracy and false positives.
         - All models demonstrate similar PV detection capabilities, with minor variations in performance metrics.
         """)
 
