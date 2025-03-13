@@ -592,8 +592,9 @@ if page == "Sample Output":
                 "model_accuracy": model_accuracy
             })
     
-    # Convert to DataFrame
+    # Convert to DataFrame and calculate total energy
     mock_geo_df = pd.DataFrame(mock_geo_data)
+    mock_geo_df['total_energy'] = mock_geo_df['ev_energy'] + mock_geo_df['ac_energy'] + mock_geo_df['wh_energy']
     
     # Add this function to load and cache state GeoJSON data
     @st.cache_data
@@ -621,8 +622,11 @@ if page == "Sample Output":
         state_data = {}
         for region, states in state_regions.items():
             region_data = mock_geo_df[mock_geo_df['region'] == region]
-            n_points = len(states)
             for state in states:
+                # Calculate total energy if it doesn't exist
+                total_energy = region_data['total_energy'].mean() if 'total_energy' in region_data.columns else \
+                              (region_data['ev_energy'] + region_data['ac_energy'] + region_data['wh_energy']).mean()
+                
                 # Distribute regional data across states with some random variation
                 state_data[state] = {
                     'ev_adoption': region_data['ev_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
@@ -630,7 +634,7 @@ if page == "Sample Output":
                     'pv_adoption': region_data['pv_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
                     'wh_adoption': region_data['wh_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
                     'model_accuracy': region_data['model_accuracy'].mean() * (1 + np.random.uniform(-0.1, 0.1)),
-                    'total_energy': region_data['total_energy'].mean() * (1 + np.random.uniform(-0.2, 0.2))
+                    'total_energy': total_energy * (1 + np.random.uniform(-0.2, 0.2))
                 }
         
         return state_data
