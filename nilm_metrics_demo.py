@@ -509,149 +509,16 @@ if page == "Sample Output":
     # Create tabs for different map views
     map_tabs = st.tabs(["Device Adoption", "Model Performance", "Energy Consumption"])
     
-    # Create mock data for the map
-    import random
-    
-    # Generate random coordinates across the US
-    num_points = 100
-    
-    # Define regions with their approximate bounds
-    regions = {
-        "Northeast": {"lat_range": (40, 47), "lon_range": (-80, -67)},
-        "Midwest": {"lat_range": (36, 49), "lon_range": (-97, -80)},
-        "South": {"lat_range": (25, 36), "lon_range": (-106, -75)},
-        "West": {"lat_range": (32, 49), "lon_range": (-124, -107)}
+    # Define state_regions once, before the tabs
+    state_regions = {
+        'West': ['WA', 'OR', 'CA', 'ID', 'NV', 'MT', 'WY', 'UT', 'CO', 'AZ', 'NM'],
+        'Midwest': ['ND', 'SD', 'NE', 'KS', 'MN', 'IA', 'MO', 'WI', 'IL', 'IN', 'MI', 'OH'],
+        'South': ['TX', 'OK', 'AR', 'LA', 'MS', 'AL', 'TN', 'KY', 'GA', 'FL', 'SC', 'NC', 'VA', 'WV'],
+        'Northeast': ['ME', 'NH', 'VT', 'MA', 'RI', 'CT', 'NY', 'PA', 'NJ', 'DE', 'MD']
     }
-    
-    # Generate mock data with regional biases
-    mock_geo_data = []
-    
-    for region_name, bounds in regions.items():
-        # Number of points per region
-        points_in_region = num_points // 4
-        
-        for _ in range(points_in_region):
-            lat = random.uniform(bounds["lat_range"][0], bounds["lat_range"][1])
-            lon = random.uniform(bounds["lon_range"][0], bounds["lon_range"][1])
-            
-            # Create regional biases in the data
-            if region_name == "West":
-                ev_adoption = random.uniform(0.15, 0.35)  # Higher EV adoption in West
-                pv_adoption = random.uniform(0.20, 0.40)  # Higher solar in West
-                ac_adoption = random.uniform(0.60, 0.85)
-                wh_adoption = random.uniform(0.30, 0.50)
-                model_accuracy = random.uniform(0.75, 0.90)
-            elif region_name == "Northeast":
-                ev_adoption = random.uniform(0.10, 0.25)
-                pv_adoption = random.uniform(0.05, 0.20)  # Lower solar in Northeast
-                ac_adoption = random.uniform(0.50, 0.75)
-                wh_adoption = random.uniform(0.40, 0.60)  # Higher water heater in Northeast
-                model_accuracy = random.uniform(0.70, 0.85)
-            elif region_name == "Midwest":
-                ev_adoption = random.uniform(0.05, 0.15)  # Lower EV in Midwest
-                pv_adoption = random.uniform(0.05, 0.15)
-                ac_adoption = random.uniform(0.70, 0.90)  # Higher AC in Midwest
-                wh_adoption = random.uniform(0.35, 0.55)
-                model_accuracy = random.uniform(0.65, 0.80)
-            else:  # South
-                ev_adoption = random.uniform(0.08, 0.20)
-                pv_adoption = random.uniform(0.10, 0.25)
-                ac_adoption = random.uniform(0.80, 0.95)  # Highest AC in South
-                wh_adoption = random.uniform(0.25, 0.45)
-                model_accuracy = random.uniform(0.70, 0.85)
-            
-            # Add some random variation to make it look more realistic
-            ev_detected = 1 if random.random() < ev_adoption else 0
-            ac_detected = 1 if random.random() < ac_adoption else 0
-            pv_detected = 1 if random.random() < pv_adoption else 0
-            wh_detected = 1 if random.random() < wh_adoption else 0
-            
-            # Calculate mock energy values
-            ev_energy = random.uniform(50, 200) if ev_detected else 0
-            ac_energy = random.uniform(100, 400) if ac_detected else 0
-            pv_energy = random.uniform(200, 600) if pv_detected else 0
-            wh_energy = random.uniform(50, 150) if wh_detected else 0
-            
-            # Add to dataset
-            mock_geo_data.append({
-                "latitude": lat,
-                "longitude": lon,
-                "region": region_name,
-                "ev_adoption": ev_adoption,
-                "ac_adoption": ac_adoption,
-                "pv_adoption": pv_adoption,
-                "wh_adoption": wh_adoption,
-                "ev_detected": ev_detected,
-                "ac_detected": ac_detected,
-                "pv_detected": pv_detected,
-                "wh_detected": wh_detected,
-                "ev_energy": ev_energy,
-                "ac_energy": ac_energy,
-                "pv_energy": pv_energy,
-                "wh_energy": wh_energy,
-                "model_accuracy": model_accuracy
-            })
-    
-    # Convert to DataFrame and calculate total energy
-    mock_geo_df = pd.DataFrame(mock_geo_data)
-    mock_geo_df['total_energy'] = mock_geo_df['ev_energy'] + mock_geo_df['ac_energy'] + mock_geo_df['wh_energy']
-    
-    # Add this function to load and cache state GeoJSON data
-    @st.cache_data
-    def load_us_state_geojson():
-        # Load GeoJSON for US states
-        url = "https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json"
-        response = requests.get(url)
-        states_geojson = response.json()
-        return states_geojson
-
-    # Load GeoJSON data
-    states_geojson = load_us_state_geojson()
-
-    def aggregate_state_data(mock_geo_df):
-        """Aggregate data by state"""
-        # Define state coordinates (centroids) for mapping regions to states
-        state_regions = {
-            'West': ['WA', 'OR', 'CA', 'ID', 'NV', 'MT', 'WY', 'UT', 'CO', 'AZ', 'NM'],
-            'Midwest': ['ND', 'SD', 'NE', 'KS', 'MN', 'IA', 'MO', 'WI', 'IL', 'IN', 'MI', 'OH'],
-            'South': ['TX', 'OK', 'AR', 'LA', 'MS', 'AL', 'TN', 'KY', 'GA', 'FL', 'SC', 'NC', 'VA', 'WV'],
-            'Northeast': ['ME', 'NH', 'VT', 'MA', 'RI', 'CT', 'NY', 'PA', 'NJ', 'DE', 'MD']
-        }
-        
-        # Create state-level aggregations
-        state_data = {}
-        for region, states in state_regions.items():
-            region_data = mock_geo_df[mock_geo_df['region'] == region]
-            for state in states:
-                # Calculate total energy if it doesn't exist
-                total_energy = region_data['total_energy'].mean() if 'total_energy' in region_data.columns else \
-                              (region_data['ev_energy'] + region_data['ac_energy'] + region_data['wh_energy']).mean()
-                
-                # Distribute regional data across states with some random variation
-                state_data[state] = {
-                    'ev_adoption': region_data['ev_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
-                    'ac_adoption': region_data['ac_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
-                    'pv_adoption': region_data['pv_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
-                    'wh_adoption': region_data['wh_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
-                    'model_accuracy': region_data['model_accuracy'].mean() * (1 + np.random.uniform(-0.1, 0.1)),
-                    'total_energy': total_energy * (1 + np.random.uniform(-0.2, 0.2))
-                }
-        
-        return state_data
-
-    # Aggregate data by state
-    state_data = aggregate_state_data(mock_geo_df)
 
     with map_tabs[0]:  # Device Adoption tab
         col1, col2 = st.columns([1, 3])
-        
-        # Define state_regions here where it's used
-        state_regions = {
-            'West': ['WA', 'OR', 'CA', 'ID', 'NV', 'MT', 'WY', 'UT', 'CO', 'AZ', 'NM'],
-            'Midwest': ['ND', 'SD', 'NE', 'KS', 'MN', 'IA', 'MO', 'WI', 'IL', 'IN', 'MI', 'OH'],
-            'South': ['TX', 'OK', 'AR', 'LA', 'MS', 'AL', 'TN', 'KY', 'GA', 'FL', 'SC', 'NC', 'VA', 'WV'],
-            'Northeast': ['ME', 'NH', 'VT', 'MA', 'RI', 'CT', 'NY', 'PA', 'NJ', 'DE', 'MD']
-        }
         
         with col1:
             # Add region selector
@@ -1606,3 +1473,26 @@ else:  # Performance Metrics page
         These results help guide model selection and identify areas for further improvement.
     </div>
     """, unsafe_allow_html=True)
+
+def aggregate_state_data(mock_geo_df):
+    """Aggregate data by state"""
+    # Create state-level aggregations
+    state_data = {}
+    for region, states in state_regions.items():  # Use the globally defined state_regions
+        region_data = mock_geo_df[mock_geo_df['region'] == region]
+        for state in states:
+            # Calculate total energy if it doesn't exist
+            total_energy = region_data['total_energy'].mean() if 'total_energy' in region_data.columns else \
+                          (region_data['ev_energy'] + region_data['ac_energy'] + region_data['wh_energy']).mean()
+            
+            # Distribute regional data across states with some random variation
+            state_data[state] = {
+                'ev_adoption': region_data['ev_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
+                'ac_adoption': region_data['ac_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
+                'pv_adoption': region_data['pv_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
+                'wh_adoption': region_data['wh_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
+                'model_accuracy': region_data['model_accuracy'].mean() * (1 + np.random.uniform(-0.1, 0.1)),
+                'total_energy': total_energy * (1 + np.random.uniform(-0.2, 0.2))
+            }
+    
+    return state_data
