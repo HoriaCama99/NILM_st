@@ -509,144 +509,89 @@ with metric_col4:
     
     # Create mock data for the map
     import random
-    import json
     
-    # Define US states with their abbreviations and regions
-    us_states = {
-        "AL": {"name": "Alabama", "region": "South"},
-        "AK": {"name": "Alaska", "region": "West"},
-        "AZ": {"name": "Arizona", "region": "West"},
-        "AR": {"name": "Arkansas", "region": "South"},
-        "CA": {"name": "California", "region": "West"},
-        "CO": {"name": "Colorado", "region": "West"},
-        "CT": {"name": "Connecticut", "region": "Northeast"},
-        "DE": {"name": "Delaware", "region": "Northeast"},
-        "FL": {"name": "Florida", "region": "South"},
-        "GA": {"name": "Georgia", "region": "South"},
-        "HI": {"name": "Hawaii", "region": "West"},
-        "ID": {"name": "Idaho", "region": "West"},
-        "IL": {"name": "Illinois", "region": "Midwest"},
-        "IN": {"name": "Indiana", "region": "Midwest"},
-        "IA": {"name": "Iowa", "region": "Midwest"},
-        "KS": {"name": "Kansas", "region": "Midwest"},
-        "KY": {"name": "Kentucky", "region": "South"},
-        "LA": {"name": "Louisiana", "region": "South"},
-        "ME": {"name": "Maine", "region": "Northeast"},
-        "MD": {"name": "Maryland", "region": "Northeast"},
-        "MA": {"name": "Massachusetts", "region": "Northeast"},
-        "MI": {"name": "Michigan", "region": "Midwest"},
-        "MN": {"name": "Minnesota", "region": "Midwest"},
-        "MS": {"name": "Mississippi", "region": "South"},
-        "MO": {"name": "Missouri", "region": "Midwest"},
-        "MT": {"name": "Montana", "region": "West"},
-        "NE": {"name": "Nebraska", "region": "Midwest"},
-        "NV": {"name": "Nevada", "region": "West"},
-        "NH": {"name": "New Hampshire", "region": "Northeast"},
-        "NJ": {"name": "New Jersey", "region": "Northeast"},
-        "NM": {"name": "New Mexico", "region": "West"},
-        "NY": {"name": "New York", "region": "Northeast"},
-        "NC": {"name": "North Carolina", "region": "South"},
-        "ND": {"name": "North Dakota", "region": "Midwest"},
-        "OH": {"name": "Ohio", "region": "Midwest"},
-        "OK": {"name": "Oklahoma", "region": "South"},
-        "OR": {"name": "Oregon", "region": "West"},
-        "PA": {"name": "Pennsylvania", "region": "Northeast"},
-        "RI": {"name": "Rhode Island", "region": "Northeast"},
-        "SC": {"name": "South Carolina", "region": "South"},
-        "SD": {"name": "South Dakota", "region": "Midwest"},
-        "TN": {"name": "Tennessee", "region": "South"},
-        "TX": {"name": "Texas", "region": "South"},
-        "UT": {"name": "Utah", "region": "West"},
-        "VT": {"name": "Vermont", "region": "Northeast"},
-        "VA": {"name": "Virginia", "region": "South"},
-        "WA": {"name": "Washington", "region": "West"},
-        "WV": {"name": "West Virginia", "region": "South"},
-        "WI": {"name": "Wisconsin", "region": "Midwest"},
-        "WY": {"name": "Wyoming", "region": "West"},
-        "DC": {"name": "District of Columbia", "region": "Northeast"}
+    # Generate random coordinates across the US
+    num_points = 100
+    
+    # Define regions with their approximate bounds
+    regions = {
+        "Northeast": {"lat_range": (40, 47), "lon_range": (-80, -67)},
+        "Midwest": {"lat_range": (36, 49), "lon_range": (-97, -80)},
+        "South": {"lat_range": (25, 36), "lon_range": (-106, -75)},
+        "West": {"lat_range": (32, 49), "lon_range": (-124, -107)}
     }
     
-    # Generate mock data with regional biases for each state
-    mock_state_data = []
+    # Generate mock data with regional biases
+    mock_geo_data = []
     
-    for state_code, state_info in us_states.items():
-        region_name = state_info["region"]
+    for region_name, bounds in regions.items():
+        # Number of points per region
+        points_in_region = num_points // 4
         
-        # Create regional biases in the data
-        if region_name == "West":
-            ev_adoption = random.uniform(0.15, 0.35)  # Higher EV adoption in West
-            pv_adoption = random.uniform(0.20, 0.40)  # Higher solar in West
-            ac_adoption = random.uniform(0.60, 0.85)
-            wh_adoption = random.uniform(0.30, 0.50)
-            model_accuracy = random.uniform(0.75, 0.90)
-        elif region_name == "Northeast":
-            ev_adoption = random.uniform(0.10, 0.25)
-            pv_adoption = random.uniform(0.05, 0.20)  # Lower solar in Northeast
-            ac_adoption = random.uniform(0.50, 0.75)
-            wh_adoption = random.uniform(0.40, 0.60)  # Higher water heater in Northeast
-            model_accuracy = random.uniform(0.70, 0.85)
-        elif region_name == "Midwest":
-            ev_adoption = random.uniform(0.05, 0.15)  # Lower EV in Midwest
-            pv_adoption = random.uniform(0.05, 0.15)
-            ac_adoption = random.uniform(0.70, 0.90)  # Higher AC in Midwest
-            wh_adoption = random.uniform(0.35, 0.55)
-            model_accuracy = random.uniform(0.65, 0.80)
-        else:  # South
-            ev_adoption = random.uniform(0.08, 0.20)
-            pv_adoption = random.uniform(0.10, 0.25)
-            ac_adoption = random.uniform(0.80, 0.95)  # Highest AC in South
-            wh_adoption = random.uniform(0.25, 0.45)
-            model_accuracy = random.uniform(0.70, 0.85)
-        
-        # Add some state-specific variations to make it look more realistic
-        # California has higher EV and solar adoption
-        if state_code == "CA":
-            ev_adoption = random.uniform(0.30, 0.45)
-            pv_adoption = random.uniform(0.35, 0.50)
-        # Florida has higher AC usage
-        elif state_code == "FL":
-            ac_adoption = random.uniform(0.85, 0.98)
-        # New York has higher EV adoption for Northeast
-        elif state_code == "NY":
-            ev_adoption = random.uniform(0.15, 0.30)
-        
-        # Calculate mock energy values based on adoption rates
-        ev_energy = random.uniform(50, 200) * ev_adoption * 10
-        ac_energy = random.uniform(100, 400) * ac_adoption * 5
-        pv_energy = random.uniform(200, 600) * pv_adoption * 8
-        wh_energy = random.uniform(50, 150) * wh_adoption * 6
-        
-        # Add to dataset
-        mock_state_data.append({
-            "state_code": state_code,
-            "state_name": state_info["name"],
-            "region": region_name,
-            "ev_adoption": ev_adoption,
-            "ac_adoption": ac_adoption,
-            "pv_adoption": pv_adoption,
-            "wh_adoption": wh_adoption,
-            "ev_energy": ev_energy,
-            "ac_energy": ac_energy,
-            "pv_energy": pv_energy,
-            "wh_energy": wh_energy,
-            "model_accuracy": model_accuracy
-        })
+        for _ in range(points_in_region):
+            lat = random.uniform(bounds["lat_range"][0], bounds["lat_range"][1])
+            lon = random.uniform(bounds["lon_range"][0], bounds["lon_range"][1])
+            
+            # Create regional biases in the data
+            if region_name == "West":
+                ev_adoption = random.uniform(0.15, 0.35)  # Higher EV adoption in West
+                pv_adoption = random.uniform(0.20, 0.40)  # Higher solar in West
+                ac_adoption = random.uniform(0.60, 0.85)
+                wh_adoption = random.uniform(0.30, 0.50)
+                model_accuracy = random.uniform(0.75, 0.90)
+            elif region_name == "Northeast":
+                ev_adoption = random.uniform(0.10, 0.25)
+                pv_adoption = random.uniform(0.05, 0.20)  # Lower solar in Northeast
+                ac_adoption = random.uniform(0.50, 0.75)
+                wh_adoption = random.uniform(0.40, 0.60)  # Higher water heater in Northeast
+                model_accuracy = random.uniform(0.70, 0.85)
+            elif region_name == "Midwest":
+                ev_adoption = random.uniform(0.05, 0.15)  # Lower EV in Midwest
+                pv_adoption = random.uniform(0.05, 0.15)
+                ac_adoption = random.uniform(0.70, 0.90)  # Higher AC in Midwest
+                wh_adoption = random.uniform(0.35, 0.55)
+                model_accuracy = random.uniform(0.65, 0.80)
+            else:  # South
+                ev_adoption = random.uniform(0.08, 0.20)
+                pv_adoption = random.uniform(0.10, 0.25)
+                ac_adoption = random.uniform(0.80, 0.95)  # Highest AC in South
+                wh_adoption = random.uniform(0.25, 0.45)
+                model_accuracy = random.uniform(0.70, 0.85)
+            
+            # Add some random variation to make it look more realistic
+            ev_detected = 1 if random.random() < ev_adoption else 0
+            ac_detected = 1 if random.random() < ac_adoption else 0
+            pv_detected = 1 if random.random() < pv_adoption else 0
+            wh_detected = 1 if random.random() < wh_adoption else 0
+            
+            # Calculate mock energy values
+            ev_energy = random.uniform(50, 200) if ev_detected else 0
+            ac_energy = random.uniform(100, 400) if ac_detected else 0
+            pv_energy = random.uniform(200, 600) if pv_detected else 0
+            wh_energy = random.uniform(50, 150) if wh_detected else 0
+            
+            # Add to dataset
+            mock_geo_data.append({
+                "latitude": lat,
+                "longitude": lon,
+                "region": region_name,
+                "ev_adoption": ev_adoption,
+                "ac_adoption": ac_adoption,
+                "pv_adoption": pv_adoption,
+                "wh_adoption": wh_adoption,
+                "ev_detected": ev_detected,
+                "ac_detected": ac_detected,
+                "pv_detected": pv_detected,
+                "wh_detected": wh_detected,
+                "ev_energy": ev_energy,
+                "ac_energy": ac_energy,
+                "pv_energy": pv_energy,
+                "wh_energy": wh_energy,
+                "model_accuracy": model_accuracy
+            })
     
     # Convert to DataFrame
-    mock_state_df = pd.DataFrame(mock_state_data)
-    
-    # Add performance metrics
-    mock_state_df["dpsperc"] = mock_state_df["model_accuracy"] * (1 + random.uniform(-0.1, 0.1))
-    mock_state_df["fpr"] = 1 - (mock_state_df["model_accuracy"] * random.uniform(0.8, 1.0))
-    mock_state_df["teca"] = mock_state_df["model_accuracy"] * (1 + random.uniform(-0.15, 0.15))
-    
-    # Ensure values are in reasonable ranges
-    mock_state_df["dpsperc"] = mock_state_df["dpsperc"].clip(0.5, 0.95)
-    mock_state_df["fpr"] = mock_state_df["fpr"].clip(0.05, 0.5)
-    mock_state_df["teca"] = mock_state_df["teca"].clip(0.4, 0.9)
-    
-    # Calculate total energy
-    mock_state_df["total_energy"] = mock_state_df["ev_energy"] + mock_state_df["ac_energy"] + mock_state_df["wh_energy"]
+    mock_geo_df = pd.DataFrame(mock_geo_data)
     
     with map_tabs[0]:  # Device Adoption tab
         col1, col2 = st.columns([1, 3])
@@ -668,74 +613,74 @@ with metric_col4:
             
             # Add a brief explanation
             st.markdown("""
-            This map shows the geographic distribution of device adoption rates across different states.
+            This map shows the geographic distribution of device adoption rates across different regions.
             
+            - Larger circles indicate higher adoption rates
             - Color intensity corresponds to adoption percentage
-            - Hover over states to see detailed information
-            - Regional patterns reveal adoption trends
+            - Hover over points to see detailed information
             """)
         
         with col2:
             # Filter data based on region selection
             if selected_region != "All Regions":
-                display_state_df = mock_state_df[mock_state_df["region"] == selected_region]
+                display_geo_df = mock_geo_df[mock_geo_df["region"] == selected_region]
             else:
-                display_state_df = mock_state_df
+                display_geo_df = mock_geo_df
             
             # Determine which data to show based on device selection
             if map_device == "EV Charging":
                 color_data = 'ev_adoption'
-                color_scale = [[0, "#F2F4FC"], [0.5, light_purple], [1, primary_purple]]
-                title = "EV Charging Adoption Rate by State"
-                range_color = [0, 0.45]
+                size_data = 'ev_adoption'
+                color_scale = [[0, primary_purple], [1, light_purple]]
+                title = "EV Charging Adoption Rate"
             elif map_device == "AC Usage":
                 color_data = 'ac_adoption'
-                color_scale = [[0, "#F2F9F7"], [0.5, "#B5E2C9"], [1, green]]
-                title = "AC Usage Adoption Rate by State"
-                range_color = [0.5, 0.98]
+                size_data = 'ac_adoption'
+                color_scale = [[0, "#B5E2C9"], [1, green]]
+                title = "AC Usage Adoption Rate"
             elif map_device == "PV Usage":
                 color_data = 'pv_adoption'
-                color_scale = [[0, "#FDFBF7"], [0.5, "#F9EFD6"], [1, cream]]
-                title = "PV Usage Adoption Rate by State"
-                range_color = [0, 0.5]
+                size_data = 'pv_adoption'
+                color_scale = [[0, "#F9EFD6"], [1, cream]]
+                title = "PV Usage Adoption Rate"
             elif map_device == "WH Usage":
                 color_data = 'wh_adoption'
-                color_scale = [[0, "#FDF8F6"], [0.5, "#F5D0C5"], [1, salmon]]
-                title = "WH Usage Adoption Rate by State"
-                range_color = [0.25, 0.6]
+                size_data = 'wh_adoption'
+                color_scale = [[0, "#F5D0C5"], [1, salmon]]
+                title = "WH Usage Adoption Rate"
             else:
-                # For "All Devices", calculate average adoption
-                display_state_df['avg_adoption'] = (display_state_df['ev_adoption'] + 
-                                                  display_state_df['ac_adoption'] + 
-                                                  display_state_df['pv_adoption'] + 
-                                                  display_state_df['wh_adoption']) / 4
-                color_data = 'avg_adoption'
-                color_scale = [[0, "#F2F2F2"], [0.5, "#D0D0D0"], [1, primary_purple]]
-                title = "Overall Device Adoption by State"
-                range_color = [0.2, 0.5]
+                # For "All Devices", use model accuracy as color and total devices as size
+                color_data = 'model_accuracy'
+                # Calculate total devices detected for size
+                display_geo_df['total_devices'] = display_geo_df['ev_detected'] + display_geo_df['ac_detected'] + display_geo_df['pv_detected'] + display_geo_df['wh_detected']
+                size_data = 'total_devices'
+                color_scale = [[0, "#D0D0D0"], [1, primary_purple]]
+                title = "Overall Device Adoption"
             
-            # Create the choropleth map
-            fig = px.choropleth(
-                display_state_df,
-                locations="state_code",
+            # Create the map
+            fig = px.scatter_mapbox(
+                display_geo_df,
+                lat="latitude",
+                lon="longitude",
                 color=color_data,
-                hover_name="state_name",
+                size=size_data,
+                size_max=15,
+                hover_name="region",
                 hover_data={
-                    "state_code": False,
+                    "latitude": False,
+                    "longitude": False,
                     "ev_adoption": ':.1%',
                     "ac_adoption": ':.1%',
                     "pv_adoption": ':.1%',
                     "wh_adoption": ':.1%',
-                    "region": True
+                    "model_accuracy": ':.1%'
                 },
-                locationmode="USA-states",
-                scope="usa",
                 color_continuous_scale=color_scale,
-                range_color=range_color,
+                zoom=3.5 if selected_region == "All Regions" else 5,
+                mapbox_style="carto-positron",
                 title=title
             )
             
-            # Update layout
             fig.update_layout(
                 margin=dict(l=0, r=0, t=30, b=0),
                 coloraxis_colorbar=dict(
@@ -744,12 +689,7 @@ with metric_col4:
                 ),
                 height=500,
                 paper_bgcolor=white,
-                geo=dict(
-                    showlakes=True,
-                    lakecolor=white,
-                    showsubunits=True,
-                    subunitcolor="lightgray"
-                ),
+                plot_bgcolor=white,
                 font=dict(color=dark_purple)
             )
             
@@ -775,83 +715,87 @@ with metric_col4:
             
             # Add a brief explanation
             st.markdown("""
-            This map visualizes model performance metrics across different states.
+            This map visualizes model performance metrics across different regions.
             
             - Color intensity shows performance level
-            - States with similar colors indicate similar performance
+            - Larger circles indicate higher confidence
             - Regional patterns may suggest areas for model improvement
             """)
         
         with col2:
             # Filter data based on region selection
             if perf_region != "All Regions":
-                perf_state_df = mock_state_df[mock_state_df["region"] == perf_region]
+                perf_geo_df = mock_geo_df[mock_geo_df["region"] == perf_region]
             else:
-                perf_state_df = mock_state_df
+                perf_geo_df = mock_geo_df
+            
+            # Add mock performance metrics if they don't exist
+            if "dpsperc" not in perf_geo_df.columns:
+                perf_geo_df["dpsperc"] = perf_geo_df["model_accuracy"] * random.uniform(0.9, 1.1)
+                perf_geo_df["fpr"] = 1 - (perf_geo_df["model_accuracy"] * random.uniform(0.8, 1.0))
+                perf_geo_df["teca"] = perf_geo_df["model_accuracy"] * random.uniform(0.85, 1.15)
+                # Ensure values are in reasonable ranges
+                perf_geo_df["dpsperc"] = perf_geo_df["dpsperc"].clip(0.5, 0.95)
+                perf_geo_df["fpr"] = perf_geo_df["fpr"].clip(0.05, 0.5)
+                perf_geo_df["teca"] = perf_geo_df["teca"].clip(0.4, 0.9)
             
             # Determine which metric to show
             if perf_metric == "Model Accuracy":
                 color_data = 'model_accuracy'
-                title = "Overall Model Accuracy by State"
-                color_scale = [[0, "#F2F2F2"], [0.5, light_purple], [1, primary_purple]]
-                range_color = [0.65, 0.9]
-                format_str = '.0%'
+                title = "Overall Model Accuracy"
+                color_range = [0.6, 0.9]
             elif perf_metric == "DPSPerc":
                 color_data = 'dpsperc'
-                title = "Distance to Perfect Score (DPSPerc) by State"
-                color_scale = [[0, "#F2F2F2"], [0.5, light_purple], [1, primary_purple]]
-                range_color = [0.5, 0.95]
-                format_str = '.0%'
+                title = "Distance to Perfect Score (DPSPerc)"
+                color_range = [0.5, 0.95]
             elif perf_metric == "FPR":
                 color_data = 'fpr'
-                title = "False Positive Rate (FPR) by State"
+                title = "False Positive Rate (FPR)"
+                color_range = [0.05, 0.5]
                 # Invert color scale for FPR (lower is better)
-                color_scale = [[0, green], [0.5, "#F5D0C5"], [1, red]]
-                range_color = [0.05, 0.5]
-                format_str = '.0%'
+                color_scale = [[0, green], [1, red]]
             else:  # TECA
                 color_data = 'teca'
-                title = "Total Energy Correctly Assigned (TECA) by State"
-                color_scale = [[0, "#F2F2F2"], [0.5, light_purple], [1, primary_purple]]
-                range_color = [0.4, 0.9]
-                format_str = '.0%'
+                title = "Total Energy Correctly Assigned (TECA)"
+                color_range = [0.4, 0.9]
             
-            # Create the choropleth map
-            fig = px.choropleth(
-                perf_state_df,
-                locations="state_code",
+            # Set default color scale (except for FPR which is defined above)
+            if perf_metric != "FPR":
+                color_scale = [[0, "#D0D0D0"], [1, primary_purple]]
+            
+            # Create the map
+            fig = px.scatter_mapbox(
+                perf_geo_df,
+                lat="latitude",
+                lon="longitude",
                 color=color_data,
-                hover_name="state_name",
+                size='model_accuracy',  # Use accuracy for size to show confidence
+                size_max=15,
+                hover_name="region",
                 hover_data={
-                    "state_code": False,
+                    "latitude": False,
+                    "longitude": False,
                     "model_accuracy": ':.1%',
                     "dpsperc": ':.1%',
                     "fpr": ':.1%',
-                    "teca": ':.1%',
-                    "region": True
+                    "teca": ':.1%'
                 },
-                locationmode="USA-states",
-                scope="usa",
                 color_continuous_scale=color_scale,
-                range_color=range_color,
+                range_color=color_range,
+                zoom=3.5 if perf_region == "All Regions" else 5,
+                mapbox_style="carto-positron",
                 title=title
             )
             
-            # Update layout
             fig.update_layout(
                 margin=dict(l=0, r=0, t=30, b=0),
                 coloraxis_colorbar=dict(
                     title=perf_metric,
-                    tickformat=format_str
+                    tickformat='.0%'
                 ),
                 height=500,
                 paper_bgcolor=white,
-                geo=dict(
-                    showlakes=True,
-                    lakecolor=white,
-                    showsubunits=True,
-                    subunitcolor="lightgray"
-                ),
+                plot_bgcolor=white,
                 font=dict(color=dark_purple)
             )
             
@@ -877,100 +821,82 @@ with metric_col4:
             
             # Add a brief explanation
             st.markdown("""
-            This map shows energy consumption patterns across different states.
+            This map shows energy consumption patterns across different regions.
             
             - Color intensity indicates energy usage levels
-            - Hover over states to see detailed energy data
+            - Larger circles represent higher consumption
             - Regional patterns may reflect climate differences and adoption rates
             """)
         
         with col2:
             # Filter data based on region selection
             if energy_region != "All Regions":
-                energy_state_df = mock_state_df[mock_state_df["region"] == energy_region]
+                energy_geo_df = mock_geo_df[mock_geo_df["region"] == energy_region]
             else:
-                energy_state_df = mock_state_df
+                energy_geo_df = mock_geo_df
+            
+            # Calculate total energy for each point
+            energy_geo_df["total_energy"] = energy_geo_df["ev_energy"] + energy_geo_df["ac_energy"] + energy_geo_df["wh_energy"]
             
             # Determine which energy data to show
             if energy_type == "Total Consumption":
                 color_data = 'total_energy'
-                title = "Total Energy Consumption (kWh) by State"
-                color_scale = [[0, "#F2F2F2"], [0.5, light_purple], [1, primary_purple]]
-                # Calculate range based on data
-                min_val = energy_state_df['total_energy'].min()
-                max_val = energy_state_df['total_energy'].max()
-                range_color = [min_val, max_val]
-                format_str = '.1f'
+                size_data = 'total_energy'
+                title = "Total Energy Consumption (kWh)"
+                color_scale = [[0, "#D0D0D0"], [1, primary_purple]]
             elif energy_type == "EV Charging":
                 color_data = 'ev_energy'
-                title = "EV Charging Energy (kWh) by State"
-                color_scale = [[0, "#F2F2F2"], [0.5, light_purple], [1, primary_purple]]
-                min_val = energy_state_df['ev_energy'].min()
-                max_val = energy_state_df['ev_energy'].max()
-                range_color = [min_val, max_val]
-                format_str = '.1f'
+                size_data = 'ev_energy'
+                title = "EV Charging Energy (kWh)"
+                color_scale = [[0, "#D0D0D0"], [1, primary_purple]]
             elif energy_type == "AC Usage":
                 color_data = 'ac_energy'
-                title = "AC Usage Energy (kWh) by State"
-                color_scale = [[0, "#F2F2F2"], [0.5, "#B5E2C9"], [1, green]]
-                min_val = energy_state_df['ac_energy'].min()
-                max_val = energy_state_df['ac_energy'].max()
-                range_color = [min_val, max_val]
-                format_str = '.1f'
+                size_data = 'ac_energy'
+                title = "AC Usage Energy (kWh)"
+                color_scale = [[0, "#D0D0D0"], [1, green]]
             elif energy_type == "PV Production":
                 color_data = 'pv_energy'
-                title = "Solar PV Production (kWh) by State"
-                color_scale = [[0, "#F2F2F2"], [0.5, "#F9EFD6"], [1, cream]]
-                min_val = energy_state_df['pv_energy'].min()
-                max_val = energy_state_df['pv_energy'].max()
-                range_color = [min_val, max_val]
-                format_str = '.1f'
+                size_data = 'pv_energy'
+                title = "Solar PV Production (kWh)"
+                color_scale = [[0, "#D0D0D0"], [1, cream]]
             else:  # WH Usage
                 color_data = 'wh_energy'
-                title = "Water Heater Energy (kWh) by State"
-                color_scale = [[0, "#F2F2F2"], [0.5, "#F5D0C5"], [1, salmon]]
-                min_val = energy_state_df['wh_energy'].min()
-                max_val = energy_state_df['wh_energy'].max()
-                range_color = [min_val, max_val]
-                format_str = '.1f'
+                size_data = 'wh_energy'
+                title = "Water Heater Energy (kWh)"
+                color_scale = [[0, "#D0D0D0"], [1, salmon]]
             
-            # Create the choropleth map
-            fig = px.choropleth(
-                energy_state_df,
-                locations="state_code",
+            # Create the map
+            fig = px.scatter_mapbox(
+                energy_geo_df,
+                lat="latitude",
+                lon="longitude",
                 color=color_data,
-                hover_name="state_name",
+                size=size_data,
+                size_max=15,
+                hover_name="region",
                 hover_data={
-                    "state_code": False,
+                    "latitude": False,
+                    "longitude": False,
                     "total_energy": ':.1f',
                     "ev_energy": ':.1f',
                     "ac_energy": ':.1f',
                     "pv_energy": ':.1f',
-                    "wh_energy": ':.1f',
-                    "region": True
+                    "wh_energy": ':.1f'
                 },
-                locationmode="USA-states",
-                scope="usa",
                 color_continuous_scale=color_scale,
-                range_color=range_color,
+                zoom=3.5 if energy_region == "All Regions" else 5,
+                mapbox_style="carto-positron",
                 title=title
             )
             
-            # Update layout
             fig.update_layout(
                 margin=dict(l=0, r=0, t=30, b=0),
                 coloraxis_colorbar=dict(
-                    title="Energy (kWh)",
-                    tickformat=format_str
+                    title="Energy (kWh)"
                 ),
                 height=500,
                 paper_bgcolor=white,
-                geo=dict(
-                    showlakes=True,
-                    lakecolor=white,
-                    showsubunits=True,
-                    subunitcolor="lightgray"
-                ),
+                plot_bgcolor=white,
                 font=dict(color=dark_purple)
             )
             
