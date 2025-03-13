@@ -516,6 +516,28 @@ if page == "Sample Output":
         'South': ['TX', 'OK', 'AR', 'LA', 'MS', 'AL', 'TN', 'KY', 'GA', 'FL', 'SC', 'NC', 'VA', 'WV'],
         'Northeast': ['ME', 'NH', 'VT', 'MA', 'RI', 'CT', 'NY', 'PA', 'NJ', 'DE', 'MD']
     }
+    def aggregate_state_data(mock_geo_df, state_regions):
+        """Aggregate data by state"""
+        # Create state-level aggregations
+        state_data = {}
+        for region, states in state_regions.items():
+            region_data = mock_geo_df[mock_geo_df['region'] == region]
+            for state in states:
+                # Calculate total energy if it doesn't exist
+                total_energy = region_data['total_energy'].mean() if 'total_energy' in region_data.columns else \
+                            (region_data['ev_energy'] + region_data['ac_energy'] + region_data['wh_energy']).mean()
+                
+                # Distribute regional data across states with some random variation
+                state_data[state] = {
+                    'ev_adoption': region_data['ev_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
+                    'ac_adoption': region_data['ac_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
+                    'pv_adoption': region_data['pv_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
+                    'wh_adoption': region_data['wh_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
+                    'model_accuracy': region_data['model_accuracy'].mean() * (1 + np.random.uniform(-0.1, 0.1)),
+                    'total_energy': total_energy * (1 + np.random.uniform(-0.2, 0.2))
+                }
+        
+        return state_data
 
     with map_tabs[0]:  # Device Adoption tab
         col1, col2 = st.columns([1, 3])
@@ -541,6 +563,7 @@ if page == "Sample Output":
             - Use the color scale to understand adoption rates
             - Hover over states to see values
             """)
+        
         
         with col2:
             # Aggregate data by state
@@ -1486,25 +1509,3 @@ else:  # Performance Metrics page
     </div>
     """, unsafe_allow_html=True)
 
-def aggregate_state_data(mock_geo_df, state_regions):
-    """Aggregate data by state"""
-    # Create state-level aggregations
-    state_data = {}
-    for region, states in state_regions.items():
-        region_data = mock_geo_df[mock_geo_df['region'] == region]
-        for state in states:
-            # Calculate total energy if it doesn't exist
-            total_energy = region_data['total_energy'].mean() if 'total_energy' in region_data.columns else \
-                          (region_data['ev_energy'] + region_data['ac_energy'] + region_data['wh_energy']).mean()
-            
-            # Distribute regional data across states with some random variation
-            state_data[state] = {
-                'ev_adoption': region_data['ev_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
-                'ac_adoption': region_data['ac_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
-                'pv_adoption': region_data['pv_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
-                'wh_adoption': region_data['wh_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
-                'model_accuracy': region_data['model_accuracy'].mean() * (1 + np.random.uniform(-0.1, 0.1)),
-                'total_energy': total_energy * (1 + np.random.uniform(-0.2, 0.2))
-            }
-    
-    return state_data
