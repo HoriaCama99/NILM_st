@@ -544,7 +544,7 @@ if page == "Sample Output":
         
         with col2:
             # Aggregate data by state
-            state_data = aggregate_state_data(mock_geo_df)
+            state_data = aggregate_state_data(mock_geo_df, state_regions)
             
             # Prepare data for choropleth map
             state_values = {}
@@ -714,12 +714,12 @@ if page == "Sample Output":
                 color_scale = [[0, "#D0D0D0"], [1, primary_purple]]
             
             # Create the map
-            fig = px.scatter_mapbox(
+            fig = px.scatter_map(
                 perf_geo_df,
                 lat="latitude",
                 lon="longitude",
                 color=color_data,
-                size='model_accuracy',  # Use accuracy for size to show confidence
+                size='model_accuracy',
                 size_max=15,
                 hover_name="region",
                 hover_data={
@@ -816,7 +816,7 @@ if page == "Sample Output":
                 color_scale = [[0, "#D0D0D0"], [1, salmon]]
             
             # Create the map
-            fig = px.scatter_mapbox(
+            fig = px.scatter_map(
                 energy_geo_df,
                 lat="latitude",
                 lon="longitude",
@@ -1486,11 +1486,11 @@ else:  # Performance Metrics page
     </div>
     """, unsafe_allow_html=True)
 
-def aggregate_state_data(mock_geo_df):
+def aggregate_state_data(mock_geo_df, state_regions):
     """Aggregate data by state"""
     # Create state-level aggregations
     state_data = {}
-    for region, states in state_regions.items():  # Use the globally defined state_regions
+    for region, states in state_regions.items():
         region_data = mock_geo_df[mock_geo_df['region'] == region]
         for state in states:
             # Calculate total energy if it doesn't exist
