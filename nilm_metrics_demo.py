@@ -7,8 +7,6 @@ import numpy as np
 from plotly.subplots import make_subplots
 from PIL import Image
 import seaborn as sns
-import json
-import requests
 
 # Hide the default Streamlit navigation menu
 st.set_page_config(
@@ -250,110 +248,110 @@ except Exception as e:
     st.warning(f"Banner image not found at {banner_path}. Please update the path in the code.")
 
 if page == "Sample Output":
-# Convert the sample data to a DataFrame
+    # Convert the sample data to a DataFrame
     df = pd.read_csv('disagg_sample.csv') 
 
-# Page title and introduction
-st.title("Energy Disaggregation Model: Sample Output")
+    # Page title and introduction
+    st.title("Energy Disaggregation Model: Sample Output")
 
-st.markdown("""
-This dashboard presents a sample output from our energy disaggregation model, which analyzes household 
-energy consumption data and identifies specific appliance usage patterns.
+    st.markdown("""
+    This dashboard presents a sample output from our energy disaggregation model, which analyzes household 
+    energy consumption data and identifies specific appliance usage patterns.
 
-### Key Assumptions:
-- Sample represents output for multiple homes with diverse energy profiles
+    ### Key Assumptions:
+    - Sample represents output for multiple homes with diverse energy profiles
     - Values reflect monthly average energy consumption in kWh
-- Detection flags (0/1) indicate presence of each appliance
+    - Detection flags (0/1) indicate presence of each appliance
     - Grid consumption represents total household electricity usage
-- Model confidence levels are not shown in this simplified output
-""")
+    - Model confidence levels are not shown in this simplified output
+    """)
 
-# Add interactive filtering directly with the first dataframe
-st.subheader("Sample Model Output with Interactive Filtering")
+    # Add interactive filtering directly with the first dataframe
+    st.subheader("Sample Model Output with Interactive Filtering")
 
-# Add filter controls in a more compact format
-filter_cols = st.columns(4)
+    # Add filter controls in a more compact format
+    filter_cols = st.columns(4)
 
-with filter_cols[0]:
-    ev_filter = st.selectbox("EV Charging", ["Any", "Present", "Not Present"])
+    with filter_cols[0]:
+        ev_filter = st.selectbox("EV Charging", ["Any", "Present", "Not Present"])
 
-with filter_cols[1]:
-    ac_filter = st.selectbox("Air Conditioning", ["Any", "Present", "Not Present"])
+    with filter_cols[1]:
+        ac_filter = st.selectbox("Air Conditioning", ["Any", "Present", "Not Present"])
 
-with filter_cols[2]:
-    pv_filter = st.selectbox("Solar PV", ["Any", "Present", "Not Present"])
+    with filter_cols[2]:
+        pv_filter = st.selectbox("Solar PV", ["Any", "Present", "Not Present"])
 
-with filter_cols[3]:
-    wh_filter = st.selectbox("Water Heater", ["Any", "Present", "Not Present"])
+    with filter_cols[3]:
+        wh_filter = st.selectbox("Water Heater", ["Any", "Present", "Not Present"])
 
-# Apply filters
-filtered_df = df.copy()
+    # Apply filters
+    filtered_df = df.copy()
 
-if ev_filter == "Present":
-    filtered_df = filtered_df[filtered_df['ev detected'] == 1]
-elif ev_filter == "Not Present":
-    filtered_df = filtered_df[filtered_df['ev detected'] == 0]
+    if ev_filter == "Present":
+        filtered_df = filtered_df[filtered_df['ev detected'] == 1]
+    elif ev_filter == "Not Present":
+        filtered_df = filtered_df[filtered_df['ev detected'] == 0]
 
-if ac_filter == "Present":
-    filtered_df = filtered_df[filtered_df['ac detected'] == 1]
-elif ac_filter == "Not Present":
-    filtered_df = filtered_df[filtered_df['ac detected'] == 0]
+    if ac_filter == "Present":
+        filtered_df = filtered_df[filtered_df['ac detected'] == 1]
+    elif ac_filter == "Not Present":
+        filtered_df = filtered_df[filtered_df['ac detected'] == 0]
 
-if pv_filter == "Present":
-    filtered_df = filtered_df[filtered_df['pv detected'] == 1]
-elif pv_filter == "Not Present":
-    filtered_df = filtered_df[filtered_df['pv detected'] == 0]
+    if pv_filter == "Present":
+        filtered_df = filtered_df[filtered_df['pv detected'] == 1]
+    elif pv_filter == "Not Present":
+        filtered_df = filtered_df[filtered_df['pv detected'] == 0]
 
-if wh_filter == "Present":
-    filtered_df = filtered_df[filtered_df['water heater detected'] == 1]
-elif wh_filter == "Not Present":
-    filtered_df = filtered_df[filtered_df['water heater detected'] == 0]
+    if wh_filter == "Present":
+        filtered_df = filtered_df[filtered_df['water heater detected'] == 1]
+    elif wh_filter == "Not Present":
+        filtered_df = filtered_df[filtered_df['water heater detected'] == 0]
 
-# Display filtered dataframe with record count
-st.dataframe(filtered_df, use_container_width=True)
-st.caption(f"Showing {len(filtered_df)} of {len(df)} homes")
+    # Display filtered dataframe with record count
+    st.dataframe(filtered_df, use_container_width=True)
+    st.caption(f"Showing {len(filtered_df)} of {len(df)} homes")
 
-# Create two columns for the interactive plots
-col1, col2 = st.columns(2)
+    # Create two columns for the interactive plots
+    col1, col2 = st.columns(2)
 
-with col1:
-    st.subheader("Appliance Presence in Housing Portfolio")
-    
-    # Calculate presence percentages
-    appliance_presence = {
-        'EV Charging': filtered_df['ev detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
-        'Air Conditioning': filtered_df['ac detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
-        'Solar PV': filtered_df['pv detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
-        'Water Heater': filtered_df['water heater detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0
-    }
-    
+    with col1:
+        st.subheader("Appliance Presence in Housing Portfolio")
+        
+        # Calculate presence percentages
+        appliance_presence = {
+            'EV Charging': filtered_df['ev detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
+            'Air Conditioning': filtered_df['ac detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
+            'Solar PV': filtered_df['pv detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
+            'Water Heater': filtered_df['water heater detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0
+        }
+        
         # Create interactive bar chart using Plotly with team colors
-    fig1 = px.bar(
-        x=list(appliance_presence.keys()),
-        y=list(appliance_presence.values()),
-        labels={'x': 'Appliance Type', 'y': 'Percentage of Homes (%)'},
-        color=list(appliance_presence.keys()),
-        color_discrete_map={
+        fig1 = px.bar(
+            x=list(appliance_presence.keys()),
+            y=list(appliance_presence.values()),
+            labels={'x': 'Appliance Type', 'y': 'Percentage of Homes (%)'},
+            color=list(appliance_presence.keys()),
+            color_discrete_map={
                     'EV Charging': primary_purple,
                     'Air Conditioning': green,
                     'Solar PV': cream,
                     'Water Heater': salmon
-        },
-        text=[f"{val:.1f}%" for val in appliance_presence.values()]
-    )
-    
+            },
+            text=[f"{val:.1f}%" for val in appliance_presence.values()]
+        )
+        
         # Update layout with team colors - now with white background
-    fig1.update_layout(
-        showlegend=False,
-        xaxis_title="Appliance Type",
-        yaxis_title="Percentage of Homes (%)",
-        yaxis_range=[0, 100],
-        margin=dict(l=20, r=20, t=30, b=20),
+        fig1.update_layout(
+            showlegend=False,
+            xaxis_title="Appliance Type",
+            yaxis_title="Percentage of Homes (%)",
+            yaxis_range=[0, 100],
+            margin=dict(l=20, r=20, t=30, b=20),
                 paper_bgcolor=white,
                 plot_bgcolor=white,
                 font=dict(color=dark_purple)
-    )
-    
+        )
+        
         fig1.update_traces(textposition='outside', textfont=dict(color=dark_purple))
         fig1.update_xaxes(showgrid=False, gridcolor=light_purple, tickfont=dict(color=dark_purple))
         fig1.update_yaxes(showgrid=True, gridcolor=light_purple, tickfont=dict(color=dark_purple))
@@ -374,9 +372,9 @@ with col1:
         Detection is based on energy signature patterns identified by the disaggregation model.
         """)
 
-with col2:
-    st.subheader("Total Energy Distribution by Type")
-    
+    with col2:
+        st.subheader("Total Energy Distribution by Type")
+        
         # Calculate disaggregated appliance total
         disaggregated_total = (filtered_df['ev charging (kWh)'].sum() + 
                               filtered_df['air conditioning (kWh)'].sum() + 
@@ -452,41 +450,41 @@ with col2:
     </style>
     """, unsafe_allow_html=True)
 
-st.subheader("Key Metrics")
-metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+    st.subheader("Key Metrics")
+    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
 
-with metric_col1:
+    with metric_col1:
         st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-    st.metric(
-        label="Total Homes",
-        value=len(filtered_df),
-        delta=f"{len(filtered_df) - len(df)}" if len(filtered_df) != len(df) else None,
-        help="Number of households in the filtered dataset"
-    )
+        st.metric(
+            label="Total Homes",
+            value=len(filtered_df),
+            delta=f"{len(filtered_df) - len(df)}" if len(filtered_df) != len(df) else None,
+            help="Number of households in the filtered dataset"
+        )
         st.markdown("</div>", unsafe_allow_html=True)
 
-with metric_col2:
+    with metric_col2:
         st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
         avg_grid = filtered_df['grid (kWh)'].mean() if len(filtered_df) > 0 else 0
-    st.metric(
+        st.metric(
             label="Avg. Grid Consumption",
             value=f"{avg_grid:.1f} kWh",
             help="Average total electricity consumption per home"
         )
         st.markdown("</div>", unsafe_allow_html=True)
 
-with metric_col3:
+    with metric_col3:
         st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-    pv_homes = filtered_df[filtered_df['pv detected'] == 1]
-    pv_avg = pv_homes['solar production (kWh)'].mean() if len(pv_homes) > 0 else 0
-    st.metric(
-        label="Avg. Solar Production",
-        value=f"{pv_avg:.1f} kWh",
-        help="Average solar production for homes with PV systems"
-    )
+        pv_homes = filtered_df[filtered_df['pv detected'] == 1]
+        pv_avg = pv_homes['solar production (kWh)'].mean() if len(pv_homes) > 0 else 0
+        st.metric(
+            label="Avg. Solar Production",
+            value=f"{pv_avg:.1f} kWh",
+            help="Average solar production for homes with PV systems"
+        )
         st.markdown("</div>", unsafe_allow_html=True)
 
-with metric_col4:
+    with metric_col4:
         st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
         # Percentage of consumption identified by model
         total_grid = filtered_df['grid (kWh)'].sum()
@@ -496,7 +494,7 @@ with metric_col4:
         
         pct_identified = (total_identified / total_grid * 100) if total_grid > 0 else 0
         
-    st.metric(
+        st.metric(
             label="Consumption Identified",
             value=f"{pct_identified:.1f}%",
             help="Percentage of total grid consumption attributed to specific appliances"
@@ -595,49 +593,6 @@ with metric_col4:
     # Convert to DataFrame
     mock_geo_df = pd.DataFrame(mock_geo_data)
     
-    # Add this function to load and cache state GeoJSON data
-    @st.cache_data
-    def load_us_state_geojson():
-        # Load GeoJSON for US states
-        url = "https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json"
-        response = requests.get(url)
-        states_geojson = response.json()
-        return states_geojson
-
-    # Load GeoJSON data
-    states_geojson = load_us_state_geojson()
-
-    def aggregate_state_data(mock_geo_df):
-        """Aggregate data by state"""
-        # Define state coordinates (centroids) for mapping regions to states
-        state_regions = {
-            'West': ['WA', 'OR', 'CA', 'ID', 'NV', 'MT', 'WY', 'UT', 'CO', 'AZ', 'NM'],
-            'Midwest': ['ND', 'SD', 'NE', 'KS', 'MN', 'IA', 'MO', 'WI', 'IL', 'IN', 'MI', 'OH'],
-            'South': ['TX', 'OK', 'AR', 'LA', 'MS', 'AL', 'TN', 'KY', 'GA', 'FL', 'SC', 'NC', 'VA', 'WV'],
-            'Northeast': ['ME', 'NH', 'VT', 'MA', 'RI', 'CT', 'NY', 'PA', 'NJ', 'DE', 'MD']
-        }
-        
-        # Create state-level aggregations
-        state_data = {}
-        for region, states in state_regions.items():
-            region_data = mock_geo_df[mock_geo_df['region'] == region]
-            n_points = len(states)
-            for state in states:
-                # Distribute regional data across states with some random variation
-                state_data[state] = {
-                    'ev_adoption': region_data['ev_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
-                    'ac_adoption': region_data['ac_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
-                    'pv_adoption': region_data['pv_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
-                    'wh_adoption': region_data['wh_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
-                    'model_accuracy': region_data['model_accuracy'].mean() * (1 + np.random.uniform(-0.1, 0.1)),
-                    'total_energy': region_data['total_energy'].mean() * (1 + np.random.uniform(-0.2, 0.2))
-                }
-        
-        return state_data
-
-    # Aggregate data by state
-    state_data = aggregate_state_data(mock_geo_df)
-
     with map_tabs[0]:  # Device Adoption tab
         col1, col2 = st.columns([1, 3])
         
@@ -656,105 +611,90 @@ with metric_col4:
                 key="map_device_selector"
             )
             
+            # Add a brief explanation
             st.markdown("""
-            ### Map Controls
-            - Click on a state to see detailed information
-            - Use the color scale to understand adoption rates
-            - Hover over states to see values
+            This map shows the geographic distribution of device adoption rates across different regions.
+            
+            - Larger circles indicate higher adoption rates
+            - Color intensity corresponds to adoption percentage
+            - Hover over points to see detailed information
             """)
         
         with col2:
-            # Aggregate data by state
-            state_data = aggregate_state_data(mock_geo_df)
-            
-            # Prepare data for choropleth map
-            state_values = {}
-            if map_device == "EV Charging":
-                for state, data in state_data.items():
-                    state_values[state] = data['ev_adoption'] * 100
-                title = "EV Charging Adoption Rate (%)"
-                colorscale = [[0, "#D0D0D0"], [1, primary_purple]]
-            elif map_device == "AC Usage":
-                for state, data in state_data.items():
-                    state_values[state] = data['ac_adoption'] * 100
-                title = "AC Usage Adoption Rate (%)"
-                colorscale = [[0, "#D0D0D0"], [1, green]]
-            elif map_device == "PV Usage":
-                for state, data in state_data.items():
-                    state_values[state] = data['pv_adoption'] * 100
-                title = "PV Usage Adoption Rate (%)"
-                colorscale = [[0, "#D0D0D0"], [1, cream]]
-            elif map_device == "WH Usage":
-                for state, data in state_data.items():
-                    state_values[state] = data['wh_adoption'] * 100
-                title = "WH Usage Adoption Rate (%)"
-                colorscale = [[0, "#D0D0D0"], [1, salmon]]
+            # Filter data based on region selection
+            if selected_region != "All Regions":
+                display_geo_df = mock_geo_df[mock_geo_df["region"] == selected_region]
             else:
-                for state, data in state_data.items():
-                    state_values[state] = data['model_accuracy'] * 100
-                title = "Overall Device Adoption Rate (%)"
-                colorscale = [[0, "#D0D0D0"], [1, primary_purple]]
-
-            # Create choropleth map
-            fig = go.Figure()
-
-            # Add choropleth layer
-            fig.add_trace(go.Choropleth(
-                geojson=states_geojson,
-                locations=[feature['id'] for feature in states_geojson['features']],
-                z=[state_values.get(feature['id'], 0) for feature in states_geojson['features']],
-                colorscale=colorscale,
-                zmin=0,
-                zmax=100,
-                colorbar_title="Adoption Rate (%)",
-                hovertemplate="State: %{location}<br>" + 
-                             f"{map_device} Rate: " + "%{z:.1f}%<br>" +
-                             "<extra></extra>"
-            ))
-
-            # Update layout
+                display_geo_df = mock_geo_df
+            
+            # Determine which data to show based on device selection
+            if map_device == "EV Charging":
+                color_data = 'ev_adoption'
+                size_data = 'ev_adoption'
+                color_scale = [[0, primary_purple], [1, light_purple]]
+                title = "EV Charging Adoption Rate"
+            elif map_device == "AC Usage":
+                color_data = 'ac_adoption'
+                size_data = 'ac_adoption'
+                color_scale = [[0, "#B5E2C9"], [1, green]]
+                title = "AC Usage Adoption Rate"
+            elif map_device == "PV Usage":
+                color_data = 'pv_adoption'
+                size_data = 'pv_adoption'
+                color_scale = [[0, "#F9EFD6"], [1, cream]]
+                title = "PV Usage Adoption Rate"
+            elif map_device == "WH Usage":
+                color_data = 'wh_adoption'
+                size_data = 'wh_adoption'
+                color_scale = [[0, "#F5D0C5"], [1, salmon]]
+                title = "WH Usage Adoption Rate"
+            else:
+                # For "All Devices", use model accuracy as color and total devices as size
+                color_data = 'model_accuracy'
+                # Calculate total devices detected for size
+                display_geo_df['total_devices'] = display_geo_df['ev_detected'] + display_geo_df['ac_detected'] + display_geo_df['pv_detected'] + display_geo_df['wh_detected']
+                size_data = 'total_devices'
+                color_scale = [[0, "#D0D0D0"], [1, primary_purple]]
+                title = "Overall Device Adoption"
+            
+            # Create the map
+            fig = px.scatter_mapbox(
+                display_geo_df,
+                lat="latitude",
+                lon="longitude",
+                color=color_data,
+                size=size_data,
+                size_max=15,
+                hover_name="region",
+                hover_data={
+                    "latitude": False,
+                    "longitude": False,
+                    "ev_adoption": ':.1%',
+                    "ac_adoption": ':.1%',
+                    "pv_adoption": ':.1%',
+                    "wh_adoption": ':.1%',
+                    "model_accuracy": ':.1%'
+                },
+                color_continuous_scale=color_scale,
+                zoom=3.5 if selected_region == "All Regions" else 5,
+                mapbox_style="carto-positron",
+                title=title
+            )
+            
             fig.update_layout(
-                title=title,
-                geo=dict(
-                    scope='usa',
-                    showlakes=True,
-                    lakecolor='rgb(255, 255, 255)',
-                    showland=True,
-                    landcolor='rgb(255, 255, 255)',
-                    showframe=False,
-                    projection_scale=1.1
-                ),
-                height=600,
                 margin=dict(l=0, r=0, t=30, b=0),
+                coloraxis_colorbar=dict(
+                    title="Adoption Rate",
+                    tickformat='.0%'
+                ),
+                height=500,
                 paper_bgcolor=white,
                 plot_bgcolor=white,
                 font=dict(color=dark_purple)
             )
-
-            # Add click events
-            fig.update_traces(
-                selected_events=["click"],
-                unselected_events=["click"],
-                selector=dict(type='choropleth')
-            )
-
-            # Display the map
+            
             st.plotly_chart(fig, use_container_width=True)
-
-            # Add state-level statistics
-            if selected_region != "All Regions":
-                st.markdown(f"### {selected_region} Region Statistics")
-                region_stats = pd.DataFrame([
-                    {
-                        'State': state,
-                        'Adoption Rate (%)': state_values[state],
-                        'Total Energy (kWh)': state_data[state]['total_energy']
-                    }
-                    for state, data in state_data.items()
-                    if state in state_regions[selected_region]
-                ])
-                st.dataframe(region_stats.sort_values('Adoption Rate (%)', ascending=False))
-
+    
     with map_tabs[1]:  # Model Performance tab
         col1, col2 = st.columns([1, 3])
         
@@ -1089,7 +1029,7 @@ with metric_col4:
         """, unsafe_allow_html=True)
 
     # Add footer with primary purple color
-st.markdown("---")
+    st.markdown("---")
     st.markdown(f"""
     <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
         This sample output demonstrates the type of insights available from the disaggregation model. 
