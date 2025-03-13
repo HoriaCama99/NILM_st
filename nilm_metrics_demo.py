@@ -632,6 +632,18 @@ if page == "Sample Output":
                     if state in state_regions[selected_region]
                 ])
                 st.dataframe(region_stats.sort_values('Adoption Rate (%)', ascending=False))
+            else:
+                # Show statistics for all states when "All Regions" is selected
+                st.markdown("### All Regions Statistics")
+                region_stats = pd.DataFrame([
+                    {
+                        'State': state,
+                        'Adoption Rate (%)': state_values[state],
+                        'Total Energy (kWh)': state_data[state]['total_energy']
+                    }
+                    for state, data in state_data.items()
+                ])
+                st.dataframe(region_stats.sort_values('Adoption Rate (%)', ascending=False))
 
     with map_tabs[1]:  # Model Performance tab
         col1, col2 = st.columns([1, 3])
