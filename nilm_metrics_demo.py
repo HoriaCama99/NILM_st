@@ -7,6 +7,8 @@ import numpy as np
 from plotly.subplots import make_subplots
 from PIL import Image
 import seaborn as sns
+import json
+import requests
 
 # Hide the default Streamlit navigation menu
 st.set_page_config(
@@ -260,9 +262,9 @@ if page == "Sample Output":
 
     ### Key Assumptions:
     - Sample represents output for multiple homes with diverse energy profiles
-    - Values reflect monthly average energy consumption in kWh
+        - Values reflect monthly average energy consumption in kWh
     - Detection flags (0/1) indicate presence of each appliance
-    - Grid consumption represents total household electricity usage
+        - Grid consumption represents total household electricity usage
     - Model confidence levels are not shown in this simplified output
     """)
 
@@ -325,156 +327,156 @@ if page == "Sample Output":
             'Water Heater': filtered_df['water heater detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0
         }
         
-        # Create interactive bar chart using Plotly with team colors
+            # Create interactive bar chart using Plotly with team colors
         fig1 = px.bar(
             x=list(appliance_presence.keys()),
             y=list(appliance_presence.values()),
             labels={'x': 'Appliance Type', 'y': 'Percentage of Homes (%)'},
             color=list(appliance_presence.keys()),
             color_discrete_map={
-                    'EV Charging': primary_purple,
-                    'Air Conditioning': green,
-                    'Solar PV': cream,
-                    'Water Heater': salmon
+                        'EV Charging': primary_purple,
+                        'Air Conditioning': green,
+                        'Solar PV': cream,
+                        'Water Heater': salmon
             },
             text=[f"{val:.1f}%" for val in appliance_presence.values()]
         )
         
-        # Update layout with team colors - now with white background
+            # Update layout with team colors - now with white background
         fig1.update_layout(
             showlegend=False,
             xaxis_title="Appliance Type",
             yaxis_title="Percentage of Homes (%)",
             yaxis_range=[0, 100],
             margin=dict(l=20, r=20, t=30, b=20),
-                paper_bgcolor=white,
-                plot_bgcolor=white,
-                font=dict(color=dark_purple)
+                    paper_bgcolor=white,
+                    plot_bgcolor=white,
+                    font=dict(color=dark_purple)
         )
         
-        fig1.update_traces(textposition='outside', textfont=dict(color=dark_purple))
-        fig1.update_xaxes(showgrid=False, gridcolor=light_purple, tickfont=dict(color=dark_purple))
-        fig1.update_yaxes(showgrid=True, gridcolor=light_purple, tickfont=dict(color=dark_purple))
-    
-    # Display the plot
-    st.plotly_chart(fig1, use_container_width=True)
-    
-    # Add interactive details
-    with st.expander("About Appliance Presence"):
-        st.markdown("""
-        This chart shows the percentage of homes in the sample where each appliance type was detected.
+            fig1.update_traces(textposition='outside', textfont=dict(color=dark_purple))
+            fig1.update_xaxes(showgrid=False, gridcolor=light_purple, tickfont=dict(color=dark_purple))
+            fig1.update_yaxes(showgrid=True, gridcolor=light_purple, tickfont=dict(color=dark_purple))
         
-        - **Air Conditioning**: Most commonly detected appliance
-        - **Solar PV**: Shows significant renewable adoption
-        - **EV Charging**: Indicates electric vehicle ownership
-        - **Water Heater**: Least commonly detected in this sample
+        # Display the plot
+        st.plotly_chart(fig1, use_container_width=True)
         
-        Detection is based on energy signature patterns identified by the disaggregation model.
-        """)
+        # Add interactive details
+        with st.expander("About Appliance Presence"):
+            st.markdown("""
+            This chart shows the percentage of homes in the sample where each appliance type was detected.
+            
+            - **Air Conditioning**: Most commonly detected appliance
+            - **Solar PV**: Shows significant renewable adoption
+            - **EV Charging**: Indicates electric vehicle ownership
+            - **Water Heater**: Least commonly detected in this sample
+            
+            Detection is based on energy signature patterns identified by the disaggregation model.
+            """)
 
     with col2:
         st.subheader("Total Energy Distribution by Type")
         
-        # Calculate disaggregated appliance total
-        disaggregated_total = (filtered_df['ev charging (kWh)'].sum() + 
-                              filtered_df['air conditioning (kWh)'].sum() + 
-                              filtered_df['water heater (kWh)'].sum())
+            # Calculate disaggregated appliance total
+            disaggregated_total = (filtered_df['ev charging (kWh)'].sum() + 
+                                  filtered_df['air conditioning (kWh)'].sum() + 
+                                  filtered_df['water heater (kWh)'].sum())
+            
+            # Calculate "Other Consumption" by subtracting known appliances from grid total
+            other_consumption = filtered_df['grid (kWh)'].sum() - disaggregated_total
+            other_consumption = max(0, other_consumption)  # Ensure it's not negative
+            
+        energy_totals = {
+            'EV Charging': filtered_df['ev charging (kWh)'].sum(),
+            'Air Conditioning': filtered_df['air conditioning (kWh)'].sum(),
+                'Water Heater': filtered_df['water heater (kWh)'].sum(),
+                'Other Consumption': other_consumption
+        }
         
-        # Calculate "Other Consumption" by subtracting known appliances from grid total
-        other_consumption = filtered_df['grid (kWh)'].sum() - disaggregated_total
-        other_consumption = max(0, other_consumption)  # Ensure it's not negative
+            # Create interactive pie chart using Plotly with team colors
+        fig2 = px.pie(
+            values=list(energy_totals.values()),
+            names=list(energy_totals.keys()),
+            color=list(energy_totals.keys()),
+            color_discrete_map={
+                    'EV Charging': primary_purple,
+                    'Air Conditioning': green,
+                    'Water Heater': salmon,
+                    'Other Consumption': light_purple
+            },
+            hole=0.4
+        )
         
-    energy_totals = {
-        'EV Charging': filtered_df['ev charging (kWh)'].sum(),
-        'Air Conditioning': filtered_df['air conditioning (kWh)'].sum(),
-            'Water Heater': filtered_df['water heater (kWh)'].sum(),
-            'Other Consumption': other_consumption
-    }
-    
-        # Create interactive pie chart using Plotly with team colors
-    fig2 = px.pie(
-        values=list(energy_totals.values()),
-        names=list(energy_totals.keys()),
-        color=list(energy_totals.keys()),
-        color_discrete_map={
-                'EV Charging': primary_purple,
-                'Air Conditioning': green,
-                'Water Heater': salmon,
-                'Other Consumption': light_purple
-        },
-        hole=0.4
-    )
-    
-        # Update layout with team colors - now with white background
-    fig2.update_layout(
-        legend_title="Energy Type",
-        margin=dict(l=20, r=20, t=30, b=20),
-            paper_bgcolor=white,
-            plot_bgcolor=white,
-            font=dict(color=dark_purple),
-            legend=dict(font=dict(color=dark_purple))
-    )
-    
-    fig2.update_traces(
-        textinfo='percent+label',
-            hovertemplate='%{label}<br>%{value:.1f} kWh<br>%{percent}',
-            textfont=dict(color=dark_gray)  # Darker text for better contrast
-    )
-    
-    # Display the plot
-    st.plotly_chart(fig2, use_container_width=True)
-    
-    # Add interactive details
-    with st.expander("About Energy Distribution"):
-        st.markdown("""
-            This chart shows how the total energy consumption is distributed across different appliance types.
+            # Update layout with team colors - now with white background
+        fig2.update_layout(
+            legend_title="Energy Type",
+            margin=dict(l=20, r=20, t=30, b=20),
+                paper_bgcolor=white,
+                plot_bgcolor=white,
+                font=dict(color=dark_purple),
+                legend=dict(font=dict(color=dark_purple))
+        )
         
-        - **Air Conditioning**: Typically accounts for significant consumption
-        - **EV Charging**: Can be a major energy consumer when present
-        - **Water Heater**: Generally smaller portion of total energy use
-            - **Other Consumption**: Remaining grid usage not attributed to the three main appliances
+        fig2.update_traces(
+            textinfo='percent+label',
+                hovertemplate='%{label}<br>%{value:.1f} kWh<br>%{percent}',
+                textfont=dict(color=dark_gray)  # Darker text for better contrast
+        )
         
-        Understanding this distribution helps identify the highest impact areas for efficiency improvements.
-        """)
+        # Display the plot
+        st.plotly_chart(fig2, use_container_width=True)
+        
+        # Add interactive details
+        with st.expander("About Energy Distribution"):
+            st.markdown("""
+                This chart shows how the total energy consumption is distributed across different appliance types.
+            
+            - **Air Conditioning**: Typically accounts for significant consumption
+            - **EV Charging**: Can be a major energy consumer when present
+            - **Water Heater**: Generally smaller portion of total energy use
+                - **Other Consumption**: Remaining grid usage not attributed to the three main appliances
+            
+            Understanding this distribution helps identify the highest impact areas for efficiency improvements.
+            """)
 
-    # Add summary metrics
-    st.markdown(f"""
-    <style>
-        .metric-container {{
-            background-color: {primary_purple};
-            border-radius: 10px;
-            padding: 15px 15px;
-            margin: 10px 0;
-            border: 2px solid {primary_purple};
-        }}
-    </style>
-    """, unsafe_allow_html=True)
+        # Add summary metrics
+        st.markdown(f"""
+        <style>
+            .metric-container {{
+                background-color: {primary_purple};
+                border-radius: 10px;
+                padding: 15px 15px;
+                margin: 10px 0;
+                border: 2px solid {primary_purple};
+            }}
+        </style>
+        """, unsafe_allow_html=True)
 
     st.subheader("Key Metrics")
     metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
 
     with metric_col1:
-        st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
         st.metric(
             label="Total Homes",
             value=len(filtered_df),
             delta=f"{len(filtered_df) - len(df)}" if len(filtered_df) != len(df) else None,
             help="Number of households in the filtered dataset"
         )
-        st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
     with metric_col2:
-        st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-        avg_grid = filtered_df['grid (kWh)'].mean() if len(filtered_df) > 0 else 0
+            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+            avg_grid = filtered_df['grid (kWh)'].mean() if len(filtered_df) > 0 else 0
         st.metric(
-            label="Avg. Grid Consumption",
-            value=f"{avg_grid:.1f} kWh",
-            help="Average total electricity consumption per home"
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
+                label="Avg. Grid Consumption",
+                value=f"{avg_grid:.1f} kWh",
+                help="Average total electricity consumption per home"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
 
     with metric_col3:
-        st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
         pv_homes = filtered_df[filtered_df['pv detected'] == 1]
         pv_avg = pv_homes['solar production (kWh)'].mean() if len(pv_homes) > 0 else 0
         st.metric(
@@ -482,560 +484,618 @@ if page == "Sample Output":
             value=f"{pv_avg:.1f} kWh",
             help="Average solar production for homes with PV systems"
         )
-        st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
     with metric_col4:
-        st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-        # Percentage of consumption identified by model
-        total_grid = filtered_df['grid (kWh)'].sum()
-        total_identified = (filtered_df['ev charging (kWh)'].sum() + 
-                          filtered_df['air conditioning (kWh)'].sum() + 
-                          filtered_df['water heater (kWh)'].sum())
-        
-        pct_identified = (total_identified / total_grid * 100) if total_grid > 0 else 0
-        
+            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+            # Percentage of consumption identified by model
+            total_grid = filtered_df['grid (kWh)'].sum()
+            total_identified = (filtered_df['ev charging (kWh)'].sum() + 
+                              filtered_df['air conditioning (kWh)'].sum() + 
+                              filtered_df['water heater (kWh)'].sum())
+            
+            pct_identified = (total_identified / total_grid * 100) if total_grid > 0 else 0
+            
         st.metric(
-            label="Consumption Identified",
-            value=f"{pct_identified:.1f}%",
-            help="Percentage of total grid consumption attributed to specific appliances"
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # Add Geographic Map Section - NEW SECTION
-    st.subheader("Geographic Performance Distribution")
-    
-    # Create tabs for different map views
-    map_tabs = st.tabs(["Device Adoption", "Model Performance", "Energy Consumption"])
-    
-    # Create mock data for the map
-    import random
-    
-    # Generate random coordinates across the US
-    num_points = 100
-    
-    # Define regions with their approximate bounds
-    regions = {
-        "Northeast": {"lat_range": (40, 47), "lon_range": (-80, -67)},
-        "Midwest": {"lat_range": (36, 49), "lon_range": (-97, -80)},
-        "South": {"lat_range": (25, 36), "lon_range": (-106, -75)},
-        "West": {"lat_range": (32, 49), "lon_range": (-124, -107)}
-    }
-    
-    # Generate mock data with regional biases
-    mock_geo_data = []
-    
-    for region_name, bounds in regions.items():
-        # Number of points per region
-        points_in_region = num_points // 4
-        
-        for _ in range(points_in_region):
-            lat = random.uniform(bounds["lat_range"][0], bounds["lat_range"][1])
-            lon = random.uniform(bounds["lon_range"][0], bounds["lon_range"][1])
-            
-            # Create regional biases in the data
-            if region_name == "West":
-                ev_adoption = random.uniform(0.15, 0.35)  # Higher EV adoption in West
-                pv_adoption = random.uniform(0.20, 0.40)  # Higher solar in West
-                ac_adoption = random.uniform(0.60, 0.85)
-                wh_adoption = random.uniform(0.30, 0.50)
-                model_accuracy = random.uniform(0.75, 0.90)
-            elif region_name == "Northeast":
-                ev_adoption = random.uniform(0.10, 0.25)
-                pv_adoption = random.uniform(0.05, 0.20)  # Lower solar in Northeast
-                ac_adoption = random.uniform(0.50, 0.75)
-                wh_adoption = random.uniform(0.40, 0.60)  # Higher water heater in Northeast
-                model_accuracy = random.uniform(0.70, 0.85)
-            elif region_name == "Midwest":
-                ev_adoption = random.uniform(0.05, 0.15)  # Lower EV in Midwest
-                pv_adoption = random.uniform(0.05, 0.15)
-                ac_adoption = random.uniform(0.70, 0.90)  # Higher AC in Midwest
-                wh_adoption = random.uniform(0.35, 0.55)
-                model_accuracy = random.uniform(0.65, 0.80)
-            else:  # South
-                ev_adoption = random.uniform(0.08, 0.20)
-                pv_adoption = random.uniform(0.10, 0.25)
-                ac_adoption = random.uniform(0.80, 0.95)  # Highest AC in South
-                wh_adoption = random.uniform(0.25, 0.45)
-                model_accuracy = random.uniform(0.70, 0.85)
-            
-            # Add some random variation to make it look more realistic
-            ev_detected = 1 if random.random() < ev_adoption else 0
-            ac_detected = 1 if random.random() < ac_adoption else 0
-            pv_detected = 1 if random.random() < pv_adoption else 0
-            wh_detected = 1 if random.random() < wh_adoption else 0
-            
-            # Calculate mock energy values
-            ev_energy = random.uniform(50, 200) if ev_detected else 0
-            ac_energy = random.uniform(100, 400) if ac_detected else 0
-            pv_energy = random.uniform(200, 600) if pv_detected else 0
-            wh_energy = random.uniform(50, 150) if wh_detected else 0
-            
-            # Add to dataset
-            mock_geo_data.append({
-                "latitude": lat,
-                "longitude": lon,
-                "region": region_name,
-                "ev_adoption": ev_adoption,
-                "ac_adoption": ac_adoption,
-                "pv_adoption": pv_adoption,
-                "wh_adoption": wh_adoption,
-                "ev_detected": ev_detected,
-                "ac_detected": ac_detected,
-                "pv_detected": pv_detected,
-                "wh_detected": wh_detected,
-                "ev_energy": ev_energy,
-                "ac_energy": ac_energy,
-                "pv_energy": pv_energy,
-                "wh_energy": wh_energy,
-                "model_accuracy": model_accuracy
-            })
-    
-    # Convert to DataFrame
-    mock_geo_df = pd.DataFrame(mock_geo_data)
-    
-    with map_tabs[0]:  # Device Adoption tab
-        col1, col2 = st.columns([1, 3])
-        
-        with col1:
-            # Add region selector
-            selected_region = st.selectbox(
-                "Select Region", 
-                ["All Regions", "Northeast", "Midwest", "South", "West"],
-                key="map_region_selector"
-            )
-            
-            # Add device type selector for the map
-            map_device = st.selectbox(
-                "Select Device Type", 
-                ["EV Charging", "AC Usage", "PV Usage", "WH Usage", "All Devices"],
-                key="map_device_selector"
-            )
-            
-            # Add a brief explanation
-            st.markdown("""
-            This map shows the geographic distribution of device adoption rates across different regions.
-            
-            - Larger circles indicate higher adoption rates
-            - Color intensity corresponds to adoption percentage
-            - Hover over points to see detailed information
-            """)
-        
-        with col2:
-            # Filter data based on region selection
-            if selected_region != "All Regions":
-                display_geo_df = mock_geo_df[mock_geo_df["region"] == selected_region]
-            else:
-                display_geo_df = mock_geo_df
-            
-            # Determine which data to show based on device selection
-            if map_device == "EV Charging":
-                color_data = 'ev_adoption'
-                size_data = 'ev_adoption'
-                color_scale = [[0, primary_purple], [1, light_purple]]
-                title = "EV Charging Adoption Rate"
-            elif map_device == "AC Usage":
-                color_data = 'ac_adoption'
-                size_data = 'ac_adoption'
-                color_scale = [[0, "#B5E2C9"], [1, green]]
-                title = "AC Usage Adoption Rate"
-            elif map_device == "PV Usage":
-                color_data = 'pv_adoption'
-                size_data = 'pv_adoption'
-                color_scale = [[0, "#F9EFD6"], [1, cream]]
-                title = "PV Usage Adoption Rate"
-            elif map_device == "WH Usage":
-                color_data = 'wh_adoption'
-                size_data = 'wh_adoption'
-                color_scale = [[0, "#F5D0C5"], [1, salmon]]
-                title = "WH Usage Adoption Rate"
-            else:
-                # For "All Devices", use model accuracy as color and total devices as size
-                color_data = 'model_accuracy'
-                # Calculate total devices detected for size
-                display_geo_df['total_devices'] = display_geo_df['ev_detected'] + display_geo_df['ac_detected'] + display_geo_df['pv_detected'] + display_geo_df['wh_detected']
-                size_data = 'total_devices'
-                color_scale = [[0, "#D0D0D0"], [1, primary_purple]]
-                title = "Overall Device Adoption"
-            
-            # Create the map
-            fig = px.scatter_mapbox(
-                display_geo_df,
-                lat="latitude",
-                lon="longitude",
-                color=color_data,
-                size=size_data,
-                size_max=15,
-                hover_name="region",
-                hover_data={
-                    "latitude": False,
-                    "longitude": False,
-                    "ev_adoption": ':.1%',
-                    "ac_adoption": ':.1%',
-                    "pv_adoption": ':.1%',
-                    "wh_adoption": ':.1%',
-                    "model_accuracy": ':.1%'
-                },
-                color_continuous_scale=color_scale,
-                zoom=3.5 if selected_region == "All Regions" else 5,
-                mapbox_style="carto-positron",
-                title=title
-            )
-            
-            fig.update_layout(
-                margin=dict(l=0, r=0, t=30, b=0),
-                coloraxis_colorbar=dict(
-                    title="Adoption Rate",
-                    tickformat='.0%'
-                ),
-                height=500,
-                paper_bgcolor=white,
-                plot_bgcolor=white,
-                font=dict(color=dark_purple)
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-    
-    with map_tabs[1]:  # Model Performance tab
-        col1, col2 = st.columns([1, 3])
-        
-        with col1:
-            # Add region selector
-            perf_region = st.selectbox(
-                "Select Region", 
-                ["All Regions", "Northeast", "Midwest", "South", "West"],
-                key="perf_region_selector"
-            )
-            
-            # Add metric selector
-            perf_metric = st.selectbox(
-                "Select Performance Metric", 
-                ["Model Accuracy", "DPSPerc", "FPR", "TECA"],
-                key="perf_metric_selector"
-            )
-            
-            # Add a brief explanation
-            st.markdown("""
-            This map visualizes model performance metrics across different regions.
-            
-            - Color intensity shows performance level
-            - Larger circles indicate higher confidence
-            - Regional patterns may suggest areas for model improvement
-            """)
-        
-        with col2:
-            # Filter data based on region selection
-            if perf_region != "All Regions":
-                perf_geo_df = mock_geo_df[mock_geo_df["region"] == perf_region]
-            else:
-                perf_geo_df = mock_geo_df
-            
-            # Add mock performance metrics if they don't exist
-            if "dpsperc" not in perf_geo_df.columns:
-                perf_geo_df["dpsperc"] = perf_geo_df["model_accuracy"] * random.uniform(0.9, 1.1)
-                perf_geo_df["fpr"] = 1 - (perf_geo_df["model_accuracy"] * random.uniform(0.8, 1.0))
-                perf_geo_df["teca"] = perf_geo_df["model_accuracy"] * random.uniform(0.85, 1.15)
-                # Ensure values are in reasonable ranges
-                perf_geo_df["dpsperc"] = perf_geo_df["dpsperc"].clip(0.5, 0.95)
-                perf_geo_df["fpr"] = perf_geo_df["fpr"].clip(0.05, 0.5)
-                perf_geo_df["teca"] = perf_geo_df["teca"].clip(0.4, 0.9)
-            
-            # Determine which metric to show
-            if perf_metric == "Model Accuracy":
-                color_data = 'model_accuracy'
-                title = "Overall Model Accuracy"
-                color_range = [0.6, 0.9]
-            elif perf_metric == "DPSPerc":
-                color_data = 'dpsperc'
-                title = "Distance to Perfect Score (DPSPerc)"
-                color_range = [0.5, 0.95]
-            elif perf_metric == "FPR":
-                color_data = 'fpr'
-                title = "False Positive Rate (FPR)"
-                color_range = [0.05, 0.5]
-                # Invert color scale for FPR (lower is better)
-                color_scale = [[0, green], [1, red]]
-            else:  # TECA
-                color_data = 'teca'
-                title = "Total Energy Correctly Assigned (TECA)"
-                color_range = [0.4, 0.9]
-            
-            # Set default color scale (except for FPR which is defined above)
-            if perf_metric != "FPR":
-                color_scale = [[0, "#D0D0D0"], [1, primary_purple]]
-            
-            # Create the map
-            fig = px.scatter_mapbox(
-                perf_geo_df,
-                lat="latitude",
-                lon="longitude",
-                color=color_data,
-                size='model_accuracy',  # Use accuracy for size to show confidence
-                size_max=15,
-                hover_name="region",
-                hover_data={
-                    "latitude": False,
-                    "longitude": False,
-                    "model_accuracy": ':.1%',
-                    "dpsperc": ':.1%',
-                    "fpr": ':.1%',
-                    "teca": ':.1%'
-                },
-                color_continuous_scale=color_scale,
-                range_color=color_range,
-                zoom=3.5 if perf_region == "All Regions" else 5,
-                mapbox_style="carto-positron",
-                title=title
-            )
-            
-            fig.update_layout(
-                margin=dict(l=0, r=0, t=30, b=0),
-                coloraxis_colorbar=dict(
-                    title=perf_metric,
-                    tickformat='.0%'
-                ),
-                height=500,
-                paper_bgcolor=white,
-                plot_bgcolor=white,
-                font=dict(color=dark_purple)
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-    
-    with map_tabs[2]:  # Energy Consumption tab
-        col1, col2 = st.columns([1, 3])
-        
-        with col1:
-            # Add region selector
-            energy_region = st.selectbox(
-                "Select Region", 
-                ["All Regions", "Northeast", "Midwest", "South", "West"],
-                key="energy_region_selector"
-            )
-            
-            # Add energy type selector
-            energy_type = st.selectbox(
-                "Select Energy Type", 
-                ["Total Consumption", "EV Charging", "AC Usage", "PV Production", "WH Usage"],
-                key="energy_type_selector"
-            )
-            
-            # Add a brief explanation
-            st.markdown("""
-            This map shows energy consumption patterns across different regions.
-            
-            - Color intensity indicates energy usage levels
-            - Larger circles represent higher consumption
-            - Regional patterns may reflect climate differences and adoption rates
-            """)
-        
-        with col2:
-            # Filter data based on region selection
-            if energy_region != "All Regions":
-                energy_geo_df = mock_geo_df[mock_geo_df["region"] == energy_region]
-            else:
-                energy_geo_df = mock_geo_df
-            
-            # Calculate total energy for each point
-            energy_geo_df["total_energy"] = energy_geo_df["ev_energy"] + energy_geo_df["ac_energy"] + energy_geo_df["wh_energy"]
-            
-            # Determine which energy data to show
-            if energy_type == "Total Consumption":
-                color_data = 'total_energy'
-                size_data = 'total_energy'
-                title = "Total Energy Consumption (kWh)"
-                color_scale = [[0, "#D0D0D0"], [1, primary_purple]]
-            elif energy_type == "EV Charging":
-                color_data = 'ev_energy'
-                size_data = 'ev_energy'
-                title = "EV Charging Energy (kWh)"
-                color_scale = [[0, "#D0D0D0"], [1, primary_purple]]
-            elif energy_type == "AC Usage":
-                color_data = 'ac_energy'
-                size_data = 'ac_energy'
-                title = "AC Usage Energy (kWh)"
-                color_scale = [[0, "#D0D0D0"], [1, green]]
-            elif energy_type == "PV Production":
-                color_data = 'pv_energy'
-                size_data = 'pv_energy'
-                title = "Solar PV Production (kWh)"
-                color_scale = [[0, "#D0D0D0"], [1, cream]]
-            else:  # WH Usage
-                color_data = 'wh_energy'
-                size_data = 'wh_energy'
-                title = "Water Heater Energy (kWh)"
-                color_scale = [[0, "#D0D0D0"], [1, salmon]]
-            
-            # Create the map
-            fig = px.scatter_mapbox(
-                energy_geo_df,
-                lat="latitude",
-                lon="longitude",
-                color=color_data,
-                size=size_data,
-                size_max=15,
-                hover_name="region",
-                hover_data={
-                    "latitude": False,
-                    "longitude": False,
-                    "total_energy": ':.1f',
-                    "ev_energy": ':.1f',
-                    "ac_energy": ':.1f',
-                    "pv_energy": ':.1f',
-                    "wh_energy": ':.1f'
-                },
-                color_continuous_scale=color_scale,
-                zoom=3.5 if energy_region == "All Regions" else 5,
-                mapbox_style="carto-positron",
-                title=title
-            )
-            
-            fig.update_layout(
-                margin=dict(l=0, r=0, t=30, b=0),
-                coloraxis_colorbar=dict(
-                    title="Energy (kWh)"
-                ),
-                height=500,
-                paper_bgcolor=white,
-                plot_bgcolor=white,
-                font=dict(color=dark_purple)
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-    
-    # Add a note about the mock data
-    st.caption("Note: This map uses mock data for demonstration purposes. In a production environment, it would display actual geographic data from your dataset.")
-
-    # Add visualizations
-    st.subheader("Energy Consumption Visualizations")
-
-    # Solar Production Coverage Analysis 
-    st.subheader("Solar Production Coverage Analysis")
-
-    # Check if we have any homes with solar in the filtered dataset
-    if filtered_df['pv detected'].sum() == 0:
-        st.info("No homes with solar production in the current filtered dataset.")
-    else:
-        # Solar homes only
-        solar_homes = filtered_df[filtered_df['pv detected'] == 1].copy()
-        
-        # Use actual grid consumption for coverage calculation
-        solar_homes['solar_coverage'] = 100 * solar_homes.apply(
-            lambda row: row['solar production (kWh)'] / row['grid (kWh)'] 
-            if row['grid (kWh)'] > 0 else 0, 
-            axis=1
-        )
-        
-        # Create coverage categories for pie chart
-        def categorize_coverage(coverage):
-            if coverage >= 100:
-                return "Exceeds Consumption (100%+)"
-            elif coverage >= 75:
-                return "High Coverage (75-99%)"
-            elif coverage >= 50:
-                return "Medium Coverage (50-74%)"
-            elif coverage >= 25:
-                return "Low Coverage (25-49%)"
-            else:
-                return "Minimal Coverage (<25%)"
-        
-        solar_homes['coverage_category'] = solar_homes['solar_coverage'].apply(categorize_coverage)
-        
-        # Count homes in each category
-        category_counts = solar_homes['coverage_category'].value_counts().reset_index()
-        category_counts.columns = ['Coverage Category', 'Number of Homes']
-        
-        # Define colors and order for pie chart
-        category_order = [
-            "Exceeds Consumption (100%+)",
-            "High Coverage (75-99%)",
-            "Medium Coverage (50-74%)",
-            "Low Coverage (25-49%)",
-            "Minimal Coverage (<25%)"
-        ]
-        
-        # Keep only categories that exist in the data
-        category_order = [cat for cat in category_order if cat in category_counts['Coverage Category'].values]
-        
-        # Sort the dataframe by our custom order
-        category_counts['order'] = category_counts['Coverage Category'].apply(lambda x: category_order.index(x) if x in category_order else 999)
-        category_counts = category_counts.sort_values('order').drop('order', axis=1)
-        
-        # Simple metrics row with team-colored containers
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            # Count homes where solar production exceeds consumption
-            net_positive = (solar_homes['solar_coverage'] >= 100).sum()
-            avg_coverage = solar_homes['solar_coverage'].mean()
-            
-            st.metric(
-                label="Solar Homes",
-                value=f"{len(solar_homes)} ({net_positive} net positive)",
-                help="Number of homes with solar production detected"
+                label="Consumption Identified",
+                value=f"{pct_identified:.1f}%",
+                help="Percentage of total grid consumption attributed to specific appliances"
             )
             st.markdown("</div>", unsafe_allow_html=True)
+
+        # Add Geographic Map Section
+        st.subheader("Geographic Performance Distribution")
         
-        with col2:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            st.metric(
-                label="Average Solar Coverage",
-                value=f"{avg_coverage:.1f}%",
-                help="Average percentage of grid consumption covered by solar production"
+        # Create tabs for different map views
+        map_tabs = st.tabs(["Device Adoption", "Model Performance", "Energy Consumption"])
+        
+        # Create mock data for the map
+        import random
+        
+        # Generate random coordinates across the US
+        num_points = 100
+        
+        # Define regions with their approximate bounds
+        regions = {
+            "Northeast": {"lat_range": (40, 47), "lon_range": (-80, -67)},
+            "Midwest": {"lat_range": (36, 49), "lon_range": (-97, -80)},
+            "South": {"lat_range": (25, 36), "lon_range": (-106, -75)},
+            "West": {"lat_range": (32, 49), "lon_range": (-124, -107)}
+        }
+        
+        # Generate mock data with regional biases
+        mock_geo_data = []
+        
+        for region_name, bounds in regions.items():
+            # Number of points per region
+            points_in_region = num_points // 4
+            
+            for _ in range(points_in_region):
+                lat = random.uniform(bounds["lat_range"][0], bounds["lat_range"][1])
+                lon = random.uniform(bounds["lon_range"][0], bounds["lon_range"][1])
+                
+                # Create regional biases in the data
+                if region_name == "West":
+                    ev_adoption = random.uniform(0.15, 0.35)  # Higher EV adoption in West
+                    pv_adoption = random.uniform(0.20, 0.40)  # Higher solar in West
+                    ac_adoption = random.uniform(0.60, 0.85)
+                    wh_adoption = random.uniform(0.30, 0.50)
+                    model_accuracy = random.uniform(0.75, 0.90)
+                elif region_name == "Northeast":
+                    ev_adoption = random.uniform(0.10, 0.25)
+                    pv_adoption = random.uniform(0.05, 0.20)  # Lower solar in Northeast
+                    ac_adoption = random.uniform(0.50, 0.75)
+                    wh_adoption = random.uniform(0.40, 0.60)  # Higher water heater in Northeast
+                    model_accuracy = random.uniform(0.70, 0.85)
+                elif region_name == "Midwest":
+                    ev_adoption = random.uniform(0.05, 0.15)  # Lower EV in Midwest
+                    pv_adoption = random.uniform(0.05, 0.15)
+                    ac_adoption = random.uniform(0.70, 0.90)  # Higher AC in Midwest
+                    wh_adoption = random.uniform(0.35, 0.55)
+                    model_accuracy = random.uniform(0.65, 0.80)
+                else:  # South
+                    ev_adoption = random.uniform(0.08, 0.20)
+                    pv_adoption = random.uniform(0.10, 0.25)
+                    ac_adoption = random.uniform(0.80, 0.95)  # Highest AC in South
+                    wh_adoption = random.uniform(0.25, 0.45)
+                    model_accuracy = random.uniform(0.70, 0.85)
+                
+                # Add some random variation to make it look more realistic
+                ev_detected = 1 if random.random() < ev_adoption else 0
+                ac_detected = 1 if random.random() < ac_adoption else 0
+                pv_detected = 1 if random.random() < pv_adoption else 0
+                wh_detected = 1 if random.random() < wh_adoption else 0
+                
+                # Calculate mock energy values
+                ev_energy = random.uniform(50, 200) if ev_detected else 0
+                ac_energy = random.uniform(100, 400) if ac_detected else 0
+                pv_energy = random.uniform(200, 600) if pv_detected else 0
+                wh_energy = random.uniform(50, 150) if wh_detected else 0
+                
+                # Add to dataset
+                mock_geo_data.append({
+                    "latitude": lat,
+                    "longitude": lon,
+                    "region": region_name,
+                    "ev_adoption": ev_adoption,
+                    "ac_adoption": ac_adoption,
+                    "pv_adoption": pv_adoption,
+                    "wh_adoption": wh_adoption,
+                    "ev_detected": ev_detected,
+                    "ac_detected": ac_detected,
+                    "pv_detected": pv_detected,
+                    "wh_detected": wh_detected,
+                    "ev_energy": ev_energy,
+                    "ac_energy": ac_energy,
+                    "pv_energy": pv_energy,
+                    "wh_energy": wh_energy,
+                    "model_accuracy": model_accuracy
+                })
+        
+        # Convert to DataFrame
+        mock_geo_df = pd.DataFrame(mock_geo_data)
+        
+        # Add this function to load and cache state GeoJSON data
+        @st.cache_data
+        def load_us_state_geojson():
+            # Load GeoJSON for US states
+            url = "https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json"
+            response = requests.get(url)
+            states_geojson = response.json()
+            return states_geojson
+
+        # Load GeoJSON data
+        states_geojson = load_us_state_geojson()
+
+        def aggregate_state_data(mock_geo_df):
+            """Aggregate data by state"""
+            # Define state coordinates (centroids) for mapping regions to states
+            state_regions = {
+                'West': ['WA', 'OR', 'CA', 'ID', 'NV', 'MT', 'WY', 'UT', 'CO', 'AZ', 'NM'],
+                'Midwest': ['ND', 'SD', 'NE', 'KS', 'MN', 'IA', 'MO', 'WI', 'IL', 'IN', 'MI', 'OH'],
+                'South': ['TX', 'OK', 'AR', 'LA', 'MS', 'AL', 'TN', 'KY', 'GA', 'FL', 'SC', 'NC', 'VA', 'WV'],
+                'Northeast': ['ME', 'NH', 'VT', 'MA', 'RI', 'CT', 'NY', 'PA', 'NJ', 'DE', 'MD']
+            }
+            
+            # Create state-level aggregations
+            state_data = {}
+            for region, states in state_regions.items():
+                region_data = mock_geo_df[mock_geo_df['region'] == region]
+                n_points = len(states)
+                for state in states:
+                    # Distribute regional data across states with some random variation
+                    state_data[state] = {
+                        'ev_adoption': region_data['ev_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
+                        'ac_adoption': region_data['ac_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
+                        'pv_adoption': region_data['pv_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
+                        'wh_adoption': region_data['wh_adoption'].mean() * (1 + np.random.uniform(-0.2, 0.2)),
+                        'model_accuracy': region_data['model_accuracy'].mean() * (1 + np.random.uniform(-0.1, 0.1)),
+                        'total_energy': region_data['total_energy'].mean() * (1 + np.random.uniform(-0.2, 0.2))
+                    }
+            
+            return state_data
+
+        # Aggregate data by state
+        state_data = aggregate_state_data(mock_geo_df)
+
+        with map_tabs[0]:  # Device Adoption tab
+            col1, col2 = st.columns([1, 3])
+            
+            with col1:
+                # Add region selector
+                selected_region = st.selectbox(
+                    "Select Region", 
+                    ["All Regions", "Northeast", "Midwest", "South", "West"],
+                    key="map_region_selector"
+                )
+                
+                # Add device type selector for the map
+                map_device = st.selectbox(
+                    "Select Device Type", 
+                    ["EV Charging", "AC Usage", "PV Usage", "WH Usage", "All Devices"],
+                    key="map_device_selector"
+                )
+                
+                st.markdown("""
+                ### Map Controls
+                - Click on a state to see detailed information
+                - Use the color scale to understand adoption rates
+                - Hover over states to see values
+                """)
+            
+            with col2:
+                # Aggregate data by state
+                state_data = aggregate_state_data(mock_geo_df)
+                
+                # Prepare data for choropleth map
+                state_values = {}
+                if map_device == "EV Charging":
+                    for state, data in state_data.items():
+                        state_values[state] = data['ev_adoption'] * 100
+                    title = "EV Charging Adoption Rate (%)"
+                    colorscale = [[0, "#D0D0D0"], [1, primary_purple]]
+                elif map_device == "AC Usage":
+                    for state, data in state_data.items():
+                        state_values[state] = data['ac_adoption'] * 100
+                    title = "AC Usage Adoption Rate (%)"
+                    colorscale = [[0, "#D0D0D0"], [1, green]]
+                elif map_device == "PV Usage":
+                    for state, data in state_data.items():
+                        state_values[state] = data['pv_adoption'] * 100
+                    title = "PV Usage Adoption Rate (%)"
+                    colorscale = [[0, "#D0D0D0"], [1, cream]]
+                elif map_device == "WH Usage":
+                    for state, data in state_data.items():
+                        state_values[state] = data['wh_adoption'] * 100
+                    title = "WH Usage Adoption Rate (%)"
+                    colorscale = [[0, "#D0D0D0"], [1, salmon]]
+                else:
+                    for state, data in state_data.items():
+                        state_values[state] = data['model_accuracy'] * 100
+                    title = "Overall Device Adoption Rate (%)"
+                    colorscale = [[0, "#D0D0D0"], [1, primary_purple]]
+
+                # Create choropleth map
+                fig = go.Figure()
+
+                # Add choropleth layer
+                fig.add_trace(go.Choropleth(
+                    geojson=states_geojson,
+                    locations=[feature['id'] for feature in states_geojson['features']],
+                    z=[state_values.get(feature['id'], 0) for feature in states_geojson['features']],
+                    colorscale=colorscale,
+                    zmin=0,
+                    zmax=100,
+                    colorbar_title="Adoption Rate (%)",
+                    hovertemplate="State: %{location}<br>" + 
+                                 f"{map_device} Rate: " + "%{z:.1f}%<br>" +
+                                 "<extra></extra>"
+                ))
+
+                # Update layout
+                fig.update_layout(
+                    title=title,
+                    geo=dict(
+                        scope='usa',
+                        showlakes=True,
+                        lakecolor='rgb(255, 255, 255)',
+                        showland=True,
+                        landcolor='rgb(255, 255, 255)',
+                        showframe=False,
+                        projection_scale=1.1
+                    ),
+                    height=600,
+                    margin=dict(l=0, r=0, t=30, b=0),
+                    paper_bgcolor=white,
+                    plot_bgcolor=white,
+                    font=dict(color=dark_purple)
+                )
+
+                # Add click events
+                fig.update_traces(
+                    selected_events=["click"],
+                    unselected_events=["click"],
+                    selector=dict(type='choropleth')
+                )
+
+                # Display the map
+                st.plotly_chart(fig, use_container_width=True)
+
+                # Add state-level statistics
+                if selected_region != "All Regions":
+                    st.markdown(f"### {selected_region} Region Statistics")
+                    region_stats = pd.DataFrame([
+                        {
+                            'State': state,
+                            'Adoption Rate (%)': state_values[state],
+                            'Total Energy (kWh)': state_data[state]['total_energy']
+                        }
+                        for state, data in state_data.items()
+                        if state in state_regions[selected_region]
+                    ])
+                    st.dataframe(region_stats.sort_values('Adoption Rate (%)', ascending=False))
+
+        with map_tabs[1]:  # Model Performance tab
+            col1, col2 = st.columns([1, 3])
+            
+            with col1:
+                # Add region selector
+                perf_region = st.selectbox(
+                    "Select Region", 
+                    ["All Regions", "Northeast", "Midwest", "South", "West"],
+                    key="perf_region_selector"
+                )
+                
+                # Add metric selector
+                perf_metric = st.selectbox(
+                    "Select Performance Metric", 
+                    ["Model Accuracy", "DPSPerc", "FPR", "TECA"],
+                    key="perf_metric_selector"
+                )
+                
+                # Add a brief explanation
+                st.markdown("""
+                This map visualizes model performance metrics across different regions.
+                
+                - Color intensity shows performance level
+                - Larger circles indicate higher confidence
+                - Regional patterns may suggest areas for model improvement
+                """)
+            
+            with col2:
+                # Filter data based on region selection
+                if perf_region != "All Regions":
+                    perf_geo_df = mock_geo_df[mock_geo_df["region"] == perf_region]
+                else:
+                    perf_geo_df = mock_geo_df
+                
+                # Add mock performance metrics if they don't exist
+                if "dpsperc" not in perf_geo_df.columns:
+                    perf_geo_df["dpsperc"] = perf_geo_df["model_accuracy"] * random.uniform(0.9, 1.1)
+                    perf_geo_df["fpr"] = 1 - (perf_geo_df["model_accuracy"] * random.uniform(0.8, 1.0))
+                    perf_geo_df["teca"] = perf_geo_df["model_accuracy"] * random.uniform(0.85, 1.15)
+                    # Ensure values are in reasonable ranges
+                    perf_geo_df["dpsperc"] = perf_geo_df["dpsperc"].clip(0.5, 0.95)
+                    perf_geo_df["fpr"] = perf_geo_df["fpr"].clip(0.05, 0.5)
+                    perf_geo_df["teca"] = perf_geo_df["teca"].clip(0.4, 0.9)
+                
+                # Determine which metric to show
+                if perf_metric == "Model Accuracy":
+                    color_data = 'model_accuracy'
+                    title = "Overall Model Accuracy"
+                    color_range = [0.6, 0.9]
+                elif perf_metric == "DPSPerc":
+                    color_data = 'dpsperc'
+                    title = "Distance to Perfect Score (DPSPerc)"
+                    color_range = [0.5, 0.95]
+                elif perf_metric == "FPR":
+                    color_data = 'fpr'
+                    title = "False Positive Rate (FPR)"
+                    color_range = [0.05, 0.5]
+                    # Invert color scale for FPR (lower is better)
+                    color_scale = [[0, green], [1, red]]
+                else:  # TECA
+                    color_data = 'teca'
+                    title = "Total Energy Correctly Assigned (TECA)"
+                    color_range = [0.4, 0.9]
+                
+                # Set default color scale (except for FPR which is defined above)
+                if perf_metric != "FPR":
+                    color_scale = [[0, "#D0D0D0"], [1, primary_purple]]
+                
+                # Create the map
+                fig = px.scatter_mapbox(
+                    perf_geo_df,
+                    lat="latitude",
+                    lon="longitude",
+                    color=color_data,
+                    size='model_accuracy',  # Use accuracy for size to show confidence
+                    size_max=15,
+                    hover_name="region",
+                    hover_data={
+                        "latitude": False,
+                        "longitude": False,
+                        "model_accuracy": ':.1%',
+                        "dpsperc": ':.1%',
+                        "fpr": ':.1%',
+                        "teca": ':.1%'
+                    },
+                    color_continuous_scale=color_scale,
+                    range_color=color_range,
+                    zoom=3.5 if perf_region == "All Regions" else 5,
+                    mapbox_style="carto-positron",
+                    title=title
+                )
+                
+                fig.update_layout(
+                    margin=dict(l=0, r=0, t=30, b=0),
+                    coloraxis_colorbar=dict(
+                        title=perf_metric,
+                        tickformat='.0%'
+                    ),
+                    height=500,
+                    paper_bgcolor=white,
+                    plot_bgcolor=white,
+                    font=dict(color=dark_purple)
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+        
+        with map_tabs[2]:  # Energy Consumption tab
+            col1, col2 = st.columns([1, 3])
+            
+            with col1:
+                # Add region selector
+                energy_region = st.selectbox(
+                    "Select Region", 
+                    ["All Regions", "Northeast", "Midwest", "South", "West"],
+                    key="energy_region_selector"
+                )
+                
+                # Add energy type selector
+                energy_type = st.selectbox(
+                    "Select Energy Type", 
+                    ["Total Consumption", "EV Charging", "AC Usage", "PV Production", "WH Usage"],
+                    key="energy_type_selector"
+                )
+                
+                # Add a brief explanation
+                st.markdown("""
+                This map shows energy consumption patterns across different regions.
+                
+                - Color intensity indicates energy usage levels
+                - Larger circles represent higher consumption
+                - Regional patterns may reflect climate differences and adoption rates
+                """)
+            
+            with col2:
+                # Filter data based on region selection
+                if energy_region != "All Regions":
+                    energy_geo_df = mock_geo_df[mock_geo_df["region"] == energy_region]
+                else:
+                    energy_geo_df = mock_geo_df
+                
+                # Calculate total energy for each point
+                energy_geo_df["total_energy"] = energy_geo_df["ev_energy"] + energy_geo_df["ac_energy"] + energy_geo_df["wh_energy"]
+                
+                # Determine which energy data to show
+                if energy_type == "Total Consumption":
+                    color_data = 'total_energy'
+                    size_data = 'total_energy'
+                    title = "Total Energy Consumption (kWh)"
+                    color_scale = [[0, "#D0D0D0"], [1, primary_purple]]
+                elif energy_type == "EV Charging":
+                    color_data = 'ev_energy'
+                    size_data = 'ev_energy'
+                    title = "EV Charging Energy (kWh)"
+                    color_scale = [[0, "#D0D0D0"], [1, primary_purple]]
+                elif energy_type == "AC Usage":
+                    color_data = 'ac_energy'
+                    size_data = 'ac_energy'
+                    title = "AC Usage Energy (kWh)"
+                    color_scale = [[0, "#D0D0D0"], [1, green]]
+                elif energy_type == "PV Production":
+                    color_data = 'pv_energy'
+                    size_data = 'pv_energy'
+                    title = "Solar PV Production (kWh)"
+                    color_scale = [[0, "#D0D0D0"], [1, cream]]
+                else:  # WH Usage
+                    color_data = 'wh_energy'
+                    size_data = 'wh_energy'
+                    title = "Water Heater Energy (kWh)"
+                    color_scale = [[0, "#D0D0D0"], [1, salmon]]
+                
+                # Create the map
+                fig = px.scatter_mapbox(
+                    energy_geo_df,
+                    lat="latitude",
+                    lon="longitude",
+                    color=color_data,
+                    size=size_data,
+                    size_max=15,
+                    hover_name="region",
+                    hover_data={
+                        "latitude": False,
+                        "longitude": False,
+                        "total_energy": ':.1f',
+                        "ev_energy": ':.1f',
+                        "ac_energy": ':.1f',
+                        "pv_energy": ':.1f',
+                        "wh_energy": ':.1f'
+                    },
+                    color_continuous_scale=color_scale,
+                    zoom=3.5 if energy_region == "All Regions" else 5,
+                    mapbox_style="carto-positron",
+                    title=title
+                )
+                
+                fig.update_layout(
+                    margin=dict(l=0, r=0, t=30, b=0),
+                    coloraxis_colorbar=dict(
+                        title="Energy (kWh)"
+                    ),
+                    height=500,
+                    paper_bgcolor=white,
+                    plot_bgcolor=white,
+                    font=dict(color=dark_purple)
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+        
+        # Add a note about the mock data
+        st.caption("Note: This map uses mock data for demonstration purposes. In a production environment, it would display actual geographic data from your dataset.")
+
+        # Add visualizations
+        st.subheader("Energy Consumption Visualizations")
+
+        # Solar Production Coverage Analysis 
+        st.subheader("Solar Production Coverage Analysis")
+
+        # Check if we have any homes with solar in the filtered dataset
+        if filtered_df['pv detected'].sum() == 0:
+            st.info("No homes with solar production in the current filtered dataset.")
+        else:
+            # Solar homes only
+            solar_homes = filtered_df[filtered_df['pv detected'] == 1].copy()
+            
+            # Use actual grid consumption for coverage calculation
+            solar_homes['solar_coverage'] = 100 * solar_homes.apply(
+                lambda row: row['solar production (kWh)'] / row['grid (kWh)'] 
+                if row['grid (kWh)'] > 0 else 0, 
+                axis=1
             )
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        # Create pie chart with team colors
-        fig = px.pie(
-            category_counts,
-            values='Number of Homes',
-            names='Coverage Category',
-            title='Distribution of Solar Coverage Levels',
-            color='Coverage Category',
-            color_discrete_map={
-                "Exceeds Consumption (100%+)": green,
-                "High Coverage (75-99%)": cream,
-                "Medium Coverage (50-74%)": primary_purple,
-                "Low Coverage (25-49%)": dark_purple,
-                "Minimal Coverage (<25%)": salmon
-            },
-        )
-        
-        # Update layout 
-        fig.update_layout(
-            legend_title="Coverage Level",
-            margin=dict(l=20, r=20, t=50, b=20),
-            paper_bgcolor=white,
-            plot_bgcolor=white,
-            font=dict(color=dark_purple),
-            title_font=dict(color=primary_purple),
-            legend=dict(font=dict(color=dark_purple))
-        )
-        
-        fig.update_traces(
-            textinfo='percent+label',
-            hovertemplate='%{label}<br>%{value} homes<br>%{percent}',
-            textfont=dict(color=white)  
-        )
-        
-        # Display the plot
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Minimal explanation 
+            
+            # Create coverage categories for pie chart
+            def categorize_coverage(coverage):
+                if coverage >= 100:
+                    return "Exceeds Consumption (100%+)"
+                elif coverage >= 75:
+                    return "High Coverage (75-99%)"
+                elif coverage >= 50:
+                    return "Medium Coverage (50-74%)"
+                elif coverage >= 25:
+                    return "Low Coverage (25-49%)"
+                else:
+                    return "Minimal Coverage (<25%)"
+            
+            solar_homes['coverage_category'] = solar_homes['solar_coverage'].apply(categorize_coverage)
+            
+            # Count homes in each category
+            category_counts = solar_homes['coverage_category'].value_counts().reset_index()
+            category_counts.columns = ['Coverage Category', 'Number of Homes']
+            
+            # Define colors and order for pie chart
+            category_order = [
+                "Exceeds Consumption (100%+)",
+                "High Coverage (75-99%)",
+                "Medium Coverage (50-74%)",
+                "Low Coverage (25-49%)",
+                "Minimal Coverage (<25%)"
+            ]
+            
+            # Keep only categories that exist in the data
+            category_order = [cat for cat in category_order if cat in category_counts['Coverage Category'].values]
+            
+            # Sort the dataframe by our custom order
+            category_counts['order'] = category_counts['Coverage Category'].apply(lambda x: category_order.index(x) if x in category_order else 999)
+            category_counts = category_counts.sort_values('order').drop('order', axis=1)
+            
+            # Simple metrics row with team-colored containers
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+                # Count homes where solar production exceeds consumption
+                net_positive = (solar_homes['solar_coverage'] >= 100).sum()
+                avg_coverage = solar_homes['solar_coverage'].mean()
+                
+                st.metric(
+                    label="Solar Homes",
+                    value=f"{len(solar_homes)} ({net_positive} net positive)",
+                    help="Number of homes with solar production detected"
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+                st.metric(
+                    label="Average Solar Coverage",
+                    value=f"{avg_coverage:.1f}%",
+                    help="Average percentage of grid consumption covered by solar production"
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
+            
+            # Create pie chart with team colors
+            fig = px.pie(
+                category_counts,
+                values='Number of Homes',
+                names='Coverage Category',
+                title='Distribution of Solar Coverage Levels',
+                color='Coverage Category',
+                color_discrete_map={
+                    "Exceeds Consumption (100%+)": green,
+                    "High Coverage (75-99%)": cream,
+                    "Medium Coverage (50-74%)": primary_purple,
+                    "Low Coverage (25-49%)": dark_purple,
+                    "Minimal Coverage (<25%)": salmon
+                },
+            )
+            
+            # Update layout 
+            fig.update_layout(
+                legend_title="Coverage Level",
+                margin=dict(l=20, r=20, t=50, b=20),
+                paper_bgcolor=white,
+                plot_bgcolor=white,
+                font=dict(color=dark_purple),
+                title_font=dict(color=primary_purple),
+                legend=dict(font=dict(color=dark_purple))
+            )
+            
+            fig.update_traces(
+                textinfo='percent+label',
+                hovertemplate='%{label}<br>%{value} homes<br>%{percent}',
+                textfont=dict(color=white)  
+            )
+            
+            # Display the plot
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Minimal explanation 
+            st.markdown(f"""
+            <div style="color:{primary_purple}; font-style:italic; text-align:center; margin-top:-20px;">
+                Solar coverage shows what percentage of each home's total grid consumption is offset by solar production.
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Add footer with primary purple color
+        st.markdown("---")
         st.markdown(f"""
-        <div style="color:{primary_purple}; font-style:italic; text-align:center; margin-top:-20px;">
-            Solar coverage shows what percentage of each home's total grid consumption is offset by solar production.
+        <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
+            This sample output demonstrates the type of insights available from the disaggregation model. 
+            In a full deployment, thousands of households would be analyzed to provide statistically significant patterns and trends.
         </div>
         """, unsafe_allow_html=True)
-
-    # Add footer with primary purple color
-    st.markdown("---")
-    st.markdown(f"""
-    <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
-        This sample output demonstrates the type of insights available from the disaggregation model. 
-        In a full deployment, thousands of households would be analyzed to provide statistically significant patterns and trends.
-    </div>
-    """, unsafe_allow_html=True)
 
 else:  # Performance Metrics page
     # Just one title, with a more comprehensive subheader
@@ -1527,7 +1587,7 @@ else:  # Performance Metrics page
         - All models demonstrate similar PV detection capabilities, with minor variations in performance metrics.
         """)
 
-    # Footer (using the same styling as the main page)
+    # Footer for Performance Metrics page
     st.markdown("---")
     st.markdown(f"""
     <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
