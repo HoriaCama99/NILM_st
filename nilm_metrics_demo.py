@@ -327,36 +327,36 @@ if page == "Sample Output":
             'Water Heater': filtered_df['water heater detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0
         }
         
-            # Create interactive bar chart using Plotly with team colors
+        # Create interactive bar chart using Plotly with team colors
         fig1 = px.bar(
             x=list(appliance_presence.keys()),
             y=list(appliance_presence.values()),
             labels={'x': 'Appliance Type', 'y': 'Percentage of Homes (%)'},
             color=list(appliance_presence.keys()),
             color_discrete_map={
-                        'EV Charging': primary_purple,
-                        'Air Conditioning': green,
-                        'Solar PV': cream,
-                        'Water Heater': salmon
+                'EV Charging': primary_purple,
+                'Air Conditioning': green,
+                'Solar PV': cream,
+                'Water Heater': salmon
             },
             text=[f"{val:.1f}%" for val in appliance_presence.values()]
         )
         
-            # Update layout with team colors - now with white background
+        # Update layout with team colors - now with white background
         fig1.update_layout(
             showlegend=False,
             xaxis_title="Appliance Type",
             yaxis_title="Percentage of Homes (%)",
             yaxis_range=[0, 100],
             margin=dict(l=20, r=20, t=30, b=20),
-                    paper_bgcolor=white,
-                    plot_bgcolor=white,
-                    font=dict(color=dark_purple)
+            paper_bgcolor=white,
+            plot_bgcolor=white,
+            font=dict(color=dark_purple)
         )
         
-            fig1.update_traces(textposition='outside', textfont=dict(color=dark_purple))
-            fig1.update_xaxes(showgrid=False, gridcolor=light_purple, tickfont=dict(color=dark_purple))
-            fig1.update_yaxes(showgrid=True, gridcolor=light_purple, tickfont=dict(color=dark_purple))
+        fig1.update_traces(textposition='outside', textfont=dict(color=dark_purple))
+        fig1.update_xaxes(showgrid=False, gridcolor=light_purple, tickfont=dict(color=dark_purple))
+        fig1.update_yaxes(showgrid=True, gridcolor=light_purple, tickfont=dict(color=dark_purple))
         
         # Display the plot
         st.plotly_chart(fig1, use_container_width=True)
