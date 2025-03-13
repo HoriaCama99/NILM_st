@@ -735,13 +735,6 @@ if page == "Sample Output":
                 font=dict(color=dark_purple)
             )
 
-            # Add click events
-            fig.update_traces(
-                selected_events=["click"],
-                unselected_events=["click"],
-                selector=dict(type='choropleth')
-            )
-
             # Display the map
             st.plotly_chart(fig, use_container_width=True)
 
