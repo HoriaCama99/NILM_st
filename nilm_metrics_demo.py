@@ -677,27 +677,27 @@ if page == "Sample Output":
                 for state, data in state_data.items():
                     state_values[state] = data['ev_adoption'] * 100
                 title = "EV Charging Adoption Rate (%)"
-                colorscale = [[0, "#D0D0D0"], [1, primary_purple]]
+                colorscale = [[0, "#FFFFFF"], [0.5, "#8591C4"], [1, primary_purple]]  # White to light purple to dark purple
             elif map_device == "AC Usage":
                 for state, data in state_data.items():
                     state_values[state] = data['ac_adoption'] * 100
                 title = "AC Usage Adoption Rate (%)"
-                colorscale = [[0, "#D0D0D0"], [1, green]]
+                colorscale = [[0, "#FFFFFF"], [0.5, "#95C0BC"], [1, green]]  # White to light green to dark green
             elif map_device == "PV Usage":
                 for state, data in state_data.items():
                     state_values[state] = data['pv_adoption'] * 100
                 title = "PV Usage Adoption Rate (%)"
-                colorscale = [[0, "#D0D0D0"], [1, cream]]
+                colorscale = [[0, "#FFFFFF"], [0.5, "#F7F0E1"], [1, cream]]  # White to light cream to cream
             elif map_device == "WH Usage":
                 for state, data in state_data.items():
                     state_values[state] = data['wh_adoption'] * 100
                 title = "WH Usage Adoption Rate (%)"
-                colorscale = [[0, "#D0D0D0"], [1, salmon]]
+                colorscale = [[0, "#FFFFFF"], [0.5, "#F4C9B8"], [1, salmon]]  # White to light salmon to salmon
             else:
                 for state, data in state_data.items():
                     state_values[state] = data['model_accuracy'] * 100
                 title = "Overall Device Adoption Rate (%)"
-                colorscale = [[0, "#D0D0D0"], [1, primary_purple]]
+                colorscale = [[0, "#FFFFFF"], [0.5, "#8591C4"], [1, primary_purple]]  # White to light purple to dark purple
 
             # Create choropleth map
             fig = go.Figure()
@@ -713,10 +713,11 @@ if page == "Sample Output":
                 colorbar_title="Adoption Rate (%)",
                 hovertemplate="State: %{location}<br>" + 
                              f"{map_device} Rate: " + "%{z:.1f}%<br>" +
-                             "<extra></extra>"
+                             "<extra></extra>",
+                showscale=True
             ))
 
-            # Update layout
+            # Update layout with enhanced visibility settings
             fig.update_layout(
                 title=title,
                 geo=dict(
@@ -726,7 +727,12 @@ if page == "Sample Output":
                     showland=True,
                     landcolor='rgb(255, 255, 255)',
                     showframe=False,
-                    projection_scale=1.1
+                    projection_scale=1.1,
+                    bgcolor='rgba(0,0,0,0)',  # Transparent background
+                    showcoastlines=True,
+                    coastlinecolor='rgba(0,0,0,0.2)',  # Subtle coastlines
+                    showsubunits=True,
+                    subunitcolor='rgba(0,0,0,0.2)'  # Subtle state borders
                 ),
                 height=600,
                 margin=dict(l=0, r=0, t=30, b=0),
