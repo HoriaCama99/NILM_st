@@ -645,6 +645,14 @@ if page == "Sample Output":
     with map_tabs[0]:  # Device Adoption tab
         col1, col2 = st.columns([1, 3])
         
+        # Define state_regions here where it's used
+        state_regions = {
+            'West': ['WA', 'OR', 'CA', 'ID', 'NV', 'MT', 'WY', 'UT', 'CO', 'AZ', 'NM'],
+            'Midwest': ['ND', 'SD', 'NE', 'KS', 'MN', 'IA', 'MO', 'WI', 'IL', 'IN', 'MI', 'OH'],
+            'South': ['TX', 'OK', 'AR', 'LA', 'MS', 'AL', 'TN', 'KY', 'GA', 'FL', 'SC', 'NC', 'VA', 'WV'],
+            'Northeast': ['ME', 'NH', 'VT', 'MA', 'RI', 'CT', 'NY', 'PA', 'NJ', 'DE', 'MD']
+        }
+        
         with col1:
             # Add region selector
             selected_region = st.selectbox(
