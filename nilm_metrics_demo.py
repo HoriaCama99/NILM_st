@@ -249,134 +249,134 @@ except Exception as e:
 
 # Main page selection structure
 if page == "Sample Output":
-    # Convert the sample data to a DataFrame
+# Convert the sample data to a DataFrame
     df = pd.read_csv('disagg_sample.csv') 
 
-    # Page title and introduction
-    st.title("Energy Disaggregation Model: Sample Output")
+# Page title and introduction
+st.title("Energy Disaggregation Model: Sample Output")
 
-    st.markdown("""
-    This dashboard presents a sample output from our energy disaggregation model, which analyzes household 
-    energy consumption data and identifies specific appliance usage patterns.
+st.markdown("""
+This dashboard presents a sample output from our energy disaggregation model, which analyzes household 
+energy consumption data and identifies specific appliance usage patterns.
 
-    ### Key Assumptions:
-    - Sample represents output for multiple homes with diverse energy profiles
+### Key Assumptions:
+- Sample represents output for multiple homes with diverse energy profiles
         - Values reflect monthly average energy consumption in kWh
-    - Detection flags (0/1) indicate presence of each appliance
+- Detection flags (0/1) indicate presence of each appliance
         - Grid consumption represents total household electricity usage
-    - Model confidence levels are not shown in this simplified output
-    """)
+- Model confidence levels are not shown in this simplified output
+""")
 
-    # Add interactive filtering directly with the first dataframe
-    st.subheader("Sample Model Output with Interactive Filtering")
+# Add interactive filtering directly with the first dataframe
+st.subheader("Sample Model Output with Interactive Filtering")
 
-    # Add filter controls in a more compact format
-    filter_cols = st.columns(4)
+# Add filter controls in a more compact format
+filter_cols = st.columns(4)
 
-    with filter_cols[0]:
-        ev_filter = st.selectbox("EV Charging", ["Any", "Present", "Not Present"])
+with filter_cols[0]:
+    ev_filter = st.selectbox("EV Charging", ["Any", "Present", "Not Present"])
 
-    with filter_cols[1]:
-        ac_filter = st.selectbox("Air Conditioning", ["Any", "Present", "Not Present"])
+with filter_cols[1]:
+    ac_filter = st.selectbox("Air Conditioning", ["Any", "Present", "Not Present"])
 
-    with filter_cols[2]:
-        pv_filter = st.selectbox("Solar PV", ["Any", "Present", "Not Present"])
+with filter_cols[2]:
+    pv_filter = st.selectbox("Solar PV", ["Any", "Present", "Not Present"])
 
-    with filter_cols[3]:
-        wh_filter = st.selectbox("Water Heater", ["Any", "Present", "Not Present"])
+with filter_cols[3]:
+    wh_filter = st.selectbox("Water Heater", ["Any", "Present", "Not Present"])
 
-    # Apply filters
-    filtered_df = df.copy()
+# Apply filters
+filtered_df = df.copy()
 
-    if ev_filter == "Present":
-        filtered_df = filtered_df[filtered_df['ev detected'] == 1]
-    elif ev_filter == "Not Present":
-        filtered_df = filtered_df[filtered_df['ev detected'] == 0]
+if ev_filter == "Present":
+    filtered_df = filtered_df[filtered_df['ev detected'] == 1]
+elif ev_filter == "Not Present":
+    filtered_df = filtered_df[filtered_df['ev detected'] == 0]
 
-    if ac_filter == "Present":
-        filtered_df = filtered_df[filtered_df['ac detected'] == 1]
-    elif ac_filter == "Not Present":
-        filtered_df = filtered_df[filtered_df['ac detected'] == 0]
+if ac_filter == "Present":
+    filtered_df = filtered_df[filtered_df['ac detected'] == 1]
+elif ac_filter == "Not Present":
+    filtered_df = filtered_df[filtered_df['ac detected'] == 0]
 
-    if pv_filter == "Present":
-        filtered_df = filtered_df[filtered_df['pv detected'] == 1]
-    elif pv_filter == "Not Present":
-        filtered_df = filtered_df[filtered_df['pv detected'] == 0]
+if pv_filter == "Present":
+    filtered_df = filtered_df[filtered_df['pv detected'] == 1]
+elif pv_filter == "Not Present":
+    filtered_df = filtered_df[filtered_df['pv detected'] == 0]
 
-    if wh_filter == "Present":
-        filtered_df = filtered_df[filtered_df['water heater detected'] == 1]
-    elif wh_filter == "Not Present":
-        filtered_df = filtered_df[filtered_df['water heater detected'] == 0]
+if wh_filter == "Present":
+    filtered_df = filtered_df[filtered_df['water heater detected'] == 1]
+elif wh_filter == "Not Present":
+    filtered_df = filtered_df[filtered_df['water heater detected'] == 0]
 
-    # Display filtered dataframe with record count
-    st.dataframe(filtered_df, use_container_width=True)
-    st.caption(f"Showing {len(filtered_df)} of {len(df)} homes")
+# Display filtered dataframe with record count
+st.dataframe(filtered_df, use_container_width=True)
+st.caption(f"Showing {len(filtered_df)} of {len(df)} homes")
 
-    # Create two columns for the interactive plots
-    col1, col2 = st.columns(2)
+# Create two columns for the interactive plots
+col1, col2 = st.columns(2)
 
-    with col1:
-        st.subheader("Appliance Presence in Housing Portfolio")
-        
-        # Calculate presence percentages
-        appliance_presence = {
-            'EV Charging': filtered_df['ev detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
-            'Air Conditioning': filtered_df['ac detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
-            'Solar PV': filtered_df['pv detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
-            'Water Heater': filtered_df['water heater detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0
-        }
-        
+with col1:
+    st.subheader("Appliance Presence in Housing Portfolio")
+    
+    # Calculate presence percentages
+    appliance_presence = {
+        'EV Charging': filtered_df['ev detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
+        'Air Conditioning': filtered_df['ac detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
+        'Solar PV': filtered_df['pv detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
+        'Water Heater': filtered_df['water heater detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0
+    }
+    
         # Create interactive bar chart using Plotly with team colors
-        fig1 = px.bar(
-            x=list(appliance_presence.keys()),
-            y=list(appliance_presence.values()),
-            labels={'x': 'Appliance Type', 'y': 'Percentage of Homes (%)'},
-            color=list(appliance_presence.keys()),
-            color_discrete_map={
+    fig1 = px.bar(
+        x=list(appliance_presence.keys()),
+        y=list(appliance_presence.values()),
+        labels={'x': 'Appliance Type', 'y': 'Percentage of Homes (%)'},
+        color=list(appliance_presence.keys()),
+        color_discrete_map={
                         'EV Charging': primary_purple,
                         'Air Conditioning': green,
                         'Solar PV': cream,
                         'Water Heater': salmon
-            },
-            text=[f"{val:.1f}%" for val in appliance_presence.values()]
-        )
-        
+        },
+        text=[f"{val:.1f}%" for val in appliance_presence.values()]
+    )
+    
         # Update layout with team colors - now with white background
-        fig1.update_layout(
-            showlegend=False,
-            xaxis_title="Appliance Type",
-            yaxis_title="Percentage of Homes (%)",
-            yaxis_range=[0, 100],
-            margin=dict(l=20, r=20, t=30, b=20),
+    fig1.update_layout(
+        showlegend=False,
+        xaxis_title="Appliance Type",
+        yaxis_title="Percentage of Homes (%)",
+        yaxis_range=[0, 100],
+        margin=dict(l=20, r=20, t=30, b=20),
                     paper_bgcolor=white,
                     plot_bgcolor=white,
                     font=dict(color=dark_purple)
-        )
-        
+    )
+    
         # Fix indentation in the bar chart section
         fig1.update_traces(textposition='outside', textfont=dict(color=dark_purple))
         fig1.update_xaxes(showgrid=False, gridcolor=light_purple, tickfont=dict(color=dark_purple))
         fig1.update_yaxes(showgrid=True, gridcolor=light_purple, tickfont=dict(color=dark_purple))
+    
+    # Display the plot
+    st.plotly_chart(fig1, use_container_width=True)
+    
+    # Add interactive details
+    with st.expander("About Appliance Presence"):
+        st.markdown("""
+        This chart shows the percentage of homes in the sample where each appliance type was detected.
         
-        # Display the plot
-        st.plotly_chart(fig1, use_container_width=True)
+        - **Air Conditioning**: Most commonly detected appliance
+        - **Solar PV**: Shows significant renewable adoption
+        - **EV Charging**: Indicates electric vehicle ownership
+        - **Water Heater**: Least commonly detected in this sample
         
-        # Add interactive details
-        with st.expander("About Appliance Presence"):
-            st.markdown("""
-            This chart shows the percentage of homes in the sample where each appliance type was detected.
-            
-            - **Air Conditioning**: Most commonly detected appliance
-            - **Solar PV**: Shows significant renewable adoption
-            - **EV Charging**: Indicates electric vehicle ownership
-            - **Water Heater**: Least commonly detected in this sample
-            
-            Detection is based on energy signature patterns identified by the disaggregation model.
-            """)
+        Detection is based on energy signature patterns identified by the disaggregation model.
+        """)
 
-    with col2:
-        st.subheader("Total Energy Distribution by Type")
-        
+with col2:
+    st.subheader("Total Energy Distribution by Type")
+    
         # Calculate disaggregated appliance total
         disaggregated_total = (filtered_df['ev charging (kWh)'].sum() + 
                               filtered_df['air conditioning (kWh)'].sum() + 
@@ -386,58 +386,58 @@ if page == "Sample Output":
         other_consumption = filtered_df['grid (kWh)'].sum() - disaggregated_total
         other_consumption = max(0, other_consumption)  # Ensure it's not negative
         
-        energy_totals = {
-            'EV Charging': filtered_df['ev charging (kWh)'].sum(),
-            'Air Conditioning': filtered_df['air conditioning (kWh)'].sum(),
+    energy_totals = {
+        'EV Charging': filtered_df['ev charging (kWh)'].sum(),
+        'Air Conditioning': filtered_df['air conditioning (kWh)'].sum(),
             'Water Heater': filtered_df['water heater (kWh)'].sum(),
             'Other Consumption': other_consumption
-        }
-        
+    }
+    
         # Create interactive pie chart using Plotly with team colors
-        fig2 = px.pie(
-            values=list(energy_totals.values()),
-            names=list(energy_totals.keys()),
-            color=list(energy_totals.keys()),
-            color_discrete_map={
+    fig2 = px.pie(
+        values=list(energy_totals.values()),
+        names=list(energy_totals.keys()),
+        color=list(energy_totals.keys()),
+        color_discrete_map={
                     'EV Charging': primary_purple,
                     'Air Conditioning': green,
                     'Water Heater': salmon,
                     'Other Consumption': light_purple
-            },
-            hole=0.4
-        )
-        
+        },
+        hole=0.4
+    )
+    
         # Update layout with team colors - now with white background
-        fig2.update_layout(
-            legend_title="Energy Type",
-            margin=dict(l=20, r=20, t=30, b=20),
+    fig2.update_layout(
+        legend_title="Energy Type",
+        margin=dict(l=20, r=20, t=30, b=20),
                 paper_bgcolor=white,
                 plot_bgcolor=white,
                 font=dict(color=dark_purple),
                 legend=dict(font=dict(color=dark_purple))
-        )
-        
-        fig2.update_traces(
-            textinfo='percent+label',
+    )
+    
+    fig2.update_traces(
+        textinfo='percent+label',
                 hovertemplate='%{label}<br>%{value:.1f} kWh<br>%{percent}',
                 textfont=dict(color=dark_gray)  # Darker text for better contrast
-        )
-        
-        # Display the plot
-        st.plotly_chart(fig2, use_container_width=True)
-        
-        # Add interactive details
-        with st.expander("About Energy Distribution"):
-            st.markdown("""
+    )
+    
+    # Display the plot
+    st.plotly_chart(fig2, use_container_width=True)
+    
+    # Add interactive details
+    with st.expander("About Energy Distribution"):
+        st.markdown("""
                 This chart shows how the total energy consumption is distributed across different appliance types.
-            
-            - **Air Conditioning**: Typically accounts for significant consumption
-            - **EV Charging**: Can be a major energy consumer when present
-            - **Water Heater**: Generally smaller portion of total energy use
+        
+        - **Air Conditioning**: Typically accounts for significant consumption
+        - **EV Charging**: Can be a major energy consumer when present
+        - **Water Heater**: Generally smaller portion of total energy use
                 - **Other Consumption**: Remaining grid usage not attributed to the three main appliances
-            
-            Understanding this distribution helps identify the highest impact areas for efficiency improvements.
-            """)
+        
+        Understanding this distribution helps identify the highest impact areas for efficiency improvements.
+        """)
 
         # Add summary metrics
         st.markdown(f"""
@@ -452,41 +452,41 @@ if page == "Sample Output":
         </style>
         """, unsafe_allow_html=True)
 
-    st.subheader("Key Metrics")
-    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+st.subheader("Key Metrics")
+metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
 
-    with metric_col1:
+with metric_col1:
         st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-        st.metric(
-            label="Total Homes",
-            value=len(filtered_df),
-            delta=f"{len(filtered_df) - len(df)}" if len(filtered_df) != len(df) else None,
-            help="Number of households in the filtered dataset"
-        )
+    st.metric(
+        label="Total Homes",
+        value=len(filtered_df),
+        delta=f"{len(filtered_df) - len(df)}" if len(filtered_df) != len(df) else None,
+        help="Number of households in the filtered dataset"
+    )
         st.markdown("</div>", unsafe_allow_html=True)
 
-    with metric_col2:
+with metric_col2:
         st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
         avg_grid = filtered_df['grid (kWh)'].mean() if len(filtered_df) > 0 else 0
-        st.metric(
+    st.metric(
             label="Avg. Grid Consumption",
             value=f"{avg_grid:.1f} kWh",
             help="Average total electricity consumption per home"
         )
         st.markdown("</div>", unsafe_allow_html=True)
 
-    with metric_col3:
+with metric_col3:
         st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-        pv_homes = filtered_df[filtered_df['pv detected'] == 1]
-        pv_avg = pv_homes['solar production (kWh)'].mean() if len(pv_homes) > 0 else 0
-        st.metric(
-            label="Avg. Solar Production",
-            value=f"{pv_avg:.1f} kWh",
-            help="Average solar production for homes with PV systems"
-        )
+    pv_homes = filtered_df[filtered_df['pv detected'] == 1]
+    pv_avg = pv_homes['solar production (kWh)'].mean() if len(pv_homes) > 0 else 0
+    st.metric(
+        label="Avg. Solar Production",
+        value=f"{pv_avg:.1f} kWh",
+        help="Average solar production for homes with PV systems"
+    )
         st.markdown("</div>", unsafe_allow_html=True)
 
-    with metric_col4:
+with metric_col4:
         st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
         # Percentage of consumption identified by model
         total_grid = filtered_df['grid (kWh)'].sum()
@@ -494,7 +494,7 @@ if page == "Sample Output":
                           filtered_df['air conditioning (kWh)'].sum() + 
                           filtered_df['water heater (kWh)'].sum())
         pct_identified = (total_identified / total_grid * 100) if total_grid > 0 else 0
-        st.metric(
+    st.metric(
             label="Consumption Identified",
             value=f"{pct_identified:.1f}%",
             help="Percentage of total grid consumption attributed to specific appliances"
@@ -528,7 +528,7 @@ if page == "Sample Output":
         
         with col2:
             # Create map with device distribution
-            fig = px.scatter_mapbox(
+            fig = px.scatter_geo(
                 mock_geo_df,  # Your dataframe with geographic data
                 lat="latitude",
                 lon="longitude",
@@ -547,15 +547,12 @@ if page == "Sample Output":
                     [0.2, device_colors[map_device]],
                     [1, dark_purple]
                 ],
-                mapbox_style="carto-positron",
-                zoom=3
+                scope="usa",
+                projection="albers usa"
             )
             
             fig.update_layout(
                 margin=dict(l=0, r=0, t=0, b=0),
-                mapbox=dict(
-                    center=dict(lat=37.0902, lon=-95.7129),  # Center of US
-                ),
                 coloraxis_colorbar=dict(
                     title="Energy Usage (kWh)",
                     titleside="right",
@@ -565,7 +562,15 @@ if page == "Sample Output":
                 ),
                 paper_bgcolor=white,
                 plot_bgcolor=white,
-                font=dict(color=dark_purple)
+                font=dict(color=dark_purple),
+                geo=dict(
+                    showland=True,
+                    landcolor=light_purple,
+                    showcoastlines=True,
+                    coastlinecolor=primary_purple,
+                    showstates=True,
+                    statecolor=primary_purple
+                )
             )
             
             st.plotly_chart(fig, use_container_width=True)
@@ -594,7 +599,7 @@ if page == "Sample Output":
             if metric == "FPR":
                 color_scale = color_scale[::-1]  # Reverse for FPR (lower is better)
                 
-            fig = px.scatter_mapbox(
+            fig = px.scatter_geo(
                 mock_geo_df,
                 lat="latitude",
                 lon="longitude",
@@ -609,15 +614,12 @@ if page == "Sample Output":
                     "confidence": ':.2%'
                 },
                 color_continuous_scale=color_scale,
-                mapbox_style="carto-positron",
-                zoom=3
+                scope="usa",
+                projection="albers usa"
             )
             
             fig.update_layout(
                 margin=dict(l=0, r=0, t=0, b=0),
-                mapbox=dict(
-                    center=dict(lat=37.0902, lon=-95.7129),
-                ),
                 coloraxis_colorbar=dict(
                     title=f"{metric} (%)",
                     titleside="right",
@@ -627,7 +629,15 @@ if page == "Sample Output":
                 ),
                 paper_bgcolor=white,
                 plot_bgcolor=white,
-                font=dict(color=dark_purple)
+                font=dict(color=dark_purple),
+                geo=dict(
+                    showland=True,
+                    landcolor=light_purple,
+                    showcoastlines=True,
+                    coastlinecolor=primary_purple,
+                    showstates=True,
+                    statecolor=primary_purple
+                )
             )
             
             st.plotly_chart(fig, use_container_width=True)
@@ -664,7 +674,7 @@ if page == "Sample Output":
                 color_scale = [[0, light_purple], [1, dark_purple]]
                 title = f"{energy_type} (kWh)"
                 
-            fig = px.scatter_mapbox(
+            fig = px.scatter_geo(
                 mock_geo_df,
                 lat="latitude",
                 lon="longitude",
@@ -679,15 +689,12 @@ if page == "Sample Output":
                     "total_energy": ':.1f'
                 },
                 color_continuous_scale=color_scale,
-                mapbox_style="carto-positron",
-                zoom=3
+                scope="usa",
+                projection="albers usa"
             )
             
             fig.update_layout(
                 margin=dict(l=0, r=0, t=0, b=0),
-                mapbox=dict(
-                    center=dict(lat=37.0902, lon=-95.7129),
-                ),
                 coloraxis_colorbar=dict(
                     title=title,
                     titleside="right",
@@ -697,7 +704,15 @@ if page == "Sample Output":
                 ),
                 paper_bgcolor=white,
                 plot_bgcolor=white,
-                font=dict(color=dark_purple)
+                font=dict(color=dark_purple),
+                geo=dict(
+                    showland=True,
+                    landcolor=light_purple,
+                    showcoastlines=True,
+                    coastlinecolor=primary_purple,
+                    showstates=True,
+                    statecolor=primary_purple
+                )
             )
             
             st.plotly_chart(fig, use_container_width=True)
@@ -1202,7 +1217,7 @@ else:  # Performance Metrics page
         """)
 
     # Footer
-    st.markdown("---")
+st.markdown("---")
     st.markdown(f"""
     <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
         This dashboard presents the performance metrics of our NILM algorithm for detecting various device usage patterns.
