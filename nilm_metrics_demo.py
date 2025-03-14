@@ -498,6 +498,341 @@ if page == "Sample Output":
         )
         st.markdown("</div>", unsafe_allow_html=True)
 
+    # Geographic Energy Insights Map
+    st.subheader("Geographical Energy Insights")
+    
+    # Mock dataset for geographical visualization
+    @st.cache_data
+    def generate_geo_data():
+        import random
+        
+        # Define states and regions
+        regions = {
+            'Northeast': ['ME', 'NH', 'VT', 'MA', 'RI', 'CT', 'NY', 'NJ', 'PA'],
+            'Southeast': ['DE', 'MD', 'VA', 'WV', 'KY', 'NC', 'SC', 'TN', 'GA', 'FL', 'AL', 'MS', 'AR', 'LA'],
+            'Midwest': ['OH', 'MI', 'IN', 'IL', 'WI', 'MN', 'IA', 'MO', 'ND', 'SD', 'NE', 'KS'],
+            'Southwest': ['OK', 'TX', 'NM', 'AZ'],
+            'West': ['CO', 'WY', 'MT', 'ID', 'WA', 'OR', 'UT', 'NV', 'CA', 'AK', 'HI']
+        }
+        
+        # Create a base for our mock dataset
+        geo_data = []
+        
+        # Set region-specific patterns
+        region_characteristics = {
+            'Northeast': {
+                'grid_range': (800, 1200),  # Higher consumption due to heating
+                'solar_range': (100, 350),   # Moderate solar production
+                'ev_range': (150, 400),      # Higher EV adoption 
+                'ac_range': (100, 300),      # Lower AC due to climate
+                'water_heater_range': (150, 300),  # Higher water heating needs
+                'pv_adoption_range': (15, 40),     # Moderate solar adoption
+                'ev_adoption_range': (15, 45)      # Higher EV adoption
+            },
+            'Southeast': {
+                'grid_range': (900, 1400),   # Higher consumption due to AC
+                'solar_range': (200, 450),   # Good solar production
+                'ev_range': (50, 250),       # Lower EV adoption
+                'ac_range': (250, 500),      # Higher AC usage
+                'water_heater_range': (100, 200),  # Lower water heating needs
+                'pv_adoption_range': (10, 35),     # Moderate solar adoption
+                'ev_adoption_range': (5, 25)       # Lower EV adoption
+            },
+            'Midwest': {
+                'grid_range': (700, 1100),   # Moderate consumption
+                'solar_range': (50, 250),    # Lower solar production
+                'ev_range': (50, 200),       # Moderate-low EV adoption
+                'ac_range': (150, 350),      # Moderate AC usage
+                'water_heater_range': (120, 250),  # Moderate water heating
+                'pv_adoption_range': (5, 25),      # Lower solar adoption
+                'ev_adoption_range': (8, 30)       # Moderate EV adoption
+            },
+            'Southwest': {
+                'grid_range': (900, 1300),   # Higher consumption due to AC
+                'solar_range': (300, 600),   # High solar production
+                'ev_range': (100, 300),      # Moderate EV adoption
+                'ac_range': (300, 550),      # Very high AC usage
+                'water_heater_range': (80, 180),   # Lower water heating
+                'pv_adoption_range': (25, 60),     # High solar adoption
+                'ev_adoption_range': (10, 35)      # Moderate EV adoption
+            },
+            'West': {
+                'grid_range': (600, 1000),   # Lower grid consumption (efficiency)
+                'solar_range': (250, 550),   # High solar production
+                'ev_range': (150, 450),      # High EV adoption
+                'ac_range': (150, 350),      # Moderate AC usage
+                'water_heater_range': (100, 200),  # Moderate water heating
+                'pv_adoption_range': (20, 55),     # High solar adoption
+                'ev_adoption_range': (15, 50)      # High EV adoption
+            }
+        }
+        
+        # Generate data for each state
+        for region, states in regions.items():
+            char = region_characteristics[region]
+            
+            for state in states:
+                # Add some realistic variance within regions
+                variance_factor = random.uniform(0.8, 1.2)
+                
+                # Base metrics
+                grid_consumption = random.uniform(*char['grid_range']) * variance_factor
+                solar_production = random.uniform(*char['solar_range']) * variance_factor
+                ev_charging = random.uniform(*char['ev_range']) * variance_factor
+                ac_usage = random.uniform(*char['ac_range']) * variance_factor
+                water_heater = random.uniform(*char['water_heater_range']) * variance_factor
+                
+                # Adoption rates (percentages)
+                pv_adoption = random.uniform(*char['pv_adoption_range'])
+                ev_adoption = random.uniform(*char['ev_adoption_range'])
+                
+                # Home counts for context
+                home_count = int(random.uniform(500, 5000))
+                
+                # Calculate derived metrics
+                solar_coverage = (solar_production / grid_consumption * 100) if grid_consumption > 0 else 0
+                ev_percentage = (ev_charging / grid_consumption * 100) if grid_consumption > 0 else 0
+                ac_percentage = (ac_usage / grid_consumption * 100) if grid_consumption > 0 else 0
+                
+                # Energy efficiency score (lower is better) - scaled between 0-100
+                efficiency_score = 100 - (grid_consumption - 600) / 8  # Normalize to 0-100 scale
+                efficiency_score = max(0, min(100, efficiency_score))  # Clamp to 0-100
+                
+                geo_data.append({
+                    'state': state,
+                    'region': region,
+                    'grid_consumption': grid_consumption,
+                    'solar_production': solar_production,
+                    'ev_charging': ev_charging,
+                    'ac_usage': ac_usage,
+                    'water_heater_usage': water_heater,
+                    'pv_adoption_rate': pv_adoption,
+                    'ev_adoption_rate': ev_adoption,
+                    'solar_coverage': solar_coverage,
+                    'ev_percentage': ev_percentage,
+                    'ac_percentage': ac_percentage,
+                    'efficiency_score': efficiency_score,
+                    'home_count': home_count
+                })
+        
+        return pd.DataFrame(geo_data)
+    
+    # Generate geographic data
+    geo_df = generate_geo_data()
+    
+    # Create a two-column layout for map controls and explanations
+    map_col1, map_col2 = st.columns([1, 3])
+    
+    with map_col1:
+        # Add map control options
+        map_metric = st.selectbox(
+            "Select Map Metric",
+            [
+                "Grid Consumption (kWh)",
+                "Solar Production (kWh)",
+                "EV Charging (kWh)",
+                "AC Usage (kWh)",
+                "Solar Coverage (%)",
+                "PV Adoption Rate (%)",
+                "EV Adoption Rate (%)",
+                "Energy Efficiency Score"
+            ]
+        )
+        
+        # Add region filter
+        selected_regions = st.multiselect(
+            "Filter by Region",
+            ["Northeast", "Southeast", "Midwest", "Southwest", "West"],
+            default=["Northeast", "Southeast", "Midwest", "Southwest", "West"]
+        )
+        
+        # Filter data by selected regions
+        if selected_regions:
+            filtered_geo_df = geo_df[geo_df['region'].isin(selected_regions)]
+        else:
+            filtered_geo_df = geo_df
+        
+        # Add explanatory text about the selected metric
+        metric_explanations = {
+            "Grid Consumption (kWh)": "Average monthly electricity consumption from the grid per household.",
+            "Solar Production (kWh)": "Average monthly solar energy production per household with PV systems.",
+            "EV Charging (kWh)": "Average monthly electricity used for EV charging in homes with EVs.",
+            "AC Usage (kWh)": "Average monthly electricity consumed by air conditioning systems.",
+            "Solar Coverage (%)": "Percentage of grid consumption offset by solar production.",
+            "PV Adoption Rate (%)": "Percentage of homes with solar PV systems installed.",
+            "EV Adoption Rate (%)": "Percentage of homes with electric vehicles.",
+            "Energy Efficiency Score": "Overall energy efficiency score (higher is better)."
+        }
+        
+        st.markdown(f"""
+        ### About This Metric
+        
+        **{map_metric}**
+        
+        {metric_explanations.get(map_metric, "")}
+        
+        This map shows variations across different states and regions, highlighting geographic patterns in energy usage and technology adoption.
+        """)
+        
+        # Add summary statistics for the selected metric
+        metric_col = map_metric.split(" (")[0].lower().replace(" ", "_")
+        if metric_col in filtered_geo_df.columns:
+            avg_value = filtered_geo_df[metric_col].mean()
+            min_value = filtered_geo_df[metric_col].min()
+            max_value = filtered_geo_df[metric_col].max()
+            
+            st.markdown("### Summary Statistics")
+            st.markdown(f"**Average:** {avg_value:.1f}")
+            st.markdown(f"**Min:** {min_value:.1f}")
+            st.markdown(f"**Max:** {max_value:.1f}")
+            st.markdown(f"**Range:** {max_value - min_value:.1f}")
+    
+    with map_col2:
+        # Set up the color scales for different metrics
+        color_scales = {
+            "Grid Consumption (kWh)": [light_purple, primary_purple, dark_purple],
+            "Solar Production (kWh)": ["#F9F0D9", cream, green],
+            "EV Charging (kWh)": ["#D9DCFF", light_purple, primary_purple],
+            "AC Usage (kWh)": ["#D9F2EC", green, "#43867F"],
+            "Solar Coverage (%)": ["#F9F0D9", cream, green],
+            "PV Adoption Rate (%)": ["#F9F0D9", cream, green],
+            "EV Adoption Rate (%)": ["#D9DCFF", light_purple, primary_purple],
+            "Energy Efficiency Score": [salmon, cream, green]
+        }
+        
+        # Map metric name to dataframe column
+        metric_mappings = {
+            "Grid Consumption (kWh)": "grid_consumption",
+            "Solar Production (kWh)": "solar_production",
+            "EV Charging (kWh)": "ev_charging",
+            "AC Usage (kWh)": "ac_usage",
+            "Solar Coverage (%)": "solar_coverage",
+            "PV Adoption Rate (%)": "pv_adoption_rate",
+            "EV Adoption Rate (%)": "ev_adoption_rate",
+            "Energy Efficiency Score": "efficiency_score"
+        }
+        
+        selected_metric = metric_mappings[map_metric]
+        
+        # Create the map visualization
+        fig = px.choropleth(
+            filtered_geo_df,
+            locations='state',
+            color=selected_metric,
+            locationmode="USA-states",
+            scope="usa",
+            color_continuous_scale=color_scales[map_metric],
+            range_color=[filtered_geo_df[selected_metric].min(), filtered_geo_df[selected_metric].max()],
+            hover_name='state',
+            hover_data={
+                'state': False,
+                'region': True,
+                'grid_consumption': ':.1f',
+                'solar_production': ':.1f',
+                'ev_charging': ':.1f',
+                'ac_usage': ':.1f',
+                'pv_adoption_rate': ':.1f',
+                'ev_adoption_rate': ':.1f',
+                'solar_coverage': ':.1f',
+                'home_count': True
+            },
+            labels={
+                'grid_consumption': 'Grid (kWh)',
+                'solar_production': 'Solar (kWh)',
+                'ev_charging': 'EV (kWh)',
+                'ac_usage': 'AC (kWh)',
+                'pv_adoption_rate': 'PV Adoption (%)',
+                'ev_adoption_rate': 'EV Adoption (%)',
+                'solar_coverage': 'Solar Coverage (%)',
+                'home_count': 'Homes'
+            }
+        )
+        
+        # Update map layout
+        fig.update_layout(
+            margin=dict(l=0, r=0, t=0, b=0),
+            paper_bgcolor=white,
+            geo=dict(
+                showlakes=True,
+                lakecolor=white,
+                showsubunits=True,
+                subunitcolor="lightgray"
+            ),
+            coloraxis_colorbar=dict(
+                title=map_metric,
+                tickfont=dict(color=dark_purple),
+                titlefont=dict(color=dark_purple)
+            ),
+            height=550
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    
+    # Add regional comparison section
+    if selected_regions:
+        st.subheader("Regional Comparison")
+        
+        # Group data by region and calculate averages
+        region_comparison = filtered_geo_df.groupby('region')[
+            ['grid_consumption', 'solar_production', 'ev_charging', 
+             'ac_usage', 'pv_adoption_rate', 'ev_adoption_rate', 'efficiency_score']
+        ].mean().reset_index()
+        
+        # Create a bar chart comparing regions
+        fig = px.bar(
+            region_comparison,
+            x='region',
+            y=selected_metric,
+            color='region',
+            color_discrete_map={
+                'Northeast': primary_purple,
+                'Southeast': green,
+                'Midwest': light_purple,
+                'Southwest': cream,
+                'West': salmon
+            },
+            text=selected_metric,
+            labels={selected_metric: map_metric, 'region': 'Region'}
+        )
+        
+        fig.update_layout(
+            xaxis_title="Region",
+            yaxis_title=map_metric,
+            showlegend=False,
+            paper_bgcolor=white,
+            plot_bgcolor=white,
+            font=dict(color=dark_purple)
+        )
+        
+        fig.update_traces(
+            texttemplate='%{y:.1f}',
+            textposition='outside'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        with st.expander("Regional Insights"):
+            # Generate insights based on the data
+            highest_region = region_comparison.loc[region_comparison[selected_metric].idxmax()]['region']
+            lowest_region = region_comparison.loc[region_comparison[selected_metric].idxmin()]['region']
+            
+            st.markdown(f"""
+            ### Key Regional Patterns
+            
+            - **{highest_region}** shows the highest {map_metric.lower()} ({region_comparison[selected_metric].max():.1f})
+            - **{lowest_region}** shows the lowest {map_metric.lower()} ({region_comparison[selected_metric].min():.1f})
+            - The difference between highest and lowest regions is {region_comparison[selected_metric].max() - region_comparison[selected_metric].min():.1f}
+            
+            ### Potential Factors
+            
+            Different regions show varying patterns due to:
+            - Climate differences affecting heating and cooling needs
+            - State-level policies and incentives for renewable energy
+            - Regional economic factors influencing technology adoption
+            - Infrastructure development supporting EV adoption
+            - Cultural and demographic differences affecting energy consumption
+            """)
+
     # Solar Production Coverage Analysis 
     st.subheader("Solar Production Coverage Analysis")
 
