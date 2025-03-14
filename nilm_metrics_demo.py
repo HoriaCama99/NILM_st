@@ -632,7 +632,6 @@ if page == "Sample Output":
                 "Solar Production (kWh)",
                 "EV Charging (kWh)",
                 "AC Usage (kWh)",
-                "Solar Coverage (%)",
                 "PV Adoption Rate (%)",
                 "EV Adoption Rate (%)",
                 "Energy Efficiency Score"
@@ -658,7 +657,6 @@ if page == "Sample Output":
             "Solar Production (kWh)": "Average monthly solar energy production per household with PV systems.",
             "EV Charging (kWh)": "Average monthly electricity used for EV charging in homes with EVs.",
             "AC Usage (kWh)": "Average monthly electricity consumed by air conditioning systems.",
-            "Solar Coverage (%)": "Percentage of grid consumption offset by solar production.",
             "PV Adoption Rate (%)": "Percentage of homes with solar PV systems installed.",
             "EV Adoption Rate (%)": "Percentage of homes with electric vehicles.",
             "Energy Efficiency Score": "Overall energy efficiency score (higher is better)."
@@ -694,7 +692,6 @@ if page == "Sample Output":
             "Solar Production (kWh)": ["#F9F0D9", cream, green],
             "EV Charging (kWh)": ["#D9DCFF", light_purple, primary_purple],
             "AC Usage (kWh)": ["#D9F2EC", green, "#43867F"],
-            "Solar Coverage (%)": ["#F9F0D9", cream, green],
             "PV Adoption Rate (%)": ["#F9F0D9", cream, green],
             "EV Adoption Rate (%)": ["#D9DCFF", light_purple, primary_purple],
             "Energy Efficiency Score": [salmon, cream, green]
@@ -706,7 +703,6 @@ if page == "Sample Output":
             "Solar Production (kWh)": "solar_production",
             "EV Charging (kWh)": "ev_charging",
             "AC Usage (kWh)": "ac_usage",
-            "Solar Coverage (%)": "solar_coverage",
             "PV Adoption Rate (%)": "pv_adoption_rate",
             "EV Adoption Rate (%)": "ev_adoption_rate",
             "Energy Efficiency Score": "efficiency_score"
@@ -743,7 +739,6 @@ if page == "Sample Output":
                 'ac_usage': 'AC (kWh)',
                 'pv_adoption_rate': 'PV Adoption (%)',
                 'ev_adoption_rate': 'EV Adoption (%)',
-                'solar_coverage': 'Solar Coverage (%)',
                 'home_count': 'Homes'
             }
         )
