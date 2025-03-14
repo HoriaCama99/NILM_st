@@ -759,9 +759,11 @@ if page == "Sample Output":
                 subunitcolor="lightgray"
             ),
             coloraxis_colorbar=dict(
-                title=map_metric,
-                tickfont=dict(color=dark_purple),
-                titlefont=dict(color=dark_purple)
+                title=dict(
+                    text=map_metric,
+                    font=dict(color=dark_purple)
+                ),
+                tickfont=dict(color=dark_purple)
             ),
             height=550
         )
