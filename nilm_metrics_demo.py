@@ -595,14 +595,7 @@ if page == "Sample Output":
         col1, col2 = st.columns([1, 3])
         
         with col1:
-            # Add region selector
-            selected_region = st.selectbox(
-                "Select Region", 
-                ["All Regions", "Northeast", "Midwest", "South", "West"],
-                key="map_region_selector"
-            )
-            
-            # Add device type selector for the map
+            # Remove region selector and keep only device type selector
             map_device = st.selectbox(
                 "Select Device Type", 
                 ["EV Charging", "AC Usage", "PV Usage", "WH Usage", "All Devices"],
@@ -619,11 +612,8 @@ if page == "Sample Output":
             """)
         
         with col2:
-            # Filter data based on region selection
-            if selected_region != "All Regions":
-                display_geo_df = mock_geo_df[mock_geo_df["region"] == selected_region]
-            else:
-                display_geo_df = mock_geo_df
+            # Use all data without region filtering
+            display_geo_df = mock_geo_df
             
             # Determine which data to show based on device selection
             if map_device == "EV Charging":
@@ -655,7 +645,7 @@ if page == "Sample Output":
                 color_scale = [[0, "#D0D0D0"], [1, primary_purple]]
                 title = "Overall Device Adoption"
             
-            # Create the map
+            # Create the map - ensure consistent style across all tabs
             fig = px.scatter_mapbox(
                 display_geo_df,
                 lat="latitude",
@@ -674,7 +664,7 @@ if page == "Sample Output":
                     "model_accuracy": ':.1%'
                 },
                 color_continuous_scale=color_scale,
-                zoom=3.5 if selected_region == "All Regions" else 5,
+                zoom=3.5,
                 mapbox_style="carto-positron",
                 title=title
             )
@@ -697,14 +687,7 @@ if page == "Sample Output":
         col1, col2 = st.columns([1, 3])
         
         with col1:
-            # Add region selector
-            perf_region = st.selectbox(
-                "Select Region", 
-                ["All Regions", "Northeast", "Midwest", "South", "West"],
-                key="perf_region_selector"
-            )
-            
-            # Add metric selector
+            # Remove region selector, keep only metric selector
             perf_metric = st.selectbox(
                 "Select Performance Metric", 
                 ["Model Accuracy", "DPSPerc", "FPR", "TECA"],
@@ -721,11 +704,8 @@ if page == "Sample Output":
             """)
         
         with col2:
-            # Filter data based on region selection
-            if perf_region != "All Regions":
-                perf_geo_df = mock_geo_df[mock_geo_df["region"] == perf_region]
-            else:
-                perf_geo_df = mock_geo_df
+            # Use all data without region filtering
+            perf_geo_df = mock_geo_df
             
             # Add mock performance metrics if they don't exist
             if "dpsperc" not in perf_geo_df.columns:
@@ -742,10 +722,12 @@ if page == "Sample Output":
                 color_data = 'model_accuracy'
                 title = "Overall Model Accuracy"
                 color_range = [0.6, 0.9]
+                color_scale = [[0, "#D0D0D0"], [1, primary_purple]]
             elif perf_metric == "DPSPerc":
                 color_data = 'dpsperc'
                 title = "Distance to Perfect Score (DPSPerc)"
                 color_range = [0.5, 0.95]
+                color_scale = [[0, "#D0D0D0"], [1, primary_purple]]
             elif perf_metric == "FPR":
                 color_data = 'fpr'
                 title = "False Positive Rate (FPR)"
@@ -756,12 +738,9 @@ if page == "Sample Output":
                 color_data = 'teca'
                 title = "Total Energy Correctly Assigned (TECA)"
                 color_range = [0.4, 0.9]
-            
-            # Set default color scale (except for FPR which is defined above)
-            if perf_metric != "FPR":
                 color_scale = [[0, "#D0D0D0"], [1, primary_purple]]
             
-            # Create the map
+            # Create the map - ensure consistent style across all tabs
             fig = px.scatter_mapbox(
                 perf_geo_df,
                 lat="latitude",
@@ -780,7 +759,7 @@ if page == "Sample Output":
                 },
                 color_continuous_scale=color_scale,
                 range_color=color_range,
-                zoom=3.5 if perf_region == "All Regions" else 5,
+                zoom=3.5,
                 mapbox_style="carto-positron",
                 title=title
             )
@@ -803,14 +782,7 @@ if page == "Sample Output":
         col1, col2 = st.columns([1, 3])
         
         with col1:
-            # Add region selector
-            energy_region = st.selectbox(
-                "Select Region", 
-                ["All Regions", "Northeast", "Midwest", "South", "West"],
-                key="energy_region_selector"
-            )
-            
-            # Add energy type selector
+            # Remove region selector, keep only energy type selector
             energy_type = st.selectbox(
                 "Select Energy Type", 
                 ["Total Consumption", "EV Charging", "AC Usage", "PV Production", "WH Usage"],
@@ -827,11 +799,8 @@ if page == "Sample Output":
             """)
         
         with col2:
-            # Filter data based on region selection
-            if energy_region != "All Regions":
-                energy_geo_df = mock_geo_df[mock_geo_df["region"] == energy_region]
-            else:
-                energy_geo_df = mock_geo_df
+            # Use all data without region filtering
+            energy_geo_df = mock_geo_df
             
             # Calculate total energy for each point
             energy_geo_df["total_energy"] = energy_geo_df["ev_energy"] + energy_geo_df["ac_energy"] + energy_geo_df["wh_energy"]
@@ -863,7 +832,7 @@ if page == "Sample Output":
                 title = "Water Heater Energy (kWh)"
                 color_scale = [[0, "#D0D0D0"], [1, salmon]]
             
-            # Create the map
+            # Create the map - ensure consistent style across all tabs
             fig = px.scatter_mapbox(
                 energy_geo_df,
                 lat="latitude",
@@ -882,7 +851,7 @@ if page == "Sample Output":
                     "wh_energy": ':.1f'
                 },
                 color_continuous_scale=color_scale,
-                zoom=3.5 if energy_region == "All Regions" else 5,
+                zoom=3.5,
                 mapbox_style="carto-positron",
                 title=title
             )
