@@ -795,6 +795,28 @@ if page == "Sample Output":
             filtered_geo_df = time_filtered_geo_df[time_filtered_geo_df['region'].isin(selected_regions)]
         else:
             filtered_geo_df = time_filtered_geo_df
+            
+        # Add explanatory text about the selected metric
+        metric_explanations = {
+            "Grid Consumption (kWh)": "Average monthly electricity consumption from the grid per household.",
+            "Solar Production (kWh)": "Average monthly solar energy production per household with PV systems.",
+            "EV Charging (kWh)": "Average monthly electricity used for EV charging in homes with EVs.",
+            "AC Usage (kWh)": "Average monthly electricity consumed by air conditioning systems.",
+            "Solar Coverage (%)": "Percentage of grid consumption offset by solar production.",
+            "PV Adoption Rate (%)": "Percentage of homes with solar PV systems installed.",
+            "EV Adoption Rate (%)": "Percentage of homes with electric vehicles.",
+            "Energy Efficiency Score": "Overall energy efficiency score (higher is better)."
+        }
+        
+        st.markdown(f"""
+        ### About This Metric
+        
+        **{map_metric}**
+        
+        {metric_explanations.get(map_metric, "")}
+        
+        This map shows variations across different states and regions, highlighting geographic patterns in energy usage and technology adoption.
+        """)
     
     with map_col2:
         # Set up the color scales for different metrics
@@ -878,6 +900,56 @@ if page == "Sample Output":
         )
         
         st.plotly_chart(fig, use_container_width=True)
+    
+    # After the map visualization but before the temporal analysis, add summary statistics
+    # Add summary statistics for the selected metric
+    metric_col = map_metric.split(" (")[0].lower().replace(" ", "_")
+    if metric_col in filtered_geo_df.columns:
+        avg_value = filtered_geo_df[metric_col].mean()
+        min_value = filtered_geo_df[metric_col].min()
+        max_value = filtered_geo_df[metric_col].max()
+        range_value = max_value - min_value
+        
+        st.markdown("### Key Statistics")
+        
+        # Create inline metrics with the same styling as Key Metrics section - full width
+        stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+        
+        with stat_col1:
+            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+            st.metric(
+                label="Average",
+                value=f"{avg_value:.1f}",
+                help=f"Average {map_metric.lower()} across selected regions"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+        with stat_col2:
+            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+            st.metric(
+                label="Minimum",
+                value=f"{min_value:.1f}",
+                help=f"Lowest {map_metric.lower()} in selected regions"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+        with stat_col3:
+            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+            st.metric(
+                label="Maximum",
+                value=f"{max_value:.1f}",
+                help=f"Highest {map_metric.lower()} in selected regions"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+        with stat_col4:
+            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+            st.metric(
+                label="Range",
+                value=f"{range_value:.1f}",
+                help=f"Difference between highest and lowest values"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
     
     # After the map and statistics, add a temporal analysis section
     if view_option == "Trend Analysis":
