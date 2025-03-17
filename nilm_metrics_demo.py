@@ -730,38 +730,12 @@ if page == "Sample Output":
         st.caption(f"Currently viewing: **{selected_period}**")
     
     with time_control_col2:
-        # View options for temporal comparison
-        view_option = st.radio(
-            "View Option",
-            ["Single Period", "Year-over-Year", "Trend Analysis"],
-            index=0,
-            label_visibility="visible"
-        )
+        # Empty column for balance
+        st.markdown("")  # Just to keep the layout balanced
     
-    # Filter by selected time period
-    if view_option == "Single Period":
-        # Filter for just the selected period
-        time_filtered_geo_df = geo_df[geo_df['period_label'] == selected_period]
-        period_title = f"Data for {selected_period}"
-    elif view_option == "Year-over-Year":
-        # Get the current month and find the same month from previous year
-        current_month = geo_df[geo_df['period_label'] == selected_period]['month'].iloc[0]
-        current_year = geo_df[geo_df['period_label'] == selected_period]['year'].iloc[0]
-        prev_year = current_year - 1
-        
-        # Filter to include current month/year and same month previous year
-        time_filtered_geo_df = geo_df[
-            ((geo_df['month'] == current_month) & (geo_df['year'] == current_year)) |
-            ((geo_df['month'] == current_month) & (geo_df['year'] == prev_year))
-        ]
-        period_title = f"Comparing {current_month}/{current_year} vs {current_month}/{prev_year}"
-    else:  # Trend Analysis
-        # Get the current year
-        current_year = geo_df[geo_df['period_label'] == selected_period]['year'].iloc[0]
-        
-        # Filter for the most recent 12 months
-        time_filtered_geo_df = geo_df.sort_values(['year', 'month'], ascending=False).head(12 * len(regions) * 50)  # Approx states count
-        period_title = "12-Month Trend Analysis"
+    # Filter by selected time period - only Single Period is now supported
+    time_filtered_geo_df = geo_df[geo_df['period_label'] == selected_period]
+    period_title = f"Data for {selected_period}"
     
     # Create a two-column layout for map controls and explanations
     st.subheader(f"Geographical Energy Insights: {period_title}")
@@ -901,7 +875,7 @@ if page == "Sample Output":
         
         st.plotly_chart(fig, use_container_width=True)
     
-    # After the map visualization but before the temporal analysis, add summary statistics
+    # After the map visualization but before the Solar Production Analysis, add summary statistics
     # Add summary statistics for the selected metric
     metric_col = map_metric.split(" (")[0].lower().replace(" ", "_")
     if metric_col in filtered_geo_df.columns:
@@ -951,158 +925,6 @@ if page == "Sample Output":
             )
             st.markdown("</div>", unsafe_allow_html=True)
     
-    # After the map and statistics, add a temporal analysis section
-    if view_option == "Trend Analysis":
-        st.subheader("Temporal Pattern Analysis")
-        
-        # Create trend data grouped by month
-        trend_data = geo_df.copy()
-        if selected_regions:
-            trend_data = trend_data[trend_data['region'].isin(selected_regions)]
-        
-        # Group by period and calculate averages
-        metric_col = map_metric.split(" (")[0].lower().replace(" ", "_")
-        monthly_trends = trend_data.groupby(['period_label', 'year', 'month'])[metric_col].mean().reset_index()
-        monthly_trends = monthly_trends.sort_values(['year', 'month'])
-        
-        # Create the trend line chart
-        fig = px.line(
-            monthly_trends, 
-            x='period_label', 
-            y=metric_col,
-            markers=True,
-            title=f"Monthly Trend for {map_metric}",
-            labels={metric_col: map_metric, 'period_label': 'Time Period'}
-        )
-        
-        fig.update_layout(
-            xaxis_title="Month",
-            yaxis_title=map_metric,
-            paper_bgcolor=white,
-            plot_bgcolor=white,
-            font=dict(color=dark_purple),
-            xaxis=dict(tickangle=45)
-        )
-        
-        # Add visual styling to the line
-        fig.update_traces(
-            line=dict(color=primary_purple, width=3),
-            marker=dict(color=primary_purple, size=8)
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Add explanation of temporal patterns
-        with st.expander("Understanding Temporal Patterns"):
-            st.markdown(f"""
-            ### Seasonal and Long-Term Trends
-            
-            The trends in {map_metric.lower()} are influenced by:
-            
-            - **Seasonal factors**: Changes in temperature, daylight hours, and holiday periods
-            - **Economic trends**: Energy prices and economic activity
-            - **Technology adoption**: Growth in renewable energy and electric vehicles
-            - **Policy changes**: Energy efficiency requirements and incentives
-            
-            The line chart above shows the monthly evolution, highlighting both seasonal patterns and long-term trends.
-            """)
-    
-    elif view_option == "Year-over-Year":
-        st.subheader("Year-over-Year Comparison")
-        
-        # Prepare data for comparison
-        compare_data = filtered_geo_df.copy()
-        metric_col = map_metric.split(" (")[0].lower().replace(" ", "_")
-        
-        # Group by region, state, and year to enable comparison
-        yoy_data = compare_data.groupby(['region', 'state', 'year'])[metric_col].mean().reset_index()
-        
-        # Calculate the percentage change
-        yoy_pivot = yoy_data.pivot(index=['region', 'state'], columns='year', values=metric_col).reset_index()
-        years = sorted(yoy_data['year'].unique())
-        
-        if len(years) >= 2:
-            current_year = max(years)
-            prev_year = current_year - 1
-            
-            yoy_pivot['change'] = (yoy_pivot[current_year] - yoy_pivot[prev_year]) / yoy_pivot[prev_year] * 100
-            
-            # Create a map showing the percentage change
-            fig = px.choropleth(
-                yoy_pivot,
-                locations='state',
-                color='change',
-                locationmode="USA-states",
-                scope="usa",
-                color_continuous_scale=["red", "white", "green"],
-                range_color=[-20, 20],  # -20% to +20% change
-                hover_name='state',
-                hover_data={
-                    'state': False,
-                    'region': True,
-                    current_year: ':.1f',
-                    prev_year: ':.1f',
-                    'change': ':.1f'
-                },
-                labels={
-                    'change': 'YoY Change (%)',
-                    current_year: f'{current_year} Value',
-                    prev_year: f'{prev_year} Value',
-                    'region': 'Region'
-                },
-                title=f"Year-over-Year Change in {map_metric}"
-            )
-            
-            # Update map layout
-            fig.update_layout(
-                margin=dict(l=0, r=0, t=30, b=0),
-                paper_bgcolor=white,
-                geo=dict(
-                    showlakes=True,
-                    lakecolor=white,
-                    showsubunits=True,
-                    subunitcolor="lightgray"
-                ),
-                coloraxis_colorbar=dict(
-                    title=dict(
-                        text='Change (%)',
-                        font=dict(color=dark_purple)
-                    ),
-                    tickfont=dict(color=dark_purple)
-                ),
-                height=550
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Add explanation of year-over-year changes
-            with st.expander("Understanding Year-Over-Year Changes"):
-                # Calculate some summary statistics for the narrative
-                avg_change = yoy_pivot['change'].mean()
-                max_increase = yoy_pivot['change'].max()
-                max_decrease = yoy_pivot['change'].min()
-                
-                increase_state = yoy_pivot.loc[yoy_pivot['change'].idxmax()]['state']
-                decrease_state = yoy_pivot.loc[yoy_pivot['change'].idxmin()]['state']
-                
-                st.markdown(f"""
-                ### Year-over-Year Change Analysis
-                
-                Comparing {prev_year} to {current_year}, we observe:
-                
-                - **Average change**: {avg_change:.1f}% across all regions
-                - **Largest increase**: {max_increase:.1f}% in {increase_state}
-                - **Largest decrease**: {max_decrease:.1f}% in {decrease_state}
-                
-                These changes may be influenced by:
-                - Weather pattern differences between years
-                - Energy infrastructure developments
-                - Adoption of new technologies
-                - Economic factors and policy changes
-                """)
-        else:
-            st.info("Insufficient data for year-over-year comparison. Need at least two years of data.")
-
     # Solar Production Coverage Analysis 
     st.subheader("Solar Production Coverage Analysis")
 
