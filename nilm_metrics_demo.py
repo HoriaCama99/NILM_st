@@ -673,55 +673,6 @@ if page == "Sample Output":
         
         This map shows variations across different states and regions, highlighting geographic patterns in energy usage and technology adoption.
         """)
-        
-        # Add summary statistics for the selected metric
-        metric_col = map_metric.split(" (")[0].lower().replace(" ", "_")
-        if metric_col in filtered_geo_df.columns:
-            avg_value = filtered_geo_df[metric_col].mean()
-            min_value = filtered_geo_df[metric_col].min()
-            max_value = filtered_geo_df[metric_col].max()
-            range_value = max_value - min_value
-            
-            st.markdown("### Summary Statistics")
-            
-            # Create inline metrics with the same styling as Key Metrics section
-            stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
-            
-            with stat_col1:
-                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-                st.metric(
-                    label="Average",
-                    value=f"{avg_value:.1f}",
-                    help=f"Average {map_metric.lower()} across selected regions"
-                )
-                st.markdown("</div>", unsafe_allow_html=True)
-                
-            with stat_col2:
-                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-                st.metric(
-                    label="Minimum",
-                    value=f"{min_value:.1f}",
-                    help=f"Lowest {map_metric.lower()} in selected regions"
-                )
-                st.markdown("</div>", unsafe_allow_html=True)
-                
-            with stat_col3:
-                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-                st.metric(
-                    label="Maximum",
-                    value=f"{max_value:.1f}",
-                    help=f"Highest {map_metric.lower()} in selected regions"
-                )
-                st.markdown("</div>", unsafe_allow_html=True)
-                
-            with stat_col4:
-                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-                st.metric(
-                    label="Range",
-                    value=f"{range_value:.1f}",
-                    help=f"Difference between highest and lowest values"
-                )
-                st.markdown("</div>", unsafe_allow_html=True)
     
     with map_col2:
         # Set up the color scales for different metrics
@@ -805,6 +756,55 @@ if page == "Sample Output":
         )
         
         st.plotly_chart(fig, use_container_width=True)
+    
+    # Add summary statistics for the selected metric - now outside the columns for full width
+    metric_col = map_metric.split(" (")[0].lower().replace(" ", "_")
+    if metric_col in filtered_geo_df.columns:
+        avg_value = filtered_geo_df[metric_col].mean()
+        min_value = filtered_geo_df[metric_col].min()
+        max_value = filtered_geo_df[metric_col].max()
+        range_value = max_value - min_value
+        
+        st.markdown("### Key Statistics")
+        
+        # Create inline metrics with the same styling as Key Metrics section - full width
+        stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+        
+        with stat_col1:
+            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+            st.metric(
+                label="Average",
+                value=f"{avg_value:.1f}",
+                help=f"Average {map_metric.lower()} across selected regions"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+        with stat_col2:
+            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+            st.metric(
+                label="Minimum",
+                value=f"{min_value:.1f}",
+                help=f"Lowest {map_metric.lower()} in selected regions"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+        with stat_col3:
+            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+            st.metric(
+                label="Maximum",
+                value=f"{max_value:.1f}",
+                help=f"Highest {map_metric.lower()} in selected regions"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+        with stat_col4:
+            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+            st.metric(
+                label="Range",
+                value=f"{range_value:.1f}",
+                help=f"Difference between highest and lowest values"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
     
     # Add regional comparison section
     if selected_regions:
