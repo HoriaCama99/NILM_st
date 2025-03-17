@@ -7,6 +7,7 @@ import numpy as np
 from plotly.subplots import make_subplots
 from PIL import Image
 import seaborn as sns
+import datetime
 
 # Hide the default Streamlit navigation menu
 st.set_page_config(
@@ -505,6 +506,7 @@ if page == "Sample Output":
     @st.cache_data
     def generate_geo_data():
         import random
+        import datetime
         
         # Define states and regions
         regions = {
@@ -518,8 +520,25 @@ if page == "Sample Output":
         # Create a base for our mock dataset
         geo_data = []
         
+        # Define time periods - will create data for past 24 months
+        current_date = datetime.datetime.now()
+        start_date = current_date - datetime.timedelta(days=24*30)  # approx 24 months back
+        time_periods = []
+        
+        # Generate monthly time periods
+        for i in range(24):
+            month_date = start_date + datetime.timedelta(days=30*i)
+            time_periods.append({
+                'date': month_date,
+                'year': month_date.year,
+                'month': month_date.month,
+                'month_name': month_date.strftime('%b'),
+                'quarter': (month_date.month-1)//3 + 1,
+                'period_label': month_date.strftime('%b %Y')
+            })
+        
         # Set region-specific patterns
-        region_characteristics = {
+        base_region_characteristics = {
             'Northeast': {
                 'grid_range': (800, 1200),  # Higher consumption due to heating
                 'solar_range': (100, 350),   # Moderate solar production
@@ -567,60 +586,185 @@ if page == "Sample Output":
             }
         }
         
-        # Generate data for each state
-        for region, states in regions.items():
-            char = region_characteristics[region]
+        # Define seasonal adjustments by month
+        seasonal_factors = {
+            # Month -> (grid, solar, ev, ac, water_heater)
+            1:  (1.2,  0.7,  0.9, 0.3, 1.4),  # January
+            2:  (1.15, 0.8,  0.9, 0.3, 1.3),  # February
+            3:  (1.0,  0.9,  0.95, 0.5, 1.2),  # March
+            4:  (0.9,  1.0,  1.0, 0.7, 1.0),  # April
+            5:  (0.8,  1.1,  1.0, 0.9, 0.9),  # May
+            6:  (0.9,  1.2,  1.0, 1.3, 0.8),  # June
+            7:  (1.0,  1.2,  1.1, 1.5, 0.7),  # July
+            8:  (1.0,  1.15, 1.1, 1.4, 0.7),  # August
+            9:  (0.9,  1.1,  1.05, 1.2, 0.8),  # September
+            10: (0.85, 0.9,  1.0, 0.8, 0.9),  # October
+            11: (0.95, 0.8,  0.95, 0.5, 1.1),  # November
+            12: (1.1,  0.7,  0.9, 0.3, 1.3)   # December
+        }
+        
+        # Define yearly growth trends
+        yearly_growth = {
+            # Year delta from base -> (grid, solar, ev, ac, water_heater, pv_adoption, ev_adoption)
+            0: (1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0),  # Base year
+            1: (0.98, 1.1, 1.2, 1.02, 0.99, 1.15, 1.25)  # Next year - less grid, more renewables
+        }
+        
+        # Generate data for each state, time period, and state
+        for time_period in time_periods:
+            year_delta = time_period['year'] - start_date.year
+            month = time_period['month']
             
-            for state in states:
-                # Add some realistic variance within regions
-                variance_factor = random.uniform(0.8, 1.2)
+            # Get seasonal and yearly adjustment factors
+            season_factor = seasonal_factors[month]
+            year_factor = yearly_growth.get(year_delta, yearly_growth[0])  # Use 0 if not found
+            
+            for region, states in regions.items():
+                base_char = base_region_characteristics[region]
                 
-                # Base metrics
-                grid_consumption = random.uniform(*char['grid_range']) * variance_factor
-                solar_production = random.uniform(*char['solar_range']) * variance_factor
-                ev_charging = random.uniform(*char['ev_range']) * variance_factor
-                ac_usage = random.uniform(*char['ac_range']) * variance_factor
-                water_heater = random.uniform(*char['water_heater_range']) * variance_factor
+                # Adjust base characteristics for this time period
+                char = {
+                    'grid_range': (
+                        base_char['grid_range'][0] * season_factor[0] * year_factor[0],
+                        base_char['grid_range'][1] * season_factor[0] * year_factor[0]
+                    ),
+                    'solar_range': (
+                        base_char['solar_range'][0] * season_factor[1] * year_factor[1],
+                        base_char['solar_range'][1] * season_factor[1] * year_factor[1]
+                    ),
+                    'ev_range': (
+                        base_char['ev_range'][0] * season_factor[2] * year_factor[2],
+                        base_char['ev_range'][1] * season_factor[2] * year_factor[2]
+                    ),
+                    'ac_range': (
+                        base_char['ac_range'][0] * season_factor[3] * year_factor[3],
+                        base_char['ac_range'][1] * season_factor[3] * year_factor[3]
+                    ),
+                    'water_heater_range': (
+                        base_char['water_heater_range'][0] * season_factor[4] * year_factor[4],
+                        base_char['water_heater_range'][1] * season_factor[4] * year_factor[4]
+                    ),
+                    'pv_adoption_range': (
+                        base_char['pv_adoption_range'][0] * year_factor[5],
+                        base_char['pv_adoption_range'][1] * year_factor[5]
+                    ),
+                    'ev_adoption_range': (
+                        base_char['ev_adoption_range'][0] * year_factor[6],
+                        base_char['ev_adoption_range'][1] * year_factor[6]
+                    )
+                }
                 
-                # Adoption rates (percentages)
-                pv_adoption = random.uniform(*char['pv_adoption_range'])
-                ev_adoption = random.uniform(*char['ev_adoption_range'])
-                
-                # Home counts for context
-                home_count = int(random.uniform(500, 5000))
-                
-                # Calculate derived metrics
-                solar_coverage = (solar_production / grid_consumption * 100) if grid_consumption > 0 else 0
-                ev_percentage = (ev_charging / grid_consumption * 100) if grid_consumption > 0 else 0
-                ac_percentage = (ac_usage / grid_consumption * 100) if grid_consumption > 0 else 0
-                
-                # Energy efficiency score (lower is better) - scaled between 0-100
-                efficiency_score = 100 - (grid_consumption - 600) / 8  # Normalize to 0-100 scale
-                efficiency_score = max(0, min(100, efficiency_score))  # Clamp to 0-100
-                
-                geo_data.append({
-                    'state': state,
-                    'region': region,
-                    'grid_consumption': grid_consumption,
-                    'solar_production': solar_production,
-                    'ev_charging': ev_charging,
-                    'ac_usage': ac_usage,
-                    'water_heater_usage': water_heater,
-                    'pv_adoption_rate': pv_adoption,
-                    'ev_adoption_rate': ev_adoption,
-                    'solar_coverage': solar_coverage,
-                    'ev_percentage': ev_percentage,
-                    'ac_percentage': ac_percentage,
-                    'efficiency_score': efficiency_score,
-                    'home_count': home_count
-                })
+                for state in states:
+                    # Add some realistic variance within regions
+                    variance_factor = random.uniform(0.8, 1.2)
+                    
+                    # Base metrics 
+                    grid_consumption = random.uniform(*char['grid_range']) * variance_factor
+                    solar_production = random.uniform(*char['solar_range']) * variance_factor
+                    ev_charging = random.uniform(*char['ev_range']) * variance_factor
+                    ac_usage = random.uniform(*char['ac_range']) * variance_factor
+                    water_heater = random.uniform(*char['water_heater_range']) * variance_factor
+                    
+                    # Adoption rates (percentages)
+                    pv_adoption = random.uniform(*char['pv_adoption_range'])
+                    ev_adoption = random.uniform(*char['ev_adoption_range'])
+                    
+                    # Home counts for context - with slight growth over time
+                    home_count = int(random.uniform(500, 5000) * (1 + year_delta * 0.05))
+                    
+                    # Calculate derived metrics
+                    solar_coverage = (solar_production / grid_consumption * 100) if grid_consumption > 0 else 0
+                    ev_percentage = (ev_charging / grid_consumption * 100) if grid_consumption > 0 else 0
+                    ac_percentage = (ac_usage / grid_consumption * 100) if grid_consumption > 0 else 0
+                    
+                    # Energy efficiency score (higher is better) - scaled between 0-100
+                    efficiency_score = 100 - (grid_consumption - 600) / 8  # Normalize to 0-100 scale
+                    efficiency_score = max(0, min(100, efficiency_score))  # Clamp to 0-100
+                    
+                    geo_data.append({
+                        'state': state,
+                        'region': region,
+                        'year': time_period['year'],
+                        'month': time_period['month'],
+                        'month_name': time_period['month_name'],
+                        'quarter': time_period['quarter'],
+                        'period_label': time_period['period_label'],
+                        'grid_consumption': grid_consumption,
+                        'solar_production': solar_production,
+                        'ev_charging': ev_charging,
+                        'ac_usage': ac_usage,
+                        'water_heater_usage': water_heater,
+                        'pv_adoption_rate': pv_adoption,
+                        'ev_adoption_rate': ev_adoption,
+                        'solar_coverage': solar_coverage,
+                        'ev_percentage': ev_percentage,
+                        'ac_percentage': ac_percentage,
+                        'efficiency_score': efficiency_score,
+                        'home_count': home_count
+                    })
         
         return pd.DataFrame(geo_data)
     
     # Generate geographic data
     geo_df = generate_geo_data()
     
+    # Add time period selection controls at the top
+    st.subheader("Time Period Selection")
+    
+    # Get unique time periods
+    time_periods = sorted(geo_df['period_label'].unique())
+    
+    # Create columns for different time controls
+    time_control_col1, time_control_col2 = st.columns([3, 1])
+    
+    with time_control_col1:
+        # Add time period slider 
+        selected_time_index = st.slider(
+            "Select Time Period",
+            min_value=0,
+            max_value=len(time_periods)-1,
+            value=len(time_periods)-1,  # Default to latest time period
+            format_func=lambda i: time_periods[i],
+            label_visibility="visible"
+        )
+        selected_period = time_periods[selected_time_index]
+    
+    with time_control_col2:
+        # View options for temporal comparison
+        view_option = st.radio(
+            "View Option",
+            ["Single Period", "Year-over-Year", "Trend Analysis"],
+            index=0,
+            label_visibility="visible"
+        )
+    
+    # Filter by selected time period
+    if view_option == "Single Period":
+        # Filter for just the selected period
+        time_filtered_geo_df = geo_df[geo_df['period_label'] == selected_period]
+        period_title = f"Data for {selected_period}"
+    elif view_option == "Year-over-Year":
+        # Get the current month and find the same month from previous year
+        current_month = geo_df[geo_df['period_label'] == selected_period]['month'].iloc[0]
+        current_year = geo_df[geo_df['period_label'] == selected_period]['year'].iloc[0]
+        prev_year = current_year - 1
+        
+        # Filter to include current month/year and same month previous year
+        time_filtered_geo_df = geo_df[
+            ((geo_df['month'] == current_month) & (geo_df['year'] == current_year)) |
+            ((geo_df['month'] == current_month) & (geo_df['year'] == prev_year))
+        ]
+        period_title = f"Comparing {current_month}/{current_year} vs {current_month}/{prev_year}"
+    else:  # Trend Analysis
+        # Get the current year
+        current_year = geo_df[geo_df['period_label'] == selected_period]['year'].iloc[0]
+        
+        # Filter for the most recent 12 months
+        time_filtered_geo_df = geo_df.sort_values(['year', 'month'], ascending=False).head(12 * len(regions) * 50)  # Approx states count
+        period_title = "12-Month Trend Analysis"
+    
     # Create a two-column layout for map controls and explanations
+    st.subheader(f"Geographical Energy Insights: {period_title}")
     map_col1, map_col2 = st.columns([1, 3])
     
     with map_col1:
@@ -646,33 +790,11 @@ if page == "Sample Output":
             default=["Northeast", "Southeast", "Midwest", "Southwest", "West"]
         )
         
-        # Filter data by selected regions
+        # Filter data by selected regions and time
         if selected_regions:
-            filtered_geo_df = geo_df[geo_df['region'].isin(selected_regions)]
+            filtered_geo_df = time_filtered_geo_df[time_filtered_geo_df['region'].isin(selected_regions)]
         else:
-            filtered_geo_df = geo_df
-        
-        # Add explanatory text about the selected metric
-        metric_explanations = {
-            "Grid Consumption (kWh)": "Average monthly electricity consumption from the grid per household.",
-            "Solar Production (kWh)": "Average monthly solar energy production per household with PV systems.",
-            "EV Charging (kWh)": "Average monthly electricity used for EV charging in homes with EVs.",
-            "AC Usage (kWh)": "Average monthly electricity consumed by air conditioning systems.",
-            "Solar Coverage (%)": "Percentage of grid consumption offset by solar production.",
-            "PV Adoption Rate (%)": "Percentage of homes with solar PV systems installed.",
-            "EV Adoption Rate (%)": "Percentage of homes with electric vehicles.",
-            "Energy Efficiency Score": "Overall energy efficiency score (higher is better)."
-        }
-        
-        st.markdown(f"""
-        ### About This Metric
-        
-        **{map_metric}**
-        
-        {metric_explanations.get(map_metric, "")}
-        
-        This map shows variations across different states and regions, highlighting geographic patterns in energy usage and technology adoption.
-        """)
+            filtered_geo_df = time_filtered_geo_df
     
     with map_col2:
         # Set up the color scales for different metrics
@@ -757,119 +879,157 @@ if page == "Sample Output":
         
         st.plotly_chart(fig, use_container_width=True)
     
-    # Add summary statistics for the selected metric - now outside the columns for full width
-    metric_col = map_metric.split(" (")[0].lower().replace(" ", "_")
-    if metric_col in filtered_geo_df.columns:
-        avg_value = filtered_geo_df[metric_col].mean()
-        min_value = filtered_geo_df[metric_col].min()
-        max_value = filtered_geo_df[metric_col].max()
-        range_value = max_value - min_value
+    # After the map and statistics, add a temporal analysis section
+    if view_option == "Trend Analysis":
+        st.subheader("Temporal Pattern Analysis")
         
-        st.markdown("### Key Statistics")
+        # Create trend data grouped by month
+        trend_data = geo_df.copy()
+        if selected_regions:
+            trend_data = trend_data[trend_data['region'].isin(selected_regions)]
         
-        # Create inline metrics with the same styling as Key Metrics section - full width
-        stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+        # Group by period and calculate averages
+        metric_col = map_metric.split(" (")[0].lower().replace(" ", "_")
+        monthly_trends = trend_data.groupby(['period_label', 'year', 'month'])[metric_col].mean().reset_index()
+        monthly_trends = monthly_trends.sort_values(['year', 'month'])
         
-        with stat_col1:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            st.metric(
-                label="Average",
-                value=f"{avg_value:.1f}",
-                help=f"Average {map_metric.lower()} across selected regions"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-        with stat_col2:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            st.metric(
-                label="Minimum",
-                value=f"{min_value:.1f}",
-                help=f"Lowest {map_metric.lower()} in selected regions"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-        with stat_col3:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            st.metric(
-                label="Maximum",
-                value=f"{max_value:.1f}",
-                help=f"Highest {map_metric.lower()} in selected regions"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-        with stat_col4:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            st.metric(
-                label="Range",
-                value=f"{range_value:.1f}",
-                help=f"Difference between highest and lowest values"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-    
-    # Add regional comparison section
-    if selected_regions:
-        st.subheader("Regional Comparison")
-        
-        # Group data by region and calculate averages
-        region_comparison = filtered_geo_df.groupby('region')[
-            ['grid_consumption', 'solar_production', 'ev_charging', 
-             'ac_usage', 'pv_adoption_rate', 'ev_adoption_rate', 'efficiency_score']
-        ].mean().reset_index()
-        
-        # Create a bar chart comparing regions
-        fig = px.bar(
-            region_comparison,
-            x='region',
-            y=selected_metric,
-            color='region',
-            color_discrete_map={
-                'Northeast': primary_purple,
-                'Southeast': green,
-                'Midwest': light_purple,
-                'Southwest': cream,
-                'West': salmon
-            },
-            text=selected_metric,
-            labels={selected_metric: map_metric, 'region': 'Region'}
+        # Create the trend line chart
+        fig = px.line(
+            monthly_trends, 
+            x='period_label', 
+            y=metric_col,
+            markers=True,
+            title=f"Monthly Trend for {map_metric}",
+            labels={metric_col: map_metric, 'period_label': 'Time Period'}
         )
         
         fig.update_layout(
-            xaxis_title="Region",
+            xaxis_title="Month",
             yaxis_title=map_metric,
-            showlegend=False,
             paper_bgcolor=white,
             plot_bgcolor=white,
-            font=dict(color=dark_purple)
+            font=dict(color=dark_purple),
+            xaxis=dict(tickangle=45)
         )
         
+        # Add visual styling to the line
         fig.update_traces(
-            texttemplate='%{y:.1f}',
-            textposition='outside'
+            line=dict(color=primary_purple, width=3),
+            marker=dict(color=primary_purple, size=8)
         )
         
         st.plotly_chart(fig, use_container_width=True)
         
-        with st.expander("Regional Insights"):
-            # Generate insights based on the data
-            highest_region = region_comparison.loc[region_comparison[selected_metric].idxmax()]['region']
-            lowest_region = region_comparison.loc[region_comparison[selected_metric].idxmin()]['region']
-            
+        # Add explanation of temporal patterns
+        with st.expander("Understanding Temporal Patterns"):
             st.markdown(f"""
-            ### Key Regional Patterns
+            ### Seasonal and Long-Term Trends
             
-            - **{highest_region}** shows the highest {map_metric.lower()} ({region_comparison[selected_metric].max():.1f})
-            - **{lowest_region}** shows the lowest {map_metric.lower()} ({region_comparison[selected_metric].min():.1f})
-            - The difference between highest and lowest regions is {region_comparison[selected_metric].max() - region_comparison[selected_metric].min():.1f}
+            The trends in {map_metric.lower()} are influenced by:
             
-            ### Potential Factors
+            - **Seasonal factors**: Changes in temperature, daylight hours, and holiday periods
+            - **Economic trends**: Energy prices and economic activity
+            - **Technology adoption**: Growth in renewable energy and electric vehicles
+            - **Policy changes**: Energy efficiency requirements and incentives
             
-            Different regions show varying patterns due to:
-            - Climate differences affecting heating and cooling needs
-            - State-level policies and incentives for renewable energy
-            - Regional economic factors influencing technology adoption
-            - Infrastructure development supporting EV adoption
-            - Cultural and demographic differences affecting energy consumption
+            The line chart above shows the monthly evolution, highlighting both seasonal patterns and long-term trends.
             """)
+    
+    elif view_option == "Year-over-Year":
+        st.subheader("Year-over-Year Comparison")
+        
+        # Prepare data for comparison
+        compare_data = filtered_geo_df.copy()
+        metric_col = map_metric.split(" (")[0].lower().replace(" ", "_")
+        
+        # Group by region, state, and year to enable comparison
+        yoy_data = compare_data.groupby(['region', 'state', 'year'])[metric_col].mean().reset_index()
+        
+        # Calculate the percentage change
+        yoy_pivot = yoy_data.pivot(index=['region', 'state'], columns='year', values=metric_col).reset_index()
+        years = sorted(yoy_data['year'].unique())
+        
+        if len(years) >= 2:
+            current_year = max(years)
+            prev_year = current_year - 1
+            
+            yoy_pivot['change'] = (yoy_pivot[current_year] - yoy_pivot[prev_year]) / yoy_pivot[prev_year] * 100
+            
+            # Create a map showing the percentage change
+            fig = px.choropleth(
+                yoy_pivot,
+                locations='state',
+                color='change',
+                locationmode="USA-states",
+                scope="usa",
+                color_continuous_scale=["red", "white", "green"],
+                range_color=[-20, 20],  # -20% to +20% change
+                hover_name='state',
+                hover_data={
+                    'state': False,
+                    'region': True,
+                    current_year: ':.1f',
+                    prev_year: ':.1f',
+                    'change': ':.1f'
+                },
+                labels={
+                    'change': 'YoY Change (%)',
+                    current_year: f'{current_year} Value',
+                    prev_year: f'{prev_year} Value',
+                    'region': 'Region'
+                },
+                title=f"Year-over-Year Change in {map_metric}"
+            )
+            
+            # Update map layout
+            fig.update_layout(
+                margin=dict(l=0, r=0, t=30, b=0),
+                paper_bgcolor=white,
+                geo=dict(
+                    showlakes=True,
+                    lakecolor=white,
+                    showsubunits=True,
+                    subunitcolor="lightgray"
+                ),
+                coloraxis_colorbar=dict(
+                    title=dict(
+                        text='Change (%)',
+                        font=dict(color=dark_purple)
+                    ),
+                    tickfont=dict(color=dark_purple)
+                ),
+                height=550
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Add explanation of year-over-year changes
+            with st.expander("Understanding Year-Over-Year Changes"):
+                # Calculate some summary statistics for the narrative
+                avg_change = yoy_pivot['change'].mean()
+                max_increase = yoy_pivot['change'].max()
+                max_decrease = yoy_pivot['change'].min()
+                
+                increase_state = yoy_pivot.loc[yoy_pivot['change'].idxmax()]['state']
+                decrease_state = yoy_pivot.loc[yoy_pivot['change'].idxmin()]['state']
+                
+                st.markdown(f"""
+                ### Year-over-Year Change Analysis
+                
+                Comparing {prev_year} to {current_year}, we observe:
+                
+                - **Average change**: {avg_change:.1f}% across all regions
+                - **Largest increase**: {max_increase:.1f}% in {increase_state}
+                - **Largest decrease**: {max_decrease:.1f}% in {decrease_state}
+                
+                These changes may be influenced by:
+                - Weather pattern differences between years
+                - Energy infrastructure developments
+                - Adoption of new technologies
+                - Economic factors and policy changes
+                """)
+        else:
+            st.info("Insufficient data for year-over-year comparison. Need at least two years of data.")
 
     # Solar Production Coverage Analysis 
     st.subheader("Solar Production Coverage Analysis")
