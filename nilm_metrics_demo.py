@@ -603,16 +603,35 @@ if page == "Sample Output":
             12: (1.1,  0.7,  0.9, 0.3, 1.3)   # December
         }
         
-        # Define yearly growth trends
+        # Define more pronounced yearly growth trends - make historical progression more noticeable
+        # The factors represent multipliers for (grid, solar, ev, ac, water_heater, pv_adoption, ev_adoption, efficiency)
         yearly_growth = {
-            # Year delta from base -> (grid, solar, ev, ac, water_heater, pv_adoption, ev_adoption)
-            0: (1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0),  # Base year
-            1: (0.98, 1.1, 1.2, 1.02, 0.99, 1.15, 1.25)  # Next year - less grid, more renewables
+            # 0 = oldest data, 1 = middle data, 2 = newest data (2 years of data)
+            0: (1.15, 0.7, 0.6, 1.0, 1.05, 0.5, 0.4, 0.7),  # 2 years ago: higher grid use, lower renewables & efficiency
+            1: (1.05, 0.85, 0.8, 1.0, 1.0, 0.75, 0.7, 0.85),  # 1 year ago: transitioning
+            2: (1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0)  # Current year: baseline
+        }
+        
+        # Define innovation adoption tiers for states (which states adopt technologies first)
+        # This creates more realistic patterns where certain states lead in adoption
+        state_adoption_tiers = {
+            'early_adopters': ['CA', 'NY', 'MA', 'WA', 'OR', 'CO', 'HI', 'VT'],
+            'early_majority': ['CT', 'NJ', 'MD', 'IL', 'MN', 'AZ', 'NV', 'TX', 'FL', 'UT', 'NM'],
+            'late_majority': ['PA', 'OH', 'MI', 'NC', 'SC', 'GA', 'VA', 'WI', 'IA', 'NH', 'ME', 'RI', 'DE'],
+            'laggards': ['WV', 'KY', 'TN', 'AL', 'MS', 'AR', 'LA', 'OK', 'KS', 'NE', 'SD', 'ND', 'MT', 'ID', 'WY', 'AK']
+        }
+        
+        # Adoption multipliers based on time and state tier
+        # Format: [early_adopters, early_majority, late_majority, laggards]
+        adoption_timeline = {
+            0: [0.7, 0.4, 0.25, 0.1],  # 2 years ago
+            1: [0.9, 0.7, 0.5, 0.3],   # 1 year ago
+            2: [1.0, 0.9, 0.8, 0.6]    # Current
         }
         
         # Generate data for each state, time period, and state
         for time_period in time_periods:
-            year_delta = time_period['year'] - start_date.year
+            year_delta = min(2, time_period['year'] - start_date.year)  # Cap at 2 years difference
             month = time_period['month']
             
             # Get seasonal and yearly adjustment factors
@@ -655,31 +674,54 @@ if page == "Sample Output":
                 }
                 
                 for state in states:
+                    # Determine which adoption tier this state belongs to
+                    state_tier = None
+                    for tier, states_list in state_adoption_tiers.items():
+                        if state in states_list:
+                            state_tier = tier
+                            break
+                    
+                    # Get adoption multiplier based on state tier and time period
+                    if state_tier == 'early_adopters':
+                        tier_index = 0
+                    elif state_tier == 'early_majority':
+                        tier_index = 1
+                    elif state_tier == 'late_majority':
+                        tier_index = 2
+                    else:  # laggards
+                        tier_index = 3
+                    
+                    # Get adoption multiplier for this time period and state tier
+                    adoption_multiplier = adoption_timeline[year_delta][tier_index]
+                    
                     # Add some realistic variance within regions
                     variance_factor = random.uniform(0.8, 1.2)
                     
                     # Base metrics 
                     grid_consumption = random.uniform(*char['grid_range']) * variance_factor
-                    solar_production = random.uniform(*char['solar_range']) * variance_factor
-                    ev_charging = random.uniform(*char['ev_range']) * variance_factor
+                    
+                    # Apply state-specific adoption multipliers
+                    solar_production = random.uniform(*char['solar_range']) * variance_factor * adoption_multiplier
+                    ev_charging = random.uniform(*char['ev_range']) * variance_factor * adoption_multiplier
                     ac_usage = random.uniform(*char['ac_range']) * variance_factor
                     water_heater = random.uniform(*char['water_heater_range']) * variance_factor
                     
-                    # Adoption rates (percentages)
-                    pv_adoption = random.uniform(*char['pv_adoption_range'])
-                    ev_adoption = random.uniform(*char['ev_adoption_range'])
+                    # Adoption rates (percentages) with stronger historical progression
+                    pv_adoption = random.uniform(*char['pv_adoption_range']) * adoption_multiplier
+                    ev_adoption = random.uniform(*char['ev_adoption_range']) * adoption_multiplier
                     
-                    # Home counts for context - with slight growth over time
+                    # Energy efficiency improves over time, with early adopter states leading
+                    efficiency_base = 55 + random.uniform(-5, 5)  # Base efficiency
+                    efficiency_growth = year_factor[7] * adoption_multiplier  # Apply time and state tier factors
+                    efficiency_score = min(98, efficiency_base * efficiency_growth)  # Cap at 98
+                    
+                    # Home counts for context - with growth over time
                     home_count = int(random.uniform(500, 5000) * (1 + year_delta * 0.05))
                     
                     # Calculate derived metrics
                     solar_coverage = (solar_production / grid_consumption * 100) if grid_consumption > 0 else 0
                     ev_percentage = (ev_charging / grid_consumption * 100) if grid_consumption > 0 else 0
                     ac_percentage = (ac_usage / grid_consumption * 100) if grid_consumption > 0 else 0
-                    
-                    # Energy efficiency score (higher is better) - scaled between 0-100
-                    efficiency_score = 100 - (grid_consumption - 600) / 8  # Normalize to 0-100 scale
-                    efficiency_score = max(0, min(100, efficiency_score))  # Clamp to 0-100
                     
                     geo_data.append({
                         'state': state,
