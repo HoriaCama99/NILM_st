@@ -718,16 +718,16 @@ if page == "Sample Output":
     time_control_col1, time_control_col2 = st.columns([3, 1])
     
     with time_control_col1:
-        # Add time period slider 
+        # Add time period slider - without using format_func which is not supported
         selected_time_index = st.slider(
             "Select Time Period",
             min_value=0,
             max_value=len(time_periods)-1,
-            value=len(time_periods)-1,  # Default to latest time period
-            format_func=lambda i: time_periods[i],
-            label_visibility="visible"
+            value=len(time_periods)-1  # Default to latest time period
         )
+        # Display the currently selected time period
         selected_period = time_periods[selected_time_index]
+        st.caption(f"Currently viewing: **{selected_period}**")
     
     with time_control_col2:
         # View options for temporal comparison
