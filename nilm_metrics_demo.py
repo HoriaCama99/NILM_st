@@ -632,6 +632,7 @@ if page == "Sample Output":
                 "Solar Production (kWh)",
                 "EV Charging (kWh)",
                 "AC Usage (kWh)",
+                "Solar Coverage (%)",
                 "PV Adoption Rate (%)",
                 "EV Adoption Rate (%)",
                 "Energy Efficiency Score"
@@ -657,6 +658,7 @@ if page == "Sample Output":
             "Solar Production (kWh)": "Average monthly solar energy production per household with PV systems.",
             "EV Charging (kWh)": "Average monthly electricity used for EV charging in homes with EVs.",
             "AC Usage (kWh)": "Average monthly electricity consumed by air conditioning systems.",
+            "Solar Coverage (%)": "Percentage of grid consumption offset by solar production.",
             "PV Adoption Rate (%)": "Percentage of homes with solar PV systems installed.",
             "EV Adoption Rate (%)": "Percentage of homes with electric vehicles.",
             "Energy Efficiency Score": "Overall energy efficiency score (higher is better)."
@@ -678,12 +680,48 @@ if page == "Sample Output":
             avg_value = filtered_geo_df[metric_col].mean()
             min_value = filtered_geo_df[metric_col].min()
             max_value = filtered_geo_df[metric_col].max()
+            range_value = max_value - min_value
             
             st.markdown("### Summary Statistics")
-            st.markdown(f"**Average:** {avg_value:.1f}")
-            st.markdown(f"**Min:** {min_value:.1f}")
-            st.markdown(f"**Max:** {max_value:.1f}")
-            st.markdown(f"**Range:** {max_value - min_value:.1f}")
+            
+            # Create inline metrics with the same styling as Key Metrics section
+            stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+            
+            with stat_col1:
+                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+                st.metric(
+                    label="Average",
+                    value=f"{avg_value:.1f}",
+                    help=f"Average {map_metric.lower()} across selected regions"
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+            with stat_col2:
+                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+                st.metric(
+                    label="Minimum",
+                    value=f"{min_value:.1f}",
+                    help=f"Lowest {map_metric.lower()} in selected regions"
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+            with stat_col3:
+                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+                st.metric(
+                    label="Maximum",
+                    value=f"{max_value:.1f}",
+                    help=f"Highest {map_metric.lower()} in selected regions"
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+            with stat_col4:
+                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+                st.metric(
+                    label="Range",
+                    value=f"{range_value:.1f}",
+                    help=f"Difference between highest and lowest values"
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
     
     with map_col2:
         # Set up the color scales for different metrics
@@ -692,6 +730,7 @@ if page == "Sample Output":
             "Solar Production (kWh)": ["#F9F0D9", cream, green],
             "EV Charging (kWh)": ["#D9DCFF", light_purple, primary_purple],
             "AC Usage (kWh)": ["#D9F2EC", green, "#43867F"],
+            "Solar Coverage (%)": ["#F9F0D9", cream, green],
             "PV Adoption Rate (%)": ["#F9F0D9", cream, green],
             "EV Adoption Rate (%)": ["#D9DCFF", light_purple, primary_purple],
             "Energy Efficiency Score": [salmon, cream, green]
@@ -703,6 +742,7 @@ if page == "Sample Output":
             "Solar Production (kWh)": "solar_production",
             "EV Charging (kWh)": "ev_charging",
             "AC Usage (kWh)": "ac_usage",
+            "Solar Coverage (%)": "solar_coverage",
             "PV Adoption Rate (%)": "pv_adoption_rate",
             "EV Adoption Rate (%)": "ev_adoption_rate",
             "Energy Efficiency Score": "efficiency_score"
@@ -739,6 +779,7 @@ if page == "Sample Output":
                 'ac_usage': 'AC (kWh)',
                 'pv_adoption_rate': 'PV Adoption (%)',
                 'ev_adoption_rate': 'EV Adoption (%)',
+                'solar_coverage': 'Solar Coverage (%)',
                 'home_count': 'Homes'
             }
         )
