@@ -929,7 +929,7 @@ if page == "Sample Output":
         # Capture clicks on the map - this requires JavaScript callbacks
         clicked_state = None
 
-        # Add a small note above the map
+        # # Add a small note above the map
         # st.markdown("👆 **Click on any state in the map to see its trend over time**")
 
         # After the map visualization, add key statistics
@@ -1458,7 +1458,7 @@ else:  # Performance Metrics page
             fpr_value = models_data[selected_model]['FPR'][device]
             st.metric(
                 "False Positive Rate", 
-                f"{fpr_value:.4f}",
+                f"{fpr_value * 100:.2f}%",
                 delta=None,
                 delta_color="normal"
             )
@@ -1567,7 +1567,7 @@ else:  # Performance Metrics page
                 fpr_data.append({
                     "Model": model,
                     "Device": device,
-                    "FPR": models_data[model]["FPR"][device]
+                    "FPR (%)": models_data[model]["FPR"][device] * 100  # Convert to percentage
                 })
         
         fpr_df = pd.DataFrame(fpr_data)
@@ -1575,7 +1575,7 @@ else:  # Performance Metrics page
         fig = px.bar(
             fpr_df, 
             x="Model", 
-            y="FPR", 
+            y="FPR (%)", 
             color="Device",
             barmode="group",
             color_discrete_map={
@@ -1589,7 +1589,7 @@ else:  # Performance Metrics page
         fig.update_layout(
             title="False Positive Rate Comparison Across Models (Lower is Better)",
             xaxis_title="Model",
-            yaxis_title="FPR",
+            yaxis_title="FPR (%)",
             legend_title="Device",
             paper_bgcolor=white,
             plot_bgcolor=white,
@@ -1734,9 +1734,8 @@ else:  # Performance Metrics page
     # Key findings section
     st.markdown("### Key Findings")
     st.markdown(f"""
-    - **⚠️ DISCLAIMER:** The V5 Model has been trained on 6 months worth of data!
     - The **{selected_model}** model shows strong performance across all device types, with PV Usage detection being particularly accurate.
-    - EV Charging detection shows a good balance between DPSPerc ({models_data[selected_model]['DPSPerc']['EV Charging']:.2f}%) and false positives ({models_data[selected_model]['FPR']['EV Charging']:.4f}).
+    - EV Charging detection shows a good balance between DPSPerc ({models_data[selected_model]['DPSPerc']['EV Charging']:.2f}%) and false positives ({models_data[selected_model]['FPR']['EV Charging'] * 100:.2f}%).
     - PV Usage detection achieves the highest DPSPerc ({models_data[selected_model]['DPSPerc']['PV Usage']:.2f}%) among all device types.
     """)
 
@@ -1744,7 +1743,7 @@ else:  # Performance Metrics page
     if selected_model == "V4":
         st.markdown("""
         **Model Comparison Insights:**
-        - The V4 model achieves the highest EV Charging DPSPerc (85.81%) with the lowest FPR (0.1176), offering the most accurate EV detection.
+        - The V4 model achieves the highest EV Charging DPSPerc (85.81%) with the lowest FPR (11.76%), offering the most accurate EV detection.
         - AC Usage detection shows comparable performance across models, with the V4 model providing the best balance of accuracy and false positives.
         - All models demonstrate similar PV detection capabilities, with minor variations in performance metrics.
         """)
@@ -1752,7 +1751,7 @@ else:  # Performance Metrics page
         st.markdown("""
         **Model Comparison Insights:**
         - The V5 model offers improved AC Usage detection with a DPSPerc of 77.58%, higher than previous models.
-        - For EV Charging, V5 provides a balanced approach with a DPSPerc of 81.11% and moderate FPR of 0.1373, making it more reliable than earlier versions but not as aggressive as V4.
+        - For EV Charging, V5 provides a balanced approach with a DPSPerc of 81.11% and moderate FPR of 13.73%, making it more reliable than earlier versions but not as aggressive as V4.
         - PV Usage detection in V5 (91.93% DPSPerc) remains strong and consistent with previous models.
         - The TECA scores show that V5 achieves good energy assignment accuracy for AC Usage (0.6912) and PV Usage (0.7680), though slightly lower for EV Charging (0.6697) compared to V4.
         - Overall, V5 represents a more balanced model that prioritizes consistent performance across all device types rather than optimizing for any single metric.
