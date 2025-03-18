@@ -930,7 +930,7 @@ if page == "Sample Output":
         clicked_state = None
 
         # Add a small note above the map
-        st.markdown("👆 **Click on any state in the map to see its trend over time**")
+        # st.markdown("👆 **Click on any state in the map to see its trend over time**")
 
         # After the map visualization, add key statistics
         # Add summary statistics for the selected metric
