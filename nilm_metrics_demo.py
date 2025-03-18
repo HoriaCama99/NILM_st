@@ -923,11 +923,14 @@ if page == "Sample Output":
         # Display the map with click events
         map_chart = st.plotly_chart(fig, use_container_width=True)
 
-        # # Add a container for click events 
-        # click_container = st.container()
+        # Add a container for click events 
+        click_container = st.container()
 
-        # # Capture clicks on the map - this requires JavaScript callbacks
-        # clicked_state = None
+        # Capture clicks on the map - this requires JavaScript callbacks
+        clicked_state = None
+
+        # Add a small note above the map
+        st.markdown("👆 **Click on any state in the map to see its trend over time**")
 
         # After the map visualization, add key statistics
         # Add summary statistics for the selected metric
@@ -1275,85 +1278,88 @@ else:  # Performance Metrics page
                 'DPSPerc': {
                     'EV Charging': 80.2603,
                     'AC Usage': 76.6360,
-                    'PV Usage': 92.5777,
-                    'WH Usage': 29.2893
+                    'PV Usage': 92.5777
                 },
                 'FPR': {
                     'EV Charging': 0.1961,
                     'AC Usage': 0.3488,
-                    'PV Usage': 0.1579,
-                    'WH Usage': 0.0000
+                    'PV Usage': 0.1579
                 },
                 'TECA': {
                     'EV Charging': 0.7185,
                     'AC Usage': 0.6713,
-                    'PV Usage': 0.8602,
-                    'WH Usage': 0.3000
+                    'PV Usage': 0.8602
                 }
             },
             'V2': {
                 'DPSPerc': {
                     'EV Charging': 82.4146,
                     'AC Usage': 76.6360,
-                    'PV Usage': 92.5777,
-                    'WH Usage': 29.2893
+                    'PV Usage': 92.5777
                 },
                 'FPR': {
                     'EV Charging': 0.1667,
                     'AC Usage': 0.3488,
-                    'PV Usage': 0.1579,
-                    'WH Usage': 0.0000
+                    'PV Usage': 0.1579
                 },
                 'TECA': {
                     'EV Charging': 0.7544,
                     'AC Usage': 0.6519,
-                    'PV Usage': 0.8812,
-                    'WH Usage': 0.3107
+                    'PV Usage': 0.8812
                 }
             },
             'V3': {
                 'DPSPerc': {
                     'EV Charging': 81.8612,
                     'AC Usage': 73.0220,
-                    'PV Usage': 92.0629,
-                    'WH Usage': 29.2893
+                    'PV Usage': 92.0629
                 },
                 'FPR': {
                     'EV Charging': 0.1667,
                     'AC Usage': 0.4419,
-                    'PV Usage': 0.1754,
-                    'WH Usage': 0.0000
+                    'PV Usage': 0.1754
                 },
                 'TECA': {
                     'EV Charging': 0.7179,
                     'AC Usage': 0.6606,
-                    'PV Usage': 0.8513,
-                    'WH Usage': 0.0582
+                    'PV Usage': 0.8513
                 }
             },
             'V4': {
                 'DPSPerc': {
                     'EV Charging': 85.8123,
                     'AC Usage': 76.3889,
-                    'PV Usage': 91.5448,
-                    'WH Usage': 29.2893
+                    'PV Usage': 91.5448
                 },
                 'FPR': {
                     'EV Charging': 0.1176,
                     'AC Usage': 0.1977,
-                    'PV Usage': 0.1930,
-                    'WH Usage': 0.0000
+                    'PV Usage': 0.1930
                 },
                 'TECA': {
                     'EV Charging': 0.7741,
                     'AC Usage': 0.6718,
-                    'PV Usage': 0.8395,
-                    'WH Usage': -0.0181
+                    'PV Usage': 0.8395
+                }
+            },
+            'V5': {
+                'DPSPerc': {
+                    'EV Charging': 81.1060,
+                    'AC Usage': 77.5813,
+                    'PV Usage': 91.9317
+                },
+                'FPR': {
+                    'EV Charging': 0.1373,
+                    'AC Usage': 0.3750,
+                    'PV Usage': 0.1930
+                },
+                'TECA': {
+                    'EV Charging': 0.6697,
+                    'AC Usage': 0.6912,
+                    'PV Usage': 0.7680
                 }
             }
         }
-        
-        # Confusion matrix is updated later based on selected model and device
         
         return models_data
 
@@ -1363,16 +1369,16 @@ else:  # Performance Metrics page
     # Model selection in sidebar
     selected_model = st.sidebar.selectbox(
         "Select Model",
-        ["V1", "V2", "V3", "V4"],
-        index=3,  # Default to V4
+        ["V1", "V2", "V3", "V4", "V5"],
+        index=4,  # Default to V5
         format_func=lambda x: x  # No need to transform the names anymore
     )
 
-    # Add device type filter in sidebar
+    # Add device type filter in sidebar - remove WH Usage
     device_types = st.sidebar.multiselect(
         "Select Device Types",
-        ["EV Charging", "AC Usage", "PV Usage", "WH Usage"],
-        default=["EV Charging", "AC Usage", "PV Usage", "WH Usage"]
+        ["EV Charging", "AC Usage", "PV Usage"],
+        default=["EV Charging", "AC Usage", "PV Usage"]
     )
 
     # Add fallback mechanism for empty device selection
@@ -1472,17 +1478,17 @@ else:  # Performance Metrics page
 
     # Calculate percentages
     sample_composition = {
-        'Device Type': ['EV Charging', 'AC Usage', 'PV Usage', 'WH Usage'],
-        'Negative Class (%)': [64.56, 54.43, 36.08, 91.14],
-        'Positive Class (%)': [35.44, 45.57, 63.92, 8.86]
+        'Device Type': ['EV Charging', 'AC Usage', 'PV Usage'],
+        'Negative Class (%)': [64.56, 54.43, 36.08],
+        'Positive Class (%)': [35.44, 45.57, 63.92]
     }
 
     # Create a DataFrame
     sample_df = pd.DataFrame(sample_composition)
 
     # Add count information in tooltips
-    sample_df['Negative Count'] = [102, 86, 57, 144]
-    sample_df['Positive Count'] = [56, 72, 101, 14]
+    sample_df['Negative Count'] = [102, 86, 57]
+    sample_df['Positive Count'] = [56, 72, 101]
 
     # Style the table
     def highlight_class_imbalance(val):
@@ -1505,8 +1511,7 @@ else:  # Performance Metrics page
     # Add an explanatory note about class imbalance
     st.caption(f"""
     Sample composition shows the distribution of positive and negative examples in our test dataset.
-    WH Usage detection has a significant class imbalance ({sample_df['Positive Class (%)'][3]:.2f}% positive),
-    which may partially explain the lower performance metrics for this device type.
+    The dataset has a relatively balanced distribution for AC and EV detection, while PV detection has more positive examples.
     """)
 
     # Model comparison
@@ -1518,7 +1523,7 @@ else:  # Performance Metrics page
     with metric_tabs[0]:  # DPSPerc tab
         # Create bar chart for DPSPerc across models and devices
         dpsperc_data = []
-        for model in ["V1", "V2", "V3", "V4"]:
+        for model in ["V1", "V2", "V3", "V4", "V5"]:
             for device in device_types:
                 dpsperc_data.append({
                     "Model": model,
@@ -1537,8 +1542,7 @@ else:  # Performance Metrics page
             color_discrete_map={
                 "EV Charging": primary_purple,
                 "AC Usage": green,
-                "PV Usage": cream,
-                "WH Usage": salmon
+                "PV Usage": cream
             },
             template="plotly_white"
         )
@@ -1558,7 +1562,7 @@ else:  # Performance Metrics page
     with metric_tabs[1]:  # FPR tab
         # Create bar chart for FPR across models and devices
         fpr_data = []
-        for model in ["V1", "V2", "V3", "V4"]:
+        for model in ["V1", "V2", "V3", "V4", "V5"]:
             for device in device_types:
                 fpr_data.append({
                     "Model": model,
@@ -1577,8 +1581,7 @@ else:  # Performance Metrics page
             color_discrete_map={
                 "EV Charging": primary_purple,
                 "AC Usage": green,
-                "PV Usage": cream,
-                "WH Usage": salmon
+                "PV Usage": cream
             },
             template="plotly_white"
         )
@@ -1598,7 +1601,7 @@ else:  # Performance Metrics page
     with metric_tabs[2]:  # TECA tab
         # Create bar chart for TECA across models and devices
         teca_data = []
-        for model in ["V1", "V2", "V3", "V4"]:
+        for model in ["V1", "V2", "V3", "V4", "V5"]:
             for device in device_types:
                 teca_data.append({
                     "Model": model,
@@ -1617,8 +1620,7 @@ else:  # Performance Metrics page
             color_discrete_map={
                 "EV Charging": primary_purple,
                 "AC Usage": green,
-                "PV Usage": cream,
-                "WH Usage": salmon
+                "PV Usage": cream
             },
             template="plotly_white"
         )
@@ -1715,14 +1717,10 @@ else:  # Performance Metrics page
             labels = ['No AC', 'AC Detected']
             title = 'AC Usage Detection'
             cmap = 'Greens'
-        elif selected_device == "PV Usage":
+        else:  # PV Usage
             labels = ['No PV', 'PV Detected']
             title = 'PV Usage Detection'
             cmap = 'Oranges'
-        else:  # WH Usage
-            labels = ['No WH', 'WH Detected']
-            title = 'WH Usage Detection'
-            cmap = 'Reds'
 
         # Create and display the selected confusion matrix
         fig, ax = plt.subplots(figsize=(6, 4))
@@ -1736,10 +1734,9 @@ else:  # Performance Metrics page
     # Key findings section
     st.markdown("### Key Findings")
     st.markdown(f"""
-    - The **{selected_model}** model shows strong performance across most device types, with PV Usage detection being particularly accurate.
-    - EV Charging detection shows excellent balance between DPSPerc ({models_data[selected_model]['DPSPerc']['EV Charging']:.2f}%) and low false positives ({models_data[selected_model]['FPR']['EV Charging']:.4f}).
-    - WH Usage detection remains challenging with lower DPSPerc, suggesting further model improvements are needed for this specific device type.
-    - PV Usage detection achieves the highest DPSPerc ({models_data[selected_model]['DPSPerc']['PV Usage']:.2f}%) and TECA ({models_data[selected_model]['TECA']['PV Usage'] * 100:.2f}%) among all device types.
+    - The **{selected_model}** model shows strong performance across all device types, with PV Usage detection being particularly accurate.
+    - EV Charging detection shows a good balance between DPSPerc ({models_data[selected_model]['DPSPerc']['EV Charging']:.2f}%) and false positives ({models_data[selected_model]['FPR']['EV Charging']:.4f}).
+    - PV Usage detection achieves the highest DPSPerc ({models_data[selected_model]['DPSPerc']['PV Usage']:.2f}%) among all device types.
     """)
 
     # Add model comparison insights
@@ -1749,6 +1746,15 @@ else:  # Performance Metrics page
         - The V4 model achieves the highest EV Charging DPSPerc (85.81%) with the lowest FPR (0.1176), offering the most accurate EV detection.
         - AC Usage detection shows comparable performance across models, with the V4 model providing the best balance of accuracy and false positives.
         - All models demonstrate similar PV detection capabilities, with minor variations in performance metrics.
+        """)
+    elif selected_model == "V5":
+        st.markdown("""
+        **Model Comparison Insights:**
+        - The V5 model offers improved AC Usage detection with a DPSPerc of 77.58%, higher than previous models.
+        - For EV Charging, V5 provides a balanced approach with a DPSPerc of 81.11% and moderate FPR of 0.1373, making it more reliable than earlier versions but not as aggressive as V4.
+        - PV Usage detection in V5 (91.93% DPSPerc) remains strong and consistent with previous models.
+        - The TECA scores show that V5 achieves good energy assignment accuracy for AC Usage (0.6912) and PV Usage (0.7680), though slightly lower for EV Charging (0.6697) compared to V4.
+        - Overall, V5 represents a more balanced model that prioritizes consistent performance across all device types rather than optimizing for any single metric.
         """)
 
     # Footer (using the same styling as the main page)
