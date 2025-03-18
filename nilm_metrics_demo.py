@@ -1734,6 +1734,7 @@ else:  # Performance Metrics page
     # Key findings section
     st.markdown("### Key Findings")
     st.markdown(f"""
+    - **⚠️ DISCLAIMER:** The V5 Model has been trained on 6 months worth of data!
     - The **{selected_model}** model shows strong performance across all device types, with PV Usage detection being particularly accurate.
     - EV Charging detection shows a good balance between DPSPerc ({models_data[selected_model]['DPSPerc']['EV Charging']:.2f}%) and false positives ({models_data[selected_model]['FPR']['EV Charging']:.4f}).
     - PV Usage detection achieves the highest DPSPerc ({models_data[selected_model]['DPSPerc']['PV Usage']:.2f}%) among all device types.
