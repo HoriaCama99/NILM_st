@@ -731,6 +731,7 @@ if page == "Sample Output":
                         'month_name': time_period['month_name'],
                         'quarter': time_period['quarter'],
                         'period_label': time_period['period_label'],
+                        'date_value': time_period['date'],  # Store the actual date object for proper sorting
                         'grid_consumption': grid_consumption,
                         'solar_production': solar_production,
                         'ev_charging': ev_charging,
@@ -993,7 +994,7 @@ if page == "Sample Output":
         state_data = geo_df[geo_df['state'] == selected_state].copy()
 
         # Sort by time period to ensure correct ordering
-        state_data = state_data.sort_values('date')
+        state_data = state_data.sort_values('date_value')  # Sort by actual date value for proper time ordering
 
         # Create a time series chart
         fig_ts = px.line(
