@@ -994,110 +994,94 @@ if page == "Sample Output":
             'Energy Efficiency': green
         }
 
-        # State dropdown for selecting a state to view trends
-        st.subheader("State Trend Analysis")
-        selected_state = st.selectbox(
-            "Select a state to view trends over time",
-            options=sorted(geo_df['state'].unique()),
-            index=geo_df['state'].unique().tolist().index('CA') if 'CA' in geo_df['state'].unique() else 0
-        )
+        # Add a checkbox to toggle the state trend section (simulating the functionality of clicking a state)
+        show_trend_analysis = st.checkbox("Show State Trend Analysis", value=False)
 
-        # Get all data for this state
-        state_data = geo_df[geo_df['state'] == selected_state].copy()
-
-        # Sort by time period to ensure correct ordering
-        state_data = state_data.sort_values('date_value')  # Sort by actual date value for proper time ordering
-
-        # Create a time series chart
-        fig_ts = px.line(
-            state_data,
-            x='period_label',
-            y=selected_metric,
-            markers=True,
-            title=f"{map_metric} Evolution for {selected_state}",
-            color_discrete_sequence=[trend_colors.get(map_metric.split(" ")[0], primary_purple)]
-        )
-
-        # Update the layout
-        fig_ts.update_layout(
-            xaxis_title="Time Period",
-            yaxis_title=map_metric,
-            paper_bgcolor=white,
-            plot_bgcolor=white,
-            font=dict(color=dark_purple),
-            xaxis=dict(
-                tickangle=45,
-                tickmode='array',
-                tickvals=state_data['period_label'][::3],  # Show every 3rd label to avoid crowding
-                tickfont=dict(size=10)
+        if show_trend_analysis:
+            # State dropdown for selecting a state to view trends
+            st.subheader("State Trend Analysis")
+            selected_state = st.selectbox(
+                "Select a state to view trends over time",
+                options=sorted(geo_df['state'].unique()),
+                index=geo_df['state'].unique().tolist().index('CA') if 'CA' in geo_df['state'].unique() else 0
             )
-        )
 
-        # Add reference lines for regional and national averages
-        if selected_regions:
-            region_for_state = state_data['region'].iloc[0]
-            
-            # Calculate regional average for each time period
-            regional_avg = geo_df[
-                (geo_df['region'] == region_for_state) & 
-                (geo_df['region'].isin(selected_regions))
-            ].groupby('period_label')[selected_metric].mean().reset_index()
-            
-            # Calculate national average for each time period
-            national_avg = geo_df[geo_df['region'].isin(selected_regions)].groupby('period_label')[selected_metric].mean().reset_index()
-            
-            # Add regional average line
-            fig_ts.add_trace(
-                go.Scatter(
-                    x=regional_avg['period_label'],
-                    y=regional_avg[selected_metric],
-                    mode='lines',
-                    line=dict(
-                        color=light_purple,
-                        width=2,
-                        dash='dot'
-                    ),
-                    name=f"{region_for_state} Regional Average"
-                )
+            # Get all data for this state
+            state_data = geo_df[geo_df['state'] == selected_state].copy()
+
+            # Sort by time period to ensure correct ordering
+            state_data = state_data.sort_values('date_value')  # Sort by actual date value for proper time ordering
+
+            # Create a time series chart - with only the single metric line
+            fig_ts = px.line(
+                state_data,
+                x='period_label',
+                y=selected_metric,
+                markers=True,
+                title=f"{map_metric} Evolution for {selected_state}",
+                color_discrete_sequence=[trend_colors.get(map_metric.split(" ")[0], primary_purple)]
             )
-            
-            # Add national average line
-            fig_ts.add_trace(
-                go.Scatter(
-                    x=national_avg['period_label'],
-                    y=national_avg[selected_metric],
-                    mode='lines',
-                    line=dict(
-                        color=dark_purple,
-                        width=2,
-                        dash='dash'
-                    ),
-                    name="National Average"
+
+            # Update the layout
+            fig_ts.update_layout(
+                xaxis_title="Time Period",
+                yaxis_title=map_metric,
+                paper_bgcolor=white,
+                plot_bgcolor=white,
+                font=dict(color=dark_purple),
+                xaxis=dict(
+                    tickangle=45,
+                    tickmode='array',
+                    tickvals=state_data['period_label'][::3],  # Show every 3rd label to avoid crowding
+                    tickfont=dict(size=10)
                 )
             )
 
-        # Find seasonal patterns
-        if len(state_data) >= 12:
-            winter_data = state_data[state_data['month'].isin([12, 1, 2])]
-            summer_data = state_data[state_data['month'].isin([6, 7, 8])]
-            
-            winter_avg = winter_data[selected_metric].mean()
-            summer_avg = summer_data[selected_metric].mean()
-            
-            seasonal_diff = abs(summer_avg - winter_avg)
-            seasonal_percentage = (seasonal_diff / state_data[selected_metric].mean()) * 100
-            
-            # Add seasonal annotation if the difference is significant
-            if seasonal_percentage > 15:  # Only annotate if there's a significant seasonal difference
-                season_with_higher_value = "Summer" if summer_avg > winter_avg else "Winter"
+            # Find seasonal patterns
+            if len(state_data) >= 12:
+                winter_data = state_data[state_data['month'].isin([12, 1, 2])]
+                summer_data = state_data[state_data['month'].isin([6, 7, 8])]
                 
-                # Add annotation for seasonal patterns
+                winter_avg = winter_data[selected_metric].mean()
+                summer_avg = summer_data[selected_metric].mean()
+                
+                seasonal_diff = abs(summer_avg - winter_avg)
+                seasonal_percentage = (seasonal_diff / state_data[selected_metric].mean()) * 100
+                
+                # Add seasonal annotation if the difference is significant
+                if seasonal_percentage > 15:  # Only annotate if there's a significant seasonal difference
+                    season_with_higher_value = "Summer" if summer_avg > winter_avg else "Winter"
+                    
+                    # Add annotation for seasonal patterns
+                    fig_ts.add_annotation(
+                        x=0.95,
+                        y=0.15,
+                        xref="paper",
+                        yref="paper",
+                        text=f"📊 {season_with_higher_value} values are {seasonal_percentage:.1f}% higher on average",
+                        showarrow=False,
+                        bgcolor="rgba(255, 255, 255, 0.8)",
+                        bordercolor=primary_purple,
+                        borderwidth=1,
+                        borderpad=4,
+                        font=dict(color=dark_purple, size=12)
+                    )
+
+            # Calculate growth rate (comparing oldest to newest data)
+            oldest_value = state_data.iloc[0][selected_metric]
+            newest_value = state_data.iloc[-1][selected_metric]
+
+            if oldest_value > 0:
+                growth_rate = ((newest_value - oldest_value) / oldest_value) * 100
+                
+                # Add annotation for growth rate
+                growth_direction = "increase" if growth_rate > 0 else "decrease"
                 fig_ts.add_annotation(
                     x=0.95,
-                    y=0.15,
+                    y=0.05,
                     xref="paper",
                     yref="paper",
-                    text=f"📊 {season_with_higher_value} values are {seasonal_percentage:.1f}% higher on average",
+                    text=f"📈 {abs(growth_rate):.1f}% {growth_direction} over past 2 years",
                     showarrow=False,
                     bgcolor="rgba(255, 255, 255, 0.8)",
                     bordercolor=primary_purple,
@@ -1106,73 +1090,50 @@ if page == "Sample Output":
                     font=dict(color=dark_purple, size=12)
                 )
 
-        # Calculate growth rate (comparing oldest to newest data)
-        oldest_value = state_data.iloc[0][selected_metric]
-        newest_value = state_data.iloc[-1][selected_metric]
+            # Display the time series chart
+            st.plotly_chart(fig_ts, use_container_width=True)
 
-        if oldest_value > 0:
-            growth_rate = ((newest_value - oldest_value) / oldest_value) * 100
-            
-            # Add annotation for growth rate
-            growth_direction = "increase" if growth_rate > 0 else "decrease"
-            fig_ts.add_annotation(
-                x=0.95,
-                y=0.05,
-                xref="paper",
-                yref="paper",
-                text=f"📈 {abs(growth_rate):.1f}% {growth_direction} over past 2 years",
-                showarrow=False,
-                bgcolor="rgba(255, 255, 255, 0.8)",
-                bordercolor=primary_purple,
-                borderwidth=1,
-                borderpad=4,
-                font=dict(color=dark_purple, size=12)
-            )
+            # Add contextual information about the selected state
+            state_context_col1, state_context_col2 = st.columns(2)
 
-        # Display the time series chart
-        st.plotly_chart(fig_ts, use_container_width=True)
-
-        # Add contextual information about the selected state
-        state_context_col1, state_context_col2 = st.columns(2)
-
-        with state_context_col1:
-            # Get current metrics for the selected state
-            current_state_data = state_data.iloc[-1]
-            
-            st.markdown(f"### {selected_state} State Profile")
-            st.markdown(f"""
-            **Region:** {current_state_data['region']}
-            
-            **Current {map_metric}:** {current_state_data[selected_metric]:.1f}
-            
-            **Grid Consumption:** {current_state_data['grid_consumption']:.1f} kWh
-            
-            **Solar Production:** {current_state_data['solar_production']:.1f} kWh
-            
-            **EV Charging:** {current_state_data['ev_charging']:.1f} kWh
-            """)
-
-        with state_context_col2:
-            # Compare to similar states
-            same_region_states = geo_df[
-                (geo_df['region'] == current_state_data['region']) & 
-                (geo_df['state'] != selected_state) &
-                (geo_df['period_label'] == selected_period)
-            ]
-            
-            similar_states = same_region_states.iloc[(same_region_states[selected_metric] - current_state_data[selected_metric]).abs().argsort()[:3]]
-            
-            st.markdown("### Similar States")
-            st.markdown(f"States in the {current_state_data['region']} region with similar {map_metric.lower()} patterns:")
-            
-            for _, similar_state in similar_states.iterrows():
-                diff = similar_state[selected_metric] - current_state_data[selected_metric]
-                diff_percentage = (diff / current_state_data[selected_metric]) * 100 if current_state_data[selected_metric] != 0 else 0
-                diff_direction = "higher" if diff > 0 else "lower"
+            with state_context_col1:
+                # Get current metrics for the selected state
+                current_state_data = state_data.iloc[-1]
                 
+                st.markdown(f"### {selected_state} State Profile")
                 st.markdown(f"""
-                **{similar_state['state']}:** {similar_state[selected_metric]:.1f} ({abs(diff_percentage):.1f}% {diff_direction})
+                **Region:** {current_state_data['region']}
+                
+                **Current {map_metric}:** {current_state_data[selected_metric]:.1f}
+                
+                **Grid Consumption:** {current_state_data['grid_consumption']:.1f} kWh
+                
+                **Solar Production:** {current_state_data['solar_production']:.1f} kWh
+                
+                **EV Charging:** {current_state_data['ev_charging']:.1f} kWh
                 """)
+
+            with state_context_col2:
+                # Compare to similar states
+                same_region_states = geo_df[
+                    (geo_df['region'] == current_state_data['region']) & 
+                    (geo_df['state'] != selected_state) &
+                    (geo_df['period_label'] == selected_period)
+                ]
+                
+                similar_states = same_region_states.iloc[(same_region_states[selected_metric] - current_state_data[selected_metric]).abs().argsort()[:3]]
+                
+                st.markdown("### Similar States")
+                st.markdown(f"States in the {current_state_data['region']} region with similar {map_metric.lower()} patterns:")
+                
+                for _, similar_state in similar_states.iterrows():
+                    diff = similar_state[selected_metric] - current_state_data[selected_metric]
+                    diff_percentage = (diff / current_state_data[selected_metric]) * 100 if current_state_data[selected_metric] != 0 else 0
+                    diff_direction = "higher" if diff > 0 else "lower"
+                    
+                    st.markdown(f"""
+                    **{similar_state['state']}:** {similar_state[selected_metric]:.1f} ({abs(diff_percentage):.1f}% {diff_direction})
+                    """)
 
     # Solar Production Coverage Analysis 
     st.subheader("Solar Production Coverage Analysis")
