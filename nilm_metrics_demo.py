@@ -923,14 +923,11 @@ if page == "Sample Output":
         # Display the map with click events
         map_chart = st.plotly_chart(fig, use_container_width=True)
 
-        # Add a container for click events 
-        click_container = st.container()
+        # # Add a container for click events 
+        # click_container = st.container()
 
-        # Capture clicks on the map - this requires JavaScript callbacks
-        clicked_state = None
-
-        # Add a small note above the map
-        st.markdown("👆 **Click on any state in the map to see its trend over time**")
+        # # Capture clicks on the map - this requires JavaScript callbacks
+        # clicked_state = None
 
         # After the map visualization, add key statistics
         # Add summary statistics for the selected metric
