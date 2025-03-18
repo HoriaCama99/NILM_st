@@ -982,6 +982,18 @@ if page == "Sample Output":
                 )
                 st.markdown("</div>", unsafe_allow_html=True)
 
+        # Define colors for trend visualization metrics
+        trend_colors = {
+            'Grid': primary_purple,
+            'Solar': green,
+            'EV': light_purple,
+            'AC': salmon,
+            'Solar Coverage': cream,
+            'PV Adoption': green,
+            'EV Adoption': light_purple,
+            'Energy Efficiency': green
+        }
+
         # State dropdown for selecting a state to view trends
         st.subheader("State Trend Analysis")
         selected_state = st.selectbox(
@@ -1003,7 +1015,7 @@ if page == "Sample Output":
             y=selected_metric,
             markers=True,
             title=f"{map_metric} Evolution for {selected_state}",
-            color_discrete_sequence=[device_colors.get(map_metric.split(" ")[0], primary_purple)]
+            color_discrete_sequence=[trend_colors.get(map_metric.split(" ")[0], primary_purple)]
         )
 
         # Update the layout
