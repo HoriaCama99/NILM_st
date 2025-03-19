@@ -929,8 +929,8 @@ if page == "Sample Output":
         # Capture clicks on the map - this requires JavaScript callbacks
         clicked_state = None
 
-        # # Add a small note above the map
-        # st.markdown("👆 **Click on any state in the map to see its trend over time**")
+        # Add a small note above the map
+        st.markdown("👆 **Click on any state in the map to see its trend over time**")
 
         # After the map visualization, add key statistics
         # Add summary statistics for the selected metric
@@ -1427,50 +1427,165 @@ else:  # Performance Metrics page
     # Main content area for Performance Metrics page
     st.subheader(f"Model: {selected_model}")
 
-    # Key metrics display section
-    st.markdown("### Key Metrics")
+    # Key metrics display section - now in a 2-column layout
+    metrics_col, trend_col = st.columns([3, 2])
+    
+    with metrics_col:
+        st.markdown("### Key Metrics")
 
-    # Create metrics in 4-column layout
-    metrics_cols = st.columns(4)
+        # Create metrics in 4-column layout for the selected model
+        metrics_cols = st.columns(min(4, len(device_types)))
 
-    # Define colors for each device
-    device_colors = {
-        'EV Charging': primary_purple,
-        'AC Usage': green,
-        'PV Usage': cream,
-        'WH Usage': salmon
-    }
+        # Define colors for each device
+        device_colors = {
+            'EV Charging': primary_purple,
+            'AC Usage': green,
+            'PV Usage': cream,
+            'WH Usage': salmon
+        }
 
-    # Display metric cards for each device type
-    for i, device in enumerate(device_types):
-        with metrics_cols[i % 4]:
-            st.markdown(f"<h4 style='color:{device_colors[device]};'>{device}</h4>", unsafe_allow_html=True)
-            
-            # DPSPerc
-            st.metric(
-                "DPSPerc (%)", 
-                f"{models_data[selected_model]['DPSPerc'][device]:.2f}%",
-                delta=None,
-                delta_color="normal"
-            )
-            
-            # FPR - Lower is better, so we'll display the inverse
-            fpr_value = models_data[selected_model]['FPR'][device]
-            st.metric(
-                "False Positive Rate", 
-                f"{fpr_value * 100:.2f}%",
-                delta=None,
-                delta_color="normal"
-            )
-            
-            # TECA - convert to percentage
-            teca_value = models_data[selected_model]['TECA'][device]
-            st.metric(
-                "TECA (%)", 
-                f"{teca_value * 100:.2f}%",
-                delta=None,
-                delta_color="normal"
-            )
+        # Display metric cards for each device type
+        for i, device in enumerate(device_types):
+            with metrics_cols[i % len(metrics_cols)]:
+                st.markdown(f"<h4 style='color:{device_colors[device]};'>{device}</h4>", unsafe_allow_html=True)
+                
+                # DPSPerc
+                st.metric(
+                    "DPSPerc (%)", 
+                    f"{models_data[selected_model]['DPSPerc'][device]:.2f}%",
+                    delta=None,
+                    delta_color="normal"
+                )
+                
+                # FPR - Lower is better, so we'll display the inverse
+                fpr_value = models_data[selected_model]['FPR'][device]
+                st.metric(
+                    "False Positive Rate", 
+                    f"{fpr_value * 100:.2f}%",
+                    delta=None,
+                    delta_color="normal"
+                )
+                
+                # TECA - convert to percentage
+                teca_value = models_data[selected_model]['TECA'][device]
+                st.metric(
+                    "TECA (%)", 
+                    f"{teca_value * 100:.2f}%",
+                    delta=None,
+                    delta_color="normal"
+                )
+    
+    with trend_col:
+        st.markdown("### Performance Trend")
+        
+        # Get the first device as default if device_types is not empty
+        default_device = device_types[0] if device_types else "EV Charging"
+        
+        # Allow user to select a device for the trend visualization
+        trend_device = st.selectbox(
+            "Select device for trend analysis", 
+            device_types,
+            index=0
+        )
+        
+        # Prepare data for the line chart showing performance over model versions
+        trend_data = []
+        
+        for model in ["V1", "V2", "V3", "V4", "V5"]:
+            trend_data.append({
+                "Model": model,
+                "DPSPerc (%)": models_data[model]["DPSPerc"][trend_device],
+                "FPR (%)": models_data[model]["FPR"][trend_device] * 100,  # Convert to percentage
+                "TECA (%)": models_data[model]["TECA"][trend_device] * 100  # Convert to percentage
+            })
+        
+        trend_df = pd.DataFrame(trend_data)
+        
+        # Create line chart
+        fig = go.Figure()
+        
+        # Add DPSPerc line
+        fig.add_trace(go.Scatter(
+            x=trend_df["Model"],
+            y=trend_df["DPSPerc (%)"],
+            mode='lines+markers',
+            name='DPSPerc (%)',
+            line=dict(color=primary_purple, width=3),
+            marker=dict(size=10)
+        ))
+        
+        # Add FPR line
+        fig.add_trace(go.Scatter(
+            x=trend_df["Model"],
+            y=trend_df["FPR (%)"],
+            mode='lines+markers',
+            name='FPR (%)',
+            line=dict(color=salmon, width=3),
+            marker=dict(size=10)
+        ))
+        
+        # Add TECA line
+        fig.add_trace(go.Scatter(
+            x=trend_df["Model"],
+            y=trend_df["TECA (%)"],
+            mode='lines+markers',
+            name='TECA (%)',
+            line=dict(color=green, width=3),
+            marker=dict(size=10)
+        ))
+        
+        # Update layout
+        fig.update_layout(
+            title=f"{trend_device} Metrics Across Model Versions",
+            xaxis_title="Model Version",
+            yaxis_title="Performance (%)",
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            paper_bgcolor=white,
+            plot_bgcolor=white,
+            font=dict(color=dark_purple),
+            height=400
+        )
+        
+        # Add a band around the FPR line to indicate that lower is better
+        fig.add_annotation(
+            x=0.5,
+            y=0.05,
+            xref="paper",
+            yref="paper",
+            text="Note: Lower FPR is better",
+            showarrow=False,
+            bgcolor="rgba(255,255,255,0.8)",
+            bordercolor=salmon,
+            borderwidth=1,
+            font=dict(color=dark_purple, size=10)
+        )
+        
+        # Highlight the current model
+        current_model_index = ["V1", "V2", "V3", "V4", "V5"].index(selected_model)
+        
+        for metric, color in zip(["DPSPerc (%)", "FPR (%)", "TECA (%)"], [primary_purple, salmon, green]):
+            fig.add_trace(go.Scatter(
+                x=[selected_model],
+                y=[trend_df.iloc[current_model_index][metric]],
+                mode='markers',
+                marker=dict(color=color, size=14, line=dict(color='black', width=2)),
+                showlegend=False
+            ))
+        
+        # Display the chart
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Add a brief explanation
+        if selected_model == "V5":
+            st.caption(f"The trend shows how metrics for {trend_device} have evolved through model versions, with V5 balancing performance across metrics.")
+        else:
+            st.caption(f"The trend shows how metrics for {trend_device} have evolved through model versions. Try selecting different models to compare their performance.")
 
     # Sample Composition Table
     st.markdown("### Sample Composition")
