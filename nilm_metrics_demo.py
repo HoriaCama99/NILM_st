@@ -1620,6 +1620,26 @@ else:  # Performance Metrics page
                     )
                 )
         
+        # Determine which model has best average performance
+        trend_df['FPR_inv'] = 100 - trend_df['FPR (%)']  # Invert FPR so higher is better
+        trend_df['avg_score'] = (trend_df['DPSPerc (%)'] + trend_df['FPR_inv'] + trend_df['TECA (%)']) / 3
+        best_overall = trend_df.loc[trend_df['avg_score'].idxmax()]['Model']
+
+        # Add highlight rectangle for the best overall model
+        fig.add_shape(
+            type="rect",
+            xref="x",
+            yref="paper",
+            x0=float(["V1", "V2", "V3", "V4", "V5"].index(best_overall)) - 0.4,
+            y0=0,
+            x1=float(["V1", "V2", "V3", "V4", "V5"].index(best_overall)) + 0.4,
+            y1=1,
+            fillcolor=light_purple,
+            opacity=0.15,
+            layer="below",
+            line_width=0,
+        )
+        
         # Add "Best Overall" annotation for models
         if len(set([best_dpsperc_model, best_fpr_model, best_teca_model])) == 1:
             # If one model is best at everything
@@ -1636,12 +1656,7 @@ else:  # Performance Metrics page
                 borderwidth=2,
                 borderpad=4
             )
-        else:
-            # Determine which model has best average performance
-            trend_df['FPR_inv'] = 100 - trend_df['FPR (%)']  # Invert FPR so higher is better
-            trend_df['avg_score'] = (trend_df['DPSPerc (%)'] + trend_df['FPR_inv'] + trend_df['TECA (%)']) / 3
-            best_overall = trend_df.loc[trend_df['avg_score'].idxmax()]['Model']
-            
+        else:            
             fig.add_annotation(
                 x=best_overall,
                 y=100,
@@ -1657,7 +1672,6 @@ else:  # Performance Metrics page
         
         # Update layout
         fig.update_layout(
-            # title=f"{trend_device} Metrics Evolution Across Model Versions",
             xaxis_title="Model Version Timeline",
             yaxis_title="Performance (%)",
             xaxis=dict(
@@ -1682,7 +1696,7 @@ else:  # Performance Metrics page
             plot_bgcolor=white,
             font=dict(color=dark_purple),
             height=500,
-            margin=dict(l=20, r=20, t=50, b=20)
+            margin=dict(l=20, r=20, t=30, b=20)
         )
         
         # Add a note about FPR
