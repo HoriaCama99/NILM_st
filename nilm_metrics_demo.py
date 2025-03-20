@@ -1671,19 +1671,42 @@ else:  # Performance Metrics page
             yaxis=dict(
                 range=[0, 100]
             ),
+            # Reorganize the legend to be more compact and breathable
             legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
+                orientation="v",
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01,
+                bgcolor="rgba(255,255,255,0.85)",
+                bordercolor=light_purple,
+                borderwidth=1,
+                font=dict(size=10),
+                itemsizing="constant",
+                tracegroupgap=2,
+                traceorder="grouped"
             ),
             paper_bgcolor=white,
             plot_bgcolor=white,
             font=dict(color=dark_purple),
-            height=400,
+            height=430,
             margin=dict(l=20, r=20, t=50, b=20)
         )
+        
+        # Update legend names to be more concise
+        for i in range(len(fig.data)):
+            if fig.data[i].name == "DPSPerc (%)":
+                fig.data[i].name = "DPSPerc"
+            elif fig.data[i].name == "FPR (%)":
+                fig.data[i].name = "FPR"
+            elif fig.data[i].name == "TECA (%)":
+                fig.data[i].name = "TECA"
+            elif fig.data[i].name == "Best DPSPerc":
+                fig.data[i].name = "⭐ Best DPSPerc" 
+            elif fig.data[i].name == "Best FPR":
+                fig.data[i].name = "⭐ Best FPR"
+            elif fig.data[i].name == "Best TECA":
+                fig.data[i].name = "⭐ Best TECA"
         
         # Add a note about FPR
         fig.add_annotation(
