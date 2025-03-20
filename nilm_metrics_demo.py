@@ -1657,7 +1657,7 @@ else:  # Performance Metrics page
         
         # Update layout
         fig.update_layout(
-            title=f"{trend_device} Metrics Evolution Across Model Versions",
+            # title=f"{trend_device} Metrics Evolution Across Model Versions",
             xaxis_title="Model Version Timeline",
             yaxis_title="Performance (%)",
             xaxis=dict(
