@@ -1501,6 +1501,11 @@ else:  # Performance Metrics page
         
         trend_df = pd.DataFrame(trend_data)
         
+        # Find best model for each metric
+        best_dpsperc_model = trend_df.loc[trend_df["DPSPerc (%)"].idxmax()]["Model"]
+        best_fpr_model = trend_df.loc[trend_df["FPR (%)"].idxmin()]["Model"]  # Lowest is best for FPR
+        best_teca_model = trend_df.loc[trend_df["TECA (%)"].idxmax()]["Model"]
+        
         # Create line chart
         fig = go.Figure()
         
@@ -1534,11 +1539,138 @@ else:  # Performance Metrics page
             marker=dict(size=10)
         ))
         
+        # Highlight best model for each metric with stars
+        # DPSPerc best
+        dpsperc_best_idx = trend_df[trend_df["Model"] == best_dpsperc_model].index[0]
+        fig.add_trace(go.Scatter(
+            x=[best_dpsperc_model],
+            y=[trend_df.iloc[dpsperc_best_idx]["DPSPerc (%)"]],
+            mode='markers',
+            marker=dict(
+                symbol='star',
+                size=16,
+                color=primary_purple,
+                line=dict(color='white', width=1)
+            ),
+            name="Best DPSPerc",
+            showlegend=True
+        ))
+        
+        # FPR best
+        fpr_best_idx = trend_df[trend_df["Model"] == best_fpr_model].index[0]
+        fig.add_trace(go.Scatter(
+            x=[best_fpr_model],
+            y=[trend_df.iloc[fpr_best_idx]["FPR (%)"]],
+            mode='markers',
+            marker=dict(
+                symbol='star',
+                size=16,
+                color=salmon,
+                line=dict(color='white', width=1)
+            ),
+            name="Best FPR",
+            showlegend=True
+        ))
+        
+        # TECA best
+        teca_best_idx = trend_df[trend_df["Model"] == best_teca_model].index[0]
+        fig.add_trace(go.Scatter(
+            x=[best_teca_model],
+            y=[trend_df.iloc[teca_best_idx]["TECA (%)"]],
+            mode='markers',
+            marker=dict(
+                symbol='star',
+                size=16,
+                color=green,
+                line=dict(color='white', width=1)
+            ),
+            name="Best TECA",
+            showlegend=True
+        ))
+        
+        # Highlight the currently selected model with circles
+        current_model_index = ["V1", "V2", "V3", "V4", "V5"].index(selected_model)
+        
+        # Add vertical line for currently selected model
+        fig.add_shape(
+            type="line",
+            x0=selected_model,
+            y0=0,
+            x1=selected_model,
+            y1=100,
+            line=dict(
+                color="rgba(80, 80, 80, 0.3)",
+                width=6,
+                dash="dot",
+            )
+        )
+        
+        # Add timeline elements - faint vertical lines and model version labels at bottom
+        for model in ["V1", "V2", "V3", "V4", "V5"]:
+            if model != selected_model:  # We already added a line for the selected model
+                fig.add_shape(
+                    type="line",
+                    x0=model,
+                    y0=0,
+                    x1=model,
+                    y1=100,
+                    line=dict(
+                        color="rgba(200, 200, 200, 0.3)",
+                        width=1,
+                    )
+                )
+        
+        # Add "Best Overall" annotation for models
+        if len(set([best_dpsperc_model, best_fpr_model, best_teca_model])) == 1:
+            # If one model is best at everything
+            best_model = best_dpsperc_model
+            fig.add_annotation(
+                x=best_model,
+                y=100,
+                text=f"BEST OVERALL",
+                showarrow=False,
+                yanchor="bottom",
+                font=dict(color=dark_purple, size=12, family="Arial Black"),
+                bgcolor="rgba(255, 255, 255, 0.8)",
+                bordercolor=primary_purple,
+                borderwidth=2,
+                borderpad=4
+            )
+        else:
+            # Determine which model has best average performance
+            trend_df['FPR_inv'] = 100 - trend_df['FPR (%)']  # Invert FPR so higher is better
+            trend_df['avg_score'] = (trend_df['DPSPerc (%)'] + trend_df['FPR_inv'] + trend_df['TECA (%)']) / 3
+            best_overall = trend_df.loc[trend_df['avg_score'].idxmax()]['Model']
+            
+            fig.add_annotation(
+                x=best_overall,
+                y=100,
+                text=f"BEST OVERALL",
+                showarrow=False,
+                yanchor="bottom",
+                font=dict(color=dark_purple, size=12, family="Arial Black"),
+                bgcolor="rgba(255, 255, 255, 0.8)",
+                bordercolor=primary_purple,
+                borderwidth=2,
+                borderpad=4
+            )
+        
         # Update layout
         fig.update_layout(
-            title=f"{trend_device} Metrics Across Model Versions",
-            xaxis_title="Model Version",
+            title=f"{trend_device} Metrics Evolution Across Model Versions",
+            xaxis_title="Model Version Timeline",
             yaxis_title="Performance (%)",
+            xaxis=dict(
+                tickmode='array',
+                tickvals=["V1", "V2", "V3", "V4", "V5"],
+                ticktext=["V1", "V2", "V3", "V4", "V5"],
+                tickangle=0,
+                tickfont=dict(size=12, color=dark_purple),
+                showgrid=False
+            ),
+            yaxis=dict(
+                range=[0, 100]
+            ),
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
@@ -1549,43 +1681,44 @@ else:  # Performance Metrics page
             paper_bgcolor=white,
             plot_bgcolor=white,
             font=dict(color=dark_purple),
-            height=400
+            height=400,
+            margin=dict(l=20, r=20, t=50, b=20)
         )
         
-        # Add a band around the FPR line to indicate that lower is better
+        # Add a note about FPR
         fig.add_annotation(
-            x=0.5,
-            y=0.05,
+            x=0.98,
+            y=0.03,
             xref="paper",
             yref="paper",
             text="Note: Lower FPR is better",
             showarrow=False,
-            bgcolor="rgba(255,255,255,0.8)",
+            bgcolor="rgba(255, 255, 255, 0.8)",
             bordercolor=salmon,
             borderwidth=1,
+            borderpad=4,
             font=dict(color=dark_purple, size=10)
         )
-        
-        # Highlight the current model
-        current_model_index = ["V1", "V2", "V3", "V4", "V5"].index(selected_model)
-        
-        for metric, color in zip(["DPSPerc (%)", "FPR (%)", "TECA (%)"], [primary_purple, salmon, green]):
-            fig.add_trace(go.Scatter(
-                x=[selected_model],
-                y=[trend_df.iloc[current_model_index][metric]],
-                mode='markers',
-                marker=dict(color=color, size=14, line=dict(color='black', width=2)),
-                showlegend=False
-            ))
         
         # Display the chart
         st.plotly_chart(fig, use_container_width=True)
         
+        # Add key stats about best models
+        st.markdown(f"""
+        <div style="border-left: 3px solid {primary_purple}; padding-left: 10px; margin: 10px 0;">
+            <small>
+            <strong>Best DPSPerc:</strong> {best_dpsperc_model} ({trend_df.loc[trend_df['Model'] == best_dpsperc_model, 'DPSPerc (%)'].values[0]:.2f}%)<br>
+            <strong>Best FPR:</strong> {best_fpr_model} ({trend_df.loc[trend_df['Model'] == best_fpr_model, 'FPR (%)'].values[0]:.2f}%)<br>
+            <strong>Best TECA:</strong> {best_teca_model} ({trend_df.loc[trend_df['Model'] == best_teca_model, 'TECA (%)'].values[0]:.2f}%)
+            </small>
+        </div>
+        """, unsafe_allow_html=True)
+        
         # Add a brief explanation
         if selected_model == "V5":
-            st.caption(f"The trend shows how metrics for {trend_device} have evolved through model versions, with V5 balancing performance across metrics.")
+            st.caption(f"The timeline shows how metrics for {trend_device} have evolved through model versions. Stars indicate best performance for each metric.")
         else:
-            st.caption(f"The trend shows how metrics for {trend_device} have evolved through model versions. Try selecting different models to compare their performance.")
+            st.caption(f"The timeline shows how metrics for {trend_device} have evolved through versions. Try selecting different models to compare their performance.")
 
     # Sample Composition Table
     st.markdown("### Sample Composition")
