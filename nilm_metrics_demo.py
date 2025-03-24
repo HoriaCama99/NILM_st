@@ -916,21 +916,373 @@ if page == "Sample Output":
             height=550
         )
         
+        # Add click event handling
+        fig.update_traces(
+            customdata=filtered_geo_df['state'],
+            hovertemplate='<b>%{hovertext}</b><br><extra></extra>'
+        )
+        
         # Use session state to track which state is selected
         if 'selected_state' not in st.session_state:
             st.session_state.selected_state = None
-
+            st.session_state.show_zoomed_state = False
+        
+        # Add custom JavaScript for capturing clicks
+        js_code = """
+        <script>
+            const figure = document.querySelector('div[data-testid="stPlotlyChart"] .js-plotly-plot');
+            if (figure) {
+                figure.on('plotly_click', function(data) {
+                    const clickedState = data.points[0].customdata;
+                    if (clickedState) {
+                        // Send message to Streamlit
+                        const message = {
+                            type: "streamlit:setComponentValue",
+                            value: clickedState,
+                            dataType: "str"
+                        };
+                        window.parent.postMessage(message, "*");
+                        
+                        // Auto-submit the form to trigger a rerun
+                        setTimeout(function() {
+                            window.parent.document.querySelector('button[kind="secondaryFormSubmit"]').click();
+                        }, 100);
+                    }
+                });
+            }
+        </script>
+        """
+        
         # Display the map with click events
-        map_chart = st.plotly_chart(fig, use_container_width=True)
-
-        # Add a container for click events 
-        click_container = st.container()
-
-        # Capture clicks on the map - this requires JavaScript callbacks
-        clicked_state = None
-
-        # Add a small note above the map
-        st.markdown("👆 **Click on any state in the map to see its trend over time**")
+        map_container = st.container()
+        with map_container:
+            map_chart = st.plotly_chart(fig, use_container_width=True)
+            st.markdown(js_code, unsafe_allow_html=True)
+        
+        # State selection through streamlit component for fallback
+        col1, col2, col3 = st.columns([2, 3, 2])
+        with col1:
+            selected_state = st.selectbox(
+                "Select a state to zoom in:",
+                options=[''] + sorted(filtered_geo_df['state'].unique()),
+                key="state_selector",
+                index=0
+            )
+        
+        with col2:
+            st.markdown("👆 **Click on any state in the map to zoom in and view household data**")
+        
+        with col3:
+            reset_view = st.button("Reset Map View")
+        
+        # Process state selection (either from click or dropdown)
+        if selected_state or st.session_state.selected_state:
+            # Update session state
+            if selected_state and selected_state != st.session_state.selected_state:
+                st.session_state.selected_state = selected_state
+                st.session_state.show_zoomed_state = True
+            
+            # Reset map view if requested
+            if reset_view:
+                st.session_state.selected_state = None
+                st.session_state.show_zoomed_state = False
+                st.experimental_rerun()
+        
+        # Display zoomed state view with household data if a state is selected
+        if st.session_state.show_zoomed_state and st.session_state.selected_state:
+            zoom_state = st.session_state.selected_state
+            st.subheader(f"Detailed View: {zoom_state}")
+            
+            # Generate mock household data for the selected state
+            def generate_households(state_code, count=100):
+                # Get state data from our dataset
+                state_info = filtered_geo_df[filtered_geo_df['state'] == state_code].iloc[0]
+                
+                # State coordinates (approximate center points - in a real app, these would be more accurate)
+                state_centers = {
+                    'AL': (32.7794, -86.8287), 'AK': (64.0685, -152.2782), 'AZ': (34.2744, -111.6602),
+                    'AR': (34.8938, -92.4426), 'CA': (37.1841, -119.4696), 'CO': (38.9972, -105.5478),
+                    'CT': (41.6219, -72.7273), 'DE': (38.9896, -75.5050), 'FL': (28.6305, -82.4497),
+                    'GA': (32.6415, -83.4426), 'HI': (20.2927, -156.3737), 'ID': (44.3509, -114.6130),
+                    'IL': (40.0417, -89.1965), 'IN': (39.8942, -86.2816), 'IA': (42.0751, -93.4960),
+                    'KS': (38.4937, -98.3804), 'KY': (37.5347, -85.3021), 'LA': (31.0689, -91.9968),
+                    'ME': (45.3695, -69.2428), 'MD': (39.0550, -76.7909), 'MA': (42.2596, -71.8083),
+                    'MI': (44.3467, -85.4102), 'MN': (46.2807, -94.3053), 'MS': (32.7364, -89.6678),
+                    'MO': (38.3566, -92.4580), 'MT': (47.0527, -109.6333), 'NE': (41.5378, -99.7951),
+                    'NV': (39.3289, -116.6312), 'NH': (43.6805, -71.5811), 'NJ': (40.1907, -74.6728),
+                    'NM': (34.4071, -106.1126), 'NY': (42.9538, -75.5268), 'NC': (35.5557, -79.3877),
+                    'ND': (47.4501, -100.4659), 'OH': (40.2862, -82.7937), 'OK': (35.5889, -97.4943),
+                    'OR': (43.9336, -120.5583), 'PA': (40.8781, -77.7996), 'RI': (41.6762, -71.5562),
+                    'SC': (33.9169, -80.8964), 'SD': (44.4443, -100.2263), 'TN': (35.8600, -86.3505),
+                    'TX': (31.4757, -99.3312), 'UT': (39.3055, -111.6703), 'VT': (44.0687, -72.6658),
+                    'VA': (37.5215, -78.8537), 'WA': (47.3826, -120.4472), 'WV': (38.6409, -80.6227),
+                    'WI': (44.6243, -89.9941), 'WY': (42.9957, -107.5512)
+                }
+                
+                if state_code not in state_centers:
+                    # Default to middle of US if state not found
+                    center_lat, center_lon = (39.8283, -98.5795)
+                else:
+                    center_lat, center_lon = state_centers[state_code]
+                
+                # Generate random households around the state center
+                import random
+                households = []
+                
+                # Use the state's adoption rates to determine device presence probabilities
+                ev_prob = state_info['ev_adoption_rate'] / 100
+                pv_prob = state_info['pv_adoption_rate'] / 100
+                ac_prob = 0.7  # AC is common in most homes, adjust as needed
+                
+                for i in range(count):
+                    # Generate a random point within the state (within ~50 miles of center)
+                    lat = center_lat + (random.random() - 0.5) * 0.7
+                    lon = center_lon + (random.random() - 0.5) * 0.7
+                    
+                    # Determine device presence
+                    has_ev = random.random() < ev_prob
+                    has_pv = random.random() < pv_prob
+                    has_ac = random.random() < ac_prob
+                    
+                    # Generate household energy data based on state averages and device presence
+                    grid_consumption = state_info['grid_consumption'] * (0.7 + random.random() * 0.6)
+                    solar_production = state_info['solar_production'] * (0.7 + random.random() * 0.6) if has_pv else 0
+                    ev_charging = state_info['ev_charging'] * (0.7 + random.random() * 0.6) if has_ev else 0
+                    ac_usage = state_info['ac_usage'] * (0.7 + random.random() * 0.6) if has_ac else 0
+                    
+                    households.append({
+                        'lat': lat,
+                        'lon': lon,
+                        'has_ev': has_ev,
+                        'has_pv': has_pv,
+                        'has_ac': has_ac,
+                        'grid_consumption': grid_consumption,
+                        'solar_production': solar_production,
+                        'ev_charging': ev_charging,
+                        'ac_usage': ac_usage,
+                        'household_id': f"H{i+1}"
+                    })
+                
+                return pd.DataFrame(households)
+            
+            # Generate household data
+            households_df = generate_households(zoom_state, count=100)
+            
+            # Create filter controls for households
+            filter_cols = st.columns(4)
+            with filter_cols[0]:
+                show_ev = st.checkbox("Show EV Homes", value=True)
+            with filter_cols[1]:
+                show_pv = st.checkbox("Show PV Homes", value=True)
+            with filter_cols[2]:
+                show_ac = st.checkbox("Show AC Homes", value=True)
+            with filter_cols[3]:
+                show_none = st.checkbox("Show Homes without selected devices", value=False)
+            
+            # Apply filters
+            filtered_households = households_df.copy()
+            device_filters = []
+            
+            if show_ev:
+                device_filters.append(filtered_households['has_ev'] == True)
+            if show_pv:
+                device_filters.append(filtered_households['has_pv'] == True)
+            if show_ac:
+                device_filters.append(filtered_households['has_ac'] == True)
+            
+            if device_filters:
+                # Combine with OR if any device filter is active
+                combined_filter = device_filters[0]
+                for f in device_filters[1:]:
+                    combined_filter = combined_filter | f
+                
+                # Apply the filter
+                if not show_none:
+                    filtered_households = filtered_households[combined_filter]
+            elif not show_none:
+                # If no device filters are active but show_none is False, show no households
+                filtered_households = filtered_households[filtered_households['household_id'] == "NONE"]
+            
+            # Create device-specific dataframes for layered visualization
+            ev_households = filtered_households[filtered_households['has_ev']]
+            pv_households = filtered_households[filtered_households['has_pv']]
+            ac_households = filtered_households[filtered_households['has_ac']]
+            basic_households = filtered_households[~(filtered_households['has_ev'] | filtered_households['has_pv'] | filtered_households['has_ac'])]
+            
+            # Create the zoomed-in map
+            zoom_fig = go.Figure()
+            
+            # Add households with no special devices
+            if len(basic_households) > 0 and show_none:
+                zoom_fig.add_trace(go.Scattergeo(
+                    lon=basic_households['lon'],
+                    lat=basic_households['lat'],
+                    text=basic_households['household_id'],
+                    mode='markers',
+                    marker=dict(
+                        size=8,
+                        color=light_purple,
+                        opacity=0.7,
+                        line=dict(width=1, color='white')
+                    ),
+                    name='Basic Homes',
+                    hovertemplate='<b>%{text}</b><br>No special devices<br><extra></extra>'
+                ))
+            
+            # Add AC households
+            if len(ac_households) > 0 and show_ac:
+                zoom_fig.add_trace(go.Scattergeo(
+                    lon=ac_households['lon'],
+                    lat=ac_households['lat'],
+                    text=ac_households['household_id'],
+                    mode='markers',
+                    marker=dict(
+                        size=10,
+                        color=green,
+                        opacity=0.8,
+                        line=dict(width=1, color='white'),
+                        symbol='circle'
+                    ),
+                    name='AC Homes',
+                    hovertemplate='<b>%{text}</b><br>Has AC<br>AC: %{customdata[0]:.1f} kWh<br>Grid: %{customdata[1]:.1f} kWh<br><extra></extra>',
+                    customdata=ac_households[['ac_usage', 'grid_consumption']]
+                ))
+            
+            # Add PV households
+            if len(pv_households) > 0 and show_pv:
+                zoom_fig.add_trace(go.Scattergeo(
+                    lon=pv_households['lon'],
+                    lat=pv_households['lat'],
+                    text=pv_households['household_id'],
+                    mode='markers',
+                    marker=dict(
+                        size=12,
+                        color=cream,
+                        opacity=0.8,
+                        line=dict(width=1, color='white'),
+                        symbol='diamond'
+                    ),
+                    name='PV Homes',
+                    hovertemplate='<b>%{text}</b><br>Has Solar PV<br>Solar: %{customdata[0]:.1f} kWh<br>Grid: %{customdata[1]:.1f} kWh<br><extra></extra>',
+                    customdata=pv_households[['solar_production', 'grid_consumption']]
+                ))
+            
+            # Add EV households
+            if len(ev_households) > 0 and show_ev:
+                zoom_fig.add_trace(go.Scattergeo(
+                    lon=ev_households['lon'],
+                    lat=ev_households['lat'],
+                    text=ev_households['household_id'],
+                    mode='markers',
+                    marker=dict(
+                        size=14,
+                        color=primary_purple,
+                        opacity=0.9,
+                        line=dict(width=1, color='white'),
+                        symbol='star'
+                    ),
+                    name='EV Homes',
+                    hovertemplate='<b>%{text}</b><br>Has EV Charging<br>EV: %{customdata[0]:.1f} kWh<br>Grid: %{customdata[1]:.1f} kWh<br><extra></extra>',
+                    customdata=ev_households[['ev_charging', 'grid_consumption']]
+                ))
+            
+            # Configure the map view for the selected state
+            state_centers = {
+                'AL': (32.7794, -86.8287), 'AK': (64.0685, -152.2782), 'AZ': (34.2744, -111.6602),
+                'AR': (34.8938, -92.4426), 'CA': (37.1841, -119.4696), 'CO': (38.9972, -105.5478),
+                'CT': (41.6219, -72.7273), 'DE': (38.9896, -75.5050), 'FL': (28.6305, -82.4497),
+                'GA': (32.6415, -83.4426), 'HI': (20.2927, -156.3737), 'ID': (44.3509, -114.6130),
+                'IL': (40.0417, -89.1965), 'IN': (39.8942, -86.2816), 'IA': (42.0751, -93.4960),
+                'KS': (38.4937, -98.3804), 'KY': (37.5347, -85.3021), 'LA': (31.0689, -91.9968),
+                'ME': (45.3695, -69.2428), 'MD': (39.0550, -76.7909), 'MA': (42.2596, -71.8083),
+                'MI': (44.3467, -85.4102), 'MN': (46.2807, -94.3053), 'MS': (32.7364, -89.6678),
+                'MO': (38.3566, -92.4580), 'MT': (47.0527, -109.6333), 'NE': (41.5378, -99.7951),
+                'NV': (39.3289, -116.6312), 'NH': (43.6805, -71.5811), 'NJ': (40.1907, -74.6728),
+                'NM': (34.4071, -106.1126), 'NY': (42.9538, -75.5268), 'NC': (35.5557, -79.3877),
+                'ND': (47.4501, -100.4659), 'OH': (40.2862, -82.7937), 'OK': (35.5889, -97.4943),
+                'OR': (43.9336, -120.5583), 'PA': (40.8781, -77.7996), 'RI': (41.6762, -71.5562),
+                'SC': (33.9169, -80.8964), 'SD': (44.4443, -100.2263), 'TN': (35.8600, -86.3505),
+                'TX': (31.4757, -99.3312), 'UT': (39.3055, -111.6703), 'VT': (44.0687, -72.6658),
+                'VA': (37.5215, -78.8537), 'WA': (47.3826, -120.4472), 'WV': (38.6409, -80.6227),
+                'WI': (44.6243, -89.9941), 'WY': (42.9957, -107.5512)
+            }
+            
+            # Get coordinates for the selected state
+            if zoom_state in state_centers:
+                center_lat, center_lon = state_centers[zoom_state]
+            else:
+                center_lat, center_lon = (39.8283, -98.5795)  # Default to US center
+            
+            # Update map layout for the zoomed view
+            zoom_fig.update_layout(
+                geo=dict(
+                    scope='usa',
+                    center=dict(lat=center_lat, lon=center_lon),
+                    projection_scale=6,  # Higher value = more zoomed in
+                    showland=True,
+                    landcolor='rgb(240, 240, 240)',
+                    showocean=True,
+                    oceancolor='rgb(230, 230, 250)',
+                    showlakes=True,
+                    lakecolor=white,
+                    showsubunits=True,
+                    subunitcolor="lightgray"
+                ),
+                height=600,
+                margin=dict(l=0, r=0, t=30, b=0),
+                paper_bgcolor=white,
+                plot_bgcolor=white,
+                title=f"Household Energy Data in {zoom_state}",
+                legend=dict(
+                    orientation='h',
+                    x=0.5,
+                    xanchor='center',
+                    y=1.01,
+                    bgcolor=white,
+                    font=dict(color=dark_purple)
+                )
+            )
+            
+            # Display the zoomed map
+            st.plotly_chart(zoom_fig, use_container_width=True)
+            
+            # Add household statistics
+            st.subheader(f"Household Statistics for {zoom_state}")
+            
+            stat_cols = st.columns(4)
+            with stat_cols[0]:
+                st.metric(
+                    label="Total Households",
+                    value=len(filtered_households),
+                    help="Number of households shown with current filters"
+                )
+            
+            with stat_cols[1]:
+                ev_percent = (len(ev_households) / len(filtered_households) * 100) if len(filtered_households) > 0 else 0
+                st.metric(
+                    label="EV Adoption",
+                    value=f"{ev_percent:.1f}%",
+                    help="Percentage of households with EV charging"
+                )
+            
+            with stat_cols[2]:
+                pv_percent = (len(pv_households) / len(filtered_households) * 100) if len(filtered_households) > 0 else 0
+                st.metric(
+                    label="Solar PV Adoption",
+                    value=f"{pv_percent:.1f}%",
+                    help="Percentage of households with solar PV systems"
+                )
+            
+            with stat_cols[3]:
+                ac_percent = (len(ac_households) / len(filtered_households) * 100) if len(filtered_households) > 0 else 0
+                st.metric(
+                    label="AC Usage",
+                    value=f"{ac_percent:.1f}%",
+                    help="Percentage of households with air conditioning"
+                )
+            
+            # Add a note about the data
+            st.caption("Note: This household data is generated based on state-level metrics and is for demonstration purposes.")
 
         # After the map visualization, add key statistics
         # Add summary statistics for the selected metric
