@@ -925,6 +925,8 @@ if page == "Sample Output":
         # Use session state to track which state is selected
         if 'selected_state' not in st.session_state:
             st.session_state.selected_state = None
+            
+        if 'show_zoomed_state' not in st.session_state:
             st.session_state.show_zoomed_state = False
         
         # Add custom JavaScript for capturing clicks
@@ -976,7 +978,7 @@ if page == "Sample Output":
             reset_view = st.button("Reset Map View")
         
         # Process state selection (either from click or dropdown)
-        if selected_state or st.session_state.selected_state:
+        if selected_state or ('selected_state' in st.session_state and st.session_state.selected_state):
             # Update session state
             if selected_state and selected_state != st.session_state.selected_state:
                 st.session_state.selected_state = selected_state
@@ -989,7 +991,7 @@ if page == "Sample Output":
                 st.experimental_rerun()
         
         # Display zoomed state view with household data if a state is selected
-        if st.session_state.show_zoomed_state and st.session_state.selected_state:
+        if 'show_zoomed_state' in st.session_state and st.session_state.show_zoomed_state and 'selected_state' in st.session_state and st.session_state.selected_state:
             zoom_state = st.session_state.selected_state
             st.subheader(f"Detailed View: {zoom_state}")
             
