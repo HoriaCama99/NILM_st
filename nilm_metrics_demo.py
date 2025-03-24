@@ -945,7 +945,7 @@ if page == "Sample Output":
         if reset_view:
             st.session_state.selected_state = None
             st.session_state.show_zoomed_state = False
-            st.experimental_rerun()
+            st.rerun()
         
         # Get the current state selection
         zoom_state = None
