@@ -1072,7 +1072,7 @@ if page == "Sample Output":
                 if st.button("← Back to National Map", key="back_to_map"):
                     st.session_state.zoomed_in = False
                     st.session_state.selected_state = None
-                    st.experimental_rerun()
+                    st.rerun()
                 
                 st.subheader(f"Home Details in {st.session_state.selected_state}")
                 
