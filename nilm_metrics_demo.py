@@ -385,58 +385,58 @@ if page == "Sample Output":
         other_consumption = filtered_df['grid (kWh)'].sum() - disaggregated_total
         other_consumption = max(0, other_consumption)  # Ensure it's not negative
         
-        energy_totals = {
-            'EV Charging': filtered_df['ev charging (kWh)'].sum(),
-            'Air Conditioning': filtered_df['air conditioning (kWh)'].sum(),
+    energy_totals = {
+        'EV Charging': filtered_df['ev charging (kWh)'].sum(),
+        'Air Conditioning': filtered_df['air conditioning (kWh)'].sum(),
             'Water Heater': filtered_df['water heater (kWh)'].sum(),
             'Other Consumption': other_consumption
-        }
-        
+    }
+    
         # Create interactive pie chart using Plotly with team colors
-        fig2 = px.pie(
-            values=list(energy_totals.values()),
-            names=list(energy_totals.keys()),
-            color=list(energy_totals.keys()),
-            color_discrete_map={
+    fig2 = px.pie(
+        values=list(energy_totals.values()),
+        names=list(energy_totals.keys()),
+        color=list(energy_totals.keys()),
+        color_discrete_map={
                 'EV Charging': primary_purple,
                 'Air Conditioning': green,
                 'Water Heater': salmon,
                 'Other Consumption': light_purple
-            },
-            hole=0.4
-        )
-        
+        },
+        hole=0.4
+    )
+    
         # Update layout with team colors - now with white background
-        fig2.update_layout(
-            legend_title="Energy Type",
-            margin=dict(l=20, r=20, t=30, b=20),
+    fig2.update_layout(
+        legend_title="Energy Type",
+        margin=dict(l=20, r=20, t=30, b=20),
             paper_bgcolor=white,
             plot_bgcolor=white,
             font=dict(color=dark_purple),
             legend=dict(font=dict(color=dark_purple))
-        )
-        
-        fig2.update_traces(
-            textinfo='percent+label',
+    )
+    
+    fig2.update_traces(
+        textinfo='percent+label',
             hovertemplate='%{label}<br>%{value:.1f} kWh<br>%{percent}',
             textfont=dict(color=dark_gray)  # Darker text for better contrast
-        )
+    )
+    
+    # Display the plot
+    st.plotly_chart(fig2, use_container_width=True)
+    
+    # Add interactive details
+    with st.expander("About Energy Distribution"):
+        st.markdown("""
+            This chart shows how the total energy consumption is distributed across different appliance types.
         
-        # Display the plot
-        st.plotly_chart(fig2, use_container_width=True)
+        - **Air Conditioning**: Typically accounts for significant consumption
+        - **EV Charging**: Can be a major energy consumer when present
+        - **Water Heater**: Generally smaller portion of total energy use
+            - **Other Consumption**: Remaining grid usage not attributed to the three main appliances
         
-        # Add interactive details
-        with st.expander("About Energy Distribution"):
-            st.markdown("""
-                This chart shows how the total energy consumption is distributed across different appliance types.
-            
-            - **Air Conditioning**: Typically accounts for significant consumption
-            - **EV Charging**: Can be a major energy consumer when present
-            - **Water Heater**: Generally smaller portion of total energy use
-                - **Other Consumption**: Remaining grid usage not attributed to the three main appliances
-            
-            Understanding this distribution helps identify the highest impact areas for efficiency improvements.
-            """)
+        Understanding this distribution helps identify the highest impact areas for efficiency improvements.
+        """)
 
     # Add summary metrics
     st.markdown(f"""
@@ -836,17 +836,12 @@ if page == "Sample Output":
         """)
     
     with map_col2:
-        # Add state click handling using session state
-        if 'selected_state' not in st.session_state:
-            st.session_state.selected_state = None
-            st.session_state.zoomed_in = False
-        
         # Set up the color scales for different metrics
         color_scales = {
             "Grid Consumption (kWh)": [light_purple, primary_purple, dark_purple],
             "Solar Production (kWh)": ["#F9F0D9", cream, green],
             "EV Charging (kWh)": ["#D9DCFF", light_purple, primary_purple],
-            "AC Usage (kWh)": ["#F9F0D9", green, "#43867F"],
+            "AC Usage (kWh)": ["#D9F2EC", green, "#43867F"],
             "Solar Coverage (%)": ["#F9F0D9", cream, green],
             "PV Adoption Rate (%)": ["#F9F0D9", cream, green],
             "EV Adoption Rate (%)": ["#D9DCFF", light_purple, primary_purple],
@@ -867,120 +862,6 @@ if page == "Sample Output":
         
         selected_metric = metric_mappings[map_metric]
         
-        # Generate mock home data for the selected state when zoomed in
-        @st.cache_data
-        def generate_home_data(state, count=50):
-            import random
-            from geopy.geocoders import Nominatim
-            
-            # State bounding boxes (approximations)
-            state_bounds = {
-                'AL': (30.1, -88.5, 35.0, -84.9),  # min_lat, min_lon, max_lat, max_lon
-                'AK': (51.0, -179.0, 71.5, -130.0),
-                'AZ': (31.3, -114.8, 37.0, -109.0),
-                'AR': (33.0, -94.6, 36.5, -89.6),
-                'CA': (32.5, -124.4, 42.0, -114.1),
-                'CO': (37.0, -109.1, 41.0, -102.0),
-                'CT': (40.9, -73.7, 42.1, -71.8),
-                'DE': (38.4, -75.8, 39.9, -75.0),
-                'FL': (24.5, -87.6, 31.0, -80.0),
-                'GA': (30.5, -85.6, 35.0, -80.8),
-                'HI': (18.7, -160.3, 22.3, -154.8),
-                'ID': (42.0, -117.2, 49.0, -111.0),
-                'IL': (36.9, -91.5, 42.5, -87.0),
-                'IN': (37.8, -88.1, 41.8, -84.8),
-                'IA': (40.3, -96.6, 43.5, -90.1),
-                'KS': (37.0, -102.1, 40.0, -94.6),
-                'KY': (36.5, -89.6, 39.2, -81.9),
-                'LA': (29.0, -94.1, 33.0, -89.0),
-                'ME': (43.0, -71.1, 47.5, -66.9),
-                'MD': (38.0, -79.5, 39.7, -75.0),
-                'MA': (41.2, -73.5, 42.9, -69.9),
-                'MI': (41.7, -90.4, 48.3, -82.1),
-                'MN': (43.5, -97.2, 49.4, -89.5),
-                'MS': (30.1, -91.7, 35.0, -88.1),
-                'MO': (36.0, -95.8, 40.6, -89.1),
-                'MT': (44.3, -116.1, 49.0, -104.0),
-                'NE': (40.0, -104.1, 43.0, -95.3),
-                'NV': (35.0, -120.0, 42.0, -114.0),
-                'NH': (42.7, -72.6, 45.3, -70.6),
-                'NJ': (38.9, -75.6, 41.4, -73.9),
-                'NM': (31.3, -109.1, 37.0, -103.0),
-                'NY': (40.5, -79.8, 45.0, -71.8),
-                'NC': (33.8, -84.3, 36.6, -75.5),
-                'ND': (45.9, -104.1, 49.0, -96.6),
-                'OH': (38.4, -84.8, 42.0, -80.5),
-                'OK': (33.6, -103.0, 37.0, -94.4),
-                'OR': (42.0, -124.6, 46.3, -116.5),
-                'PA': (39.7, -80.5, 42.3, -74.7),
-                'RI': (41.1, -71.9, 42.0, -71.1),
-                'SC': (32.0, -83.4, 35.2, -78.5),
-                'SD': (42.5, -104.1, 46.0, -96.4),
-                'TN': (34.9, -90.3, 36.7, -81.6),
-                'TX': (25.8, -106.7, 36.5, -93.5),
-                'UT': (37.0, -114.1, 42.0, -109.0),
-                'VT': (42.7, -73.5, 45.0, -71.5),
-                'VA': (36.5, -83.7, 39.5, -75.2),
-                'WA': (45.5, -124.8, 49.0, -116.9),
-                'WV': (37.2, -82.7, 40.6, -77.7),
-                'WI': (42.5, -92.9, 47.1, -86.8),
-                'WY': (41.0, -111.1, 45.0, -104.0)
-            }
-            
-            # Use the bounding box for the state or default to a generic one
-            if state in state_bounds:
-                min_lat, min_lon, max_lat, max_lon = state_bounds[state]
-            else:
-                # Default bounding box if state is not found
-                min_lat, min_lon, max_lat, max_lon = 35.0, -120.0, 45.0, -100.0
-            
-            # Generate random home locations within the state bounds
-            homes = []
-            for i in range(count):
-                lat = min_lat + (max_lat - min_lat) * random.random()
-                lon = min_lon + (max_lon - min_lon) * random.random()
-                
-                # Determine device presence
-                has_ev = random.random() < 0.4  # 40% chance of having an EV
-                has_pv = random.random() < 0.5  # 50% chance of having PV
-                has_ac = random.random() < 0.75  # 75% chance of having AC
-                
-                # City names - some major cities in each state or generic names
-                cities = {
-                    'CA': ['Los Angeles', 'San Francisco', 'San Diego', 'Sacramento', 'Fresno'],
-                    'NY': ['New York', 'Buffalo', 'Albany', 'Syracuse', 'Rochester'],
-                    'TX': ['Houston', 'Dallas', 'Austin', 'San Antonio', 'El Paso'],
-                    # Add more as needed
-                }
-                
-                if state in cities:
-                    city = random.choice(cities[state])
-                else:
-                    generic_cities = ['Downtown', 'Uptown', 'Midtown', 'Westside', 'Eastside', 'Northend', 'Southside']
-                    city = f"{random.choice(generic_cities)}, {state}"
-                
-                # Energy consumption values
-                grid = random.uniform(500, 1500)
-                solar = random.uniform(100, 800) if has_pv else 0
-                ev_charging = random.uniform(100, 400) if has_ev else 0
-                ac_usage = random.uniform(100, 600) if has_ac else 0
-                
-                homes.append({
-                    'id': f"home_{i}",
-                    'lat': lat,
-                    'lon': lon,
-                    'city': city,
-                    'has_ev': has_ev,
-                    'has_pv': has_pv,
-                    'has_ac': has_ac,
-                    'grid': grid,
-                    'solar': solar,
-                    'ev_charging': ev_charging,
-                    'ac_usage': ac_usage
-                })
-            
-            return pd.DataFrame(homes)
-
         # Create the map visualization with click events
         fig = px.choropleth(
             filtered_geo_df,
@@ -1035,6 +916,10 @@ if page == "Sample Output":
             height=550
         )
         
+        # Use session state to track which state is selected
+        if 'selected_state' not in st.session_state:
+            st.session_state.selected_state = None
+
         # Display the map with click events
         map_chart = st.plotly_chart(fig, use_container_width=True)
 
@@ -1046,167 +931,345 @@ if page == "Sample Output":
 
         # Add a small note above the map
         st.markdown("👆 **Click on any state in the map to see its trend over time**")
-        
+
+        # After the map visualization, add key statistics
+        # Add summary statistics for the selected metric
+        metric_col = map_metric.split(" (")[0].lower().replace(" ", "_")
+        if metric_col in filtered_geo_df.columns:
+            avg_value = filtered_geo_df[metric_col].mean()
+            min_value = filtered_geo_df[metric_col].min()
+            max_value = filtered_geo_df[metric_col].max()
+            range_value = max_value - min_value
+            
+            st.markdown("### Key Statistics")
+            
+            # Create inline metrics with the same styling as Key Metrics section - full width
+            stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+            
+            with stat_col1:
+                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+                st.metric(
+                    label="Average",
+                    value=f"{avg_value:.1f}",
+                    help=f"Average {map_metric.lower()} across selected regions"
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+            with stat_col2:
+                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+                st.metric(
+                    label="Minimum",
+                    value=f"{min_value:.1f}",
+                    help=f"Lowest {map_metric.lower()} in selected regions"
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+            with stat_col3:
+                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+                st.metric(
+                    label="Maximum",
+                    value=f"{max_value:.1f}",
+                    help=f"Highest {map_metric.lower()} in selected regions"
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+            with stat_col4:
+                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+                st.metric(
+                    label="Range",
+                    value=f"{range_value:.1f}",
+                    help=f"Difference between highest and lowest values"
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
+
+        # Define colors for trend visualization metrics
+        trend_colors = {
+            'Grid': primary_purple,
+            'Solar': green,
+            'EV': light_purple,
+            'AC': salmon,
+            'Solar Coverage': cream,
+            'PV Adoption': green,
+            'EV Adoption': light_purple,
+            'Energy Efficiency': green
+        }
+
         # Add a checkbox to toggle the state trend section (simulating the functionality of clicking a state)
         show_trend_analysis = st.checkbox("Show State Trend Analysis", value=False)
-        
-        # Add state selection dropdown
-        selected_state = None
-        state_selector = st.selectbox(
-            "Select a state to see home details:",
-            [""] + sorted(filtered_geo_df['state'].unique()),
-            key="state_selector"
-        )
-        
-        if state_selector:
-            selected_state = state_selector
-            st.session_state.selected_state = selected_state
-            st.session_state.zoomed_in = True
-        
-        # Check if we're in zoomed state view
-        if st.session_state.zoomed_in and st.session_state.selected_state:
-            # Create a container for the state zoom view
-            zoom_container = st.container()
-            
-            with zoom_container:
-                if st.button("← Back to National Map", key="back_to_map"):
-                    st.session_state.zoomed_in = False
-                    st.session_state.selected_state = None
-                    st.rerun()
-                
-                st.subheader(f"Home Details in {st.session_state.selected_state}")
-                
-                # Generate the home data for this state
-                home_data = generate_home_data(st.session_state.selected_state)
-                
-                # Add device filter controls
-                filter_cols = st.columns(3)
-                with filter_cols[0]:
-                    show_ev = st.checkbox("Show EV Homes", value=True)
-                with filter_cols[1]:
-                    show_pv = st.checkbox("Show Solar PV Homes", value=True)
-                with filter_cols[2]:
-                    show_ac = st.checkbox("Show AC Homes", value=True)
-                
-                # Apply filters
-                filtered_homes = home_data.copy()
-                if show_ev:
-                    filtered_homes = filtered_homes[filtered_homes['has_ev']]
-                if show_pv:
-                    filtered_homes = filtered_homes[filtered_homes['has_pv']]
-                if show_ac:
-                    filtered_homes = filtered_homes[filtered_homes['has_ac']]
-                
-                # Show count of filtered homes
-                if len(filtered_homes) > 0:
-                    st.markdown(f"Showing **{len(filtered_homes)}** homes with selected devices")
-                else:
-                    st.warning("No homes match your filter criteria. Try adjusting your filters.")
-                
-                # Create the scatter map for homes
-                if len(filtered_homes) > 0:
-                    fig = px.scatter_mapbox(
-                        filtered_homes,
-                        lat="lat",
-                        lon="lon",
-                        hover_name="city",
-                        hover_data={
-                            "has_ev": True,
-                            "has_pv": True,
-                            "has_ac": True,
-                            "grid": ":.1f",
-                            "solar": ":.1f",
-                            "ev_charging": ":.1f",
-                            "ac_usage": ":.1f",
-                            "lat": False,
-                            "lon": False
-                        },
-                        color_discrete_sequence=[primary_purple],
-                        zoom=6,
-                        mapbox_style="carto-positron"
-                    )
-                    
-                    # Add different markers based on what devices the home has
-                    marker_sizes = filtered_homes.apply(
-                        lambda row: 10 + (5 if row['has_ev'] else 0) + (5 if row['has_pv'] else 0) + (5 if row['has_ac'] else 0),
-                        axis=1
-                    )
-                    
-                    # Add customization to the pins
-                    fig.update_traces(
-                        marker=dict(
-                            size=marker_sizes, 
-                            opacity=0.7,
-                            color=filtered_homes.apply(
-                                lambda row: primary_purple if row['has_ev'] else (green if row['has_pv'] else salmon),
-                                axis=1
-                            )
-                        ),
-                        selector=dict(mode='markers')
-                    )
-                    
-                    # Improve hover template
-                    fig.update_traces(
-                        hovertemplate="<b>%{hovertext}</b><br>" +
-                                    "EV Charging: %{customdata[0]}<br>" +
-                                    "Solar PV: %{customdata[1]}<br>" +
-                                    "AC: %{customdata[2]}<br>" +
-                                    "Grid: %{customdata[3]} kWh<br>" +
-                                    "Solar: %{customdata[4]} kWh<br>" +
-                                    "EV Charging: %{customdata[5]} kWh<br>" +
-                                    "AC Usage: %{customdata[6]} kWh<br>"
-                    )
-                    
-                    # Update layout
-                    fig.update_layout(
-                        margin=dict(l=0, r=0, t=0, b=0),
-                        height=550,
-                        mapbox=dict(
-                            center=dict(
-                                lat=filtered_homes['lat'].mean(),
-                                lon=filtered_homes['lon'].mean()
-                            )
-                        )
-                    )
-                    
-                    # Display the map
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Display summary statistics
-                    stats_cols = st.columns(3)
-                    with stats_cols[0]:
-                        st.metric(
-                            "Average Grid Consumption",
-                            f"{filtered_homes['grid'].mean():.1f} kWh"
-                        )
-                    
-                    with stats_cols[1]:
-                        if show_pv and len(filtered_homes[filtered_homes['has_pv']]) > 0:
-                            st.metric(
-                                "Average Solar Production",
-                                f"{filtered_homes[filtered_homes['has_pv']]['solar'].mean():.1f} kWh"
-                            )
-                        else:
-                            st.metric("Average Solar Production", "N/A")
-                    
-                    with stats_cols[2]:
-                        if show_ev and len(filtered_homes[filtered_homes['has_ev']]) > 0:
-                            st.metric(
-                                "Average EV Charging",
-                                f"{filtered_homes[filtered_homes['has_ev']]['ev_charging'].mean():.1f} kWh"
-                            )
-                        else:
-                            st.metric("Average EV Charging", "N/A")
 
-        # Show trend analysis if selected and not zoomed into a state map
-        if show_trend_analysis and not st.session_state.zoomed_in:
+        if show_trend_analysis:
             # State dropdown for selecting a state to view trends
             st.subheader("State Trend Analysis")
-            # ... rest of the trend analysis code ...
+            selected_state = st.selectbox(
+                "Select a state to view trends over time",
+                options=sorted(geo_df['state'].unique()),
+                index=geo_df['state'].unique().tolist().index('CA') if 'CA' in geo_df['state'].unique() else 0
+            )
 
-# The rest of your code continues normally after this section
+            # Get all data for this state
+            state_data = geo_df[geo_df['state'] == selected_state].copy()
+
+            # Sort by time period to ensure correct ordering
+            state_data = state_data.sort_values('date_value')  # Sort by actual date value for proper time ordering
+
+            # Create a time series chart - with only the single metric line
+            fig_ts = px.line(
+                state_data,
+                x='period_label',
+                y=selected_metric,
+                markers=True,
+                title=f"{map_metric} Evolution for {selected_state}",
+                color_discrete_sequence=[trend_colors.get(map_metric.split(" ")[0], primary_purple)]
+            )
+
+            # Update the layout
+            fig_ts.update_layout(
+                xaxis_title="Time Period",
+                yaxis_title=map_metric,
+                paper_bgcolor=white,
+                plot_bgcolor=white,
+                font=dict(color=dark_purple),
+                xaxis=dict(
+                    tickangle=45,
+                    tickmode='array',
+                    tickvals=state_data['period_label'][::3],  # Show every 3rd label to avoid crowding
+                    tickfont=dict(size=10)
+                )
+            )
+
+            # Find seasonal patterns
+            if len(state_data) >= 12:
+                winter_data = state_data[state_data['month'].isin([12, 1, 2])]
+                summer_data = state_data[state_data['month'].isin([6, 7, 8])]
+                
+                winter_avg = winter_data[selected_metric].mean()
+                summer_avg = summer_data[selected_metric].mean()
+                
+                seasonal_diff = abs(summer_avg - winter_avg)
+                seasonal_percentage = (seasonal_diff / state_data[selected_metric].mean()) * 100
+                
+                # Add seasonal annotation if the difference is significant
+                if seasonal_percentage > 15:  # Only annotate if there's a significant seasonal difference
+                    season_with_higher_value = "Summer" if summer_avg > winter_avg else "Winter"
+                    
+                    # Add annotation for seasonal patterns
+                    fig_ts.add_annotation(
+                        x=0.95,
+                        y=0.15,
+                        xref="paper",
+                        yref="paper",
+                        text=f"📊 {season_with_higher_value} values are {seasonal_percentage:.1f}% higher on average",
+                        showarrow=False,
+                        bgcolor="rgba(255, 255, 255, 0.8)",
+                        bordercolor=primary_purple,
+                        borderwidth=1,
+                        borderpad=4,
+                        font=dict(color=dark_purple, size=12)
+                    )
+
+            # Calculate growth rate (comparing oldest to newest data)
+            oldest_value = state_data.iloc[0][selected_metric]
+            newest_value = state_data.iloc[-1][selected_metric]
+
+            if oldest_value > 0:
+                growth_rate = ((newest_value - oldest_value) / oldest_value) * 100
+                
+                # Add annotation for growth rate
+                growth_direction = "increase" if growth_rate > 0 else "decrease"
+                fig_ts.add_annotation(
+                    x=0.95,
+                    y=0.05,
+                    xref="paper",
+                    yref="paper",
+                    text=f"📈 {abs(growth_rate):.1f}% {growth_direction} over past 2 years",
+                    showarrow=False,
+                    bgcolor="rgba(255, 255, 255, 0.8)",
+                    bordercolor=primary_purple,
+                    borderwidth=1,
+                    borderpad=4,
+                    font=dict(color=dark_purple, size=12)
+                )
+
+            # Display the time series chart
+            st.plotly_chart(fig_ts, use_container_width=True)
+
+            # Add contextual information about the selected state
+            state_context_col1, state_context_col2 = st.columns(2)
+
+            with state_context_col1:
+                # Get current metrics for the selected state
+                current_state_data = state_data.iloc[-1]
+                
+                st.markdown(f"### {selected_state} State Profile")
+                st.markdown(f"""
+                **Region:** {current_state_data['region']}
+                
+                **Current {map_metric}:** {current_state_data[selected_metric]:.1f}
+                
+                **Grid Consumption:** {current_state_data['grid_consumption']:.1f} kWh
+                
+                **Solar Production:** {current_state_data['solar_production']:.1f} kWh
+                
+                **EV Charging:** {current_state_data['ev_charging']:.1f} kWh
+                """)
+
+            with state_context_col2:
+                # Compare to similar states
+                same_region_states = geo_df[
+                    (geo_df['region'] == current_state_data['region']) & 
+                    (geo_df['state'] != selected_state) &
+                    (geo_df['period_label'] == selected_period)
+                ]
+                
+                similar_states = same_region_states.iloc[(same_region_states[selected_metric] - current_state_data[selected_metric]).abs().argsort()[:3]]
+                
+                st.markdown("### Similar States")
+                st.markdown(f"States in the {current_state_data['region']} region with similar {map_metric.lower()} patterns:")
+                
+                for _, similar_state in similar_states.iterrows():
+                    diff = similar_state[selected_metric] - current_state_data[selected_metric]
+                    diff_percentage = (diff / current_state_data[selected_metric]) * 100 if current_state_data[selected_metric] != 0 else 0
+                    diff_direction = "higher" if diff > 0 else "lower"
+                    
+                    st.markdown(f"""
+                    **{similar_state['state']}:** {similar_state[selected_metric]:.1f} ({abs(diff_percentage):.1f}% {diff_direction})
+                    """)
+
+    # Solar Production Coverage Analysis 
+    st.subheader("Solar Production Coverage Analysis")
+
+    # Check if we have any homes with solar in the filtered dataset
+    if filtered_df['pv detected'].sum() == 0:
+        st.info("No homes with solar production in the current filtered dataset.")
+    else:
+        # Solar homes only
+        solar_homes = filtered_df[filtered_df['pv detected'] == 1].copy()
+        
+        # Use actual grid consumption for coverage calculation
+        solar_homes['solar_coverage'] = 100 * solar_homes.apply(
+            lambda row: row['solar production (kWh)'] / row['grid (kWh)'] 
+            if row['grid (kWh)'] > 0 else 0, 
+            axis=1
+        )
+        
+        # Create coverage categories for pie chart
+        def categorize_coverage(coverage):
+            if coverage >= 100:
+                return "Exceeds Consumption (100%+)"
+            elif coverage >= 75:
+                return "High Coverage (75-99%)"
+            elif coverage >= 50:
+                return "Medium Coverage (50-74%)"
+            elif coverage >= 25:
+                return "Low Coverage (25-49%)"
+            else:
+                return "Minimal Coverage (<25%)"
+        
+        solar_homes['coverage_category'] = solar_homes['solar_coverage'].apply(categorize_coverage)
+        
+        # Count homes in each category
+        category_counts = solar_homes['coverage_category'].value_counts().reset_index()
+        category_counts.columns = ['Coverage Category', 'Number of Homes']
+        
+        # Define colors and order for pie chart
+        category_order = [
+            "Exceeds Consumption (100%+)",
+            "High Coverage (75-99%)",
+            "Medium Coverage (50-74%)",
+            "Low Coverage (25-49%)",
+            "Minimal Coverage (<25%)"
+        ]
+        
+        # Keep only categories that exist in the data
+        category_order = [cat for cat in category_order if cat in category_counts['Coverage Category'].values]
+        
+        # Sort the dataframe by our custom order
+        category_counts['order'] = category_counts['Coverage Category'].apply(lambda x: category_order.index(x) if x in category_order else 999)
+        category_counts = category_counts.sort_values('order').drop('order', axis=1)
+        
+        # Simple metrics row with team-colored containers
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+            # Count homes where solar production exceeds consumption
+            net_positive = (solar_homes['solar_coverage'] >= 100).sum()
+            avg_coverage = solar_homes['solar_coverage'].mean()
+            
+            st.metric(
+                label="Solar Homes",
+                value=f"{len(solar_homes)} ({net_positive} net positive)",
+                help="Number of homes with solar production detected"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+            st.metric(
+                label="Average Solar Coverage",
+                value=f"{avg_coverage:.1f}%",
+                help="Average percentage of grid consumption covered by solar production"
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+        
+        # Create pie chart with team colors
+        fig = px.pie(
+            category_counts,
+            values='Number of Homes',
+            names='Coverage Category',
+            title='Distribution of Solar Coverage Levels',
+            color='Coverage Category',
+            color_discrete_map={
+                "Exceeds Consumption (100%+)": green,
+                "High Coverage (75-99%)": cream,
+                "Medium Coverage (50-74%)": primary_purple,
+                "Low Coverage (25-49%)": dark_purple,
+                "Minimal Coverage (<25%)": salmon
+            },
+        )
+        
+        # Update layout 
+        fig.update_layout(
+            legend_title="Coverage Level",
+            margin=dict(l=20, r=20, t=50, b=20),
+            paper_bgcolor=white,
+            plot_bgcolor=white,
+            font=dict(color=dark_purple),
+            title_font=dict(color=primary_purple),
+            legend=dict(font=dict(color=dark_purple))
+        )
+        
+        fig.update_traces(
+            textinfo='percent+label',
+            hovertemplate='%{label}<br>%{value} homes<br>%{percent}',
+            textfont=dict(color=white)  
+        )
+        
+        # Display the plot
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Minimal explanation 
+        st.markdown(f"""
+        <div style="color:{primary_purple}; font-style:italic; text-align:center; margin-top:-20px;">
+            Solar coverage shows what percentage of each home's total grid consumption is offset by solar production.
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Add footer with primary purple color
+    st.markdown("---")
+    st.markdown(f"""
+    <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
+        This sample output demonstrates the type of insights available from the disaggregation model. 
+        In a full deployment, thousands of households would be analyzed to provide statistically significant patterns and trends.
+    </div>
+    """, unsafe_allow_html=True)
+
 else:  # Performance Metrics page
-    # Define the load_performance_data function properly
+    # Just one title, with a more comprehensive subheader
+    st.title("NILM Algorithm Performance Dashboard")
+    st.subheader(f"Device Detection Performance Analysis")
+    
+    # Define metrics data with updated values
     @st.cache_data
     def load_performance_data():
         # Data for all models
@@ -1302,5 +1365,665 @@ else:  # Performance Metrics page
 
     # Load performance data
     models_data = load_performance_data()
+
+    # Model selection in sidebar
+    selected_model = st.sidebar.selectbox(
+        "Select Model",
+        ["V1", "V2", "V3", "V4", "V5"],
+        index=4,  # Default to V5
+        format_func=lambda x: x  # No need to transform the names anymore
+    )
+
+    # Add device type filter in sidebar - remove WH Usage
+    device_types = st.sidebar.multiselect(
+        "Select Device Types",
+        ["EV Charging", "AC Usage", "PV Usage"],
+        default=["EV Charging", "AC Usage", "PV Usage"]
+    )
+
+    # Add fallback mechanism for empty device selection
+    if not device_types:
+        st.warning("⚠️ Please select at least one device type!")
+        # Add an empty space to make the warning more visible
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.info("Use the sidebar to select device types to display performance metrics.")
+        # Skip the rest of the content by adding an early return
+        st.stop()
+
+    # Add metric explanation in sidebar expander
+    with st.sidebar.expander("Metric Explanations"):
+        st.markdown("""
+        **TECA (Total Energy Correctly Assigned):** This metric evaluates the core technical function of NILM algorithms: accurate energy decomposition. It measures not just classification accuracy but quantification precision, providing a direct measure of algorithm performance against the fundamental technical objective of energy disaggregation. This metric is reproducible across different datasets and allows direct comparison with other NILM research.
+        
+        **DPSPerc (%):** Selected for its statistical robustness in handling class imbalance, which is inherent in NILM applications where device usage events are typically sparse in the overall energy signal. DPSPerc provides a balanced evaluation by giving equal weight to both successful detection and non-detection, making it more reliable than accuracy across varying device usage frequencies. We use the recall FPP plane in this case.
+        
+        **FPR (False Positive Rate):** Essential for technical validation as it directly quantifies Type I errors in our statistical model. In signal processing applications like NILM, false positives introduce systematic bias in energy disaggregation, affecting model reliability more severely than false negatives. This metric is especially critical when evaluating algorithm performance on noisy energy signals with multiple overlapping loads.
+        
+        """)
+
+    # Add technical motivation in sidebar expander
+    with st.sidebar.expander("Why These Metrics?"):
+        st.markdown("""
+        **Technical Rationale:**
+        
+        • **DPSPerc:** Statistically robust to class imbalance inherent in NILM applications where device usage events are sparse in the overall energy signal.
+        
+        • **FPR:** Directly quantifies Type I errors, crucial for NILM where false positives introduce systematic bias in energy disaggregation.
+        
+        • **TECA:** Evaluates the core technical function of NILM: accurate energy decomposition, providing direct measure of algorithm performance.
+        
+        These metrics maintain consistency across households with different energy consumption patterns, making model evaluation more reproducible and generalizable.
+        """)
+
+    st.sidebar.markdown("---")
+    st.sidebar.info("This dashboard presents the performance metrics of our NILM algorithm for detecting various device usage patterns.")
+
+    # After the sidebar elements but before the Key metrics display
+    st.markdown(f"""
+    This dashboard presents performance metrics for the **{selected_model}** model 
+    in detecting EV Charging, AC Usage, PV Usage, and WH Usage consumption patterns. For this benchmark, we have used four versions of the model (V1-V4), each with different hyperparameters and training strategies.
+    """)
+
+    # Main content area for Performance Metrics page
+    st.subheader(f"Model: {selected_model}")
+
+    # Key metrics display section - now in a 2-column layout
+    metrics_col, trend_col = st.columns([1, 1])
     
-    # Continue with the rest of the code...
+    with metrics_col:
+        st.markdown("### Key Metrics")
+
+        # Create metrics in 4-column layout for the selected model
+        metrics_cols = st.columns(min(4, len(device_types)))
+
+        # Define colors for each device
+        device_colors = {
+            'EV Charging': primary_purple,
+            'AC Usage': green,
+            'PV Usage': cream,
+            'WH Usage': salmon
+        }
+
+        # Display metric cards for each device type
+        for i, device in enumerate(device_types):
+            with metrics_cols[i % len(metrics_cols)]:
+                st.markdown(f"<h4 style='color:{device_colors[device]};'>{device}</h4>", unsafe_allow_html=True)
+                
+                # DPSPerc
+                st.metric(
+                    "DPSPerc (%)", 
+                    f"{models_data[selected_model]['DPSPerc'][device]:.2f}%",
+                    delta=None,
+                    delta_color="normal"
+                )
+                
+                # FPR - Lower is better, so we'll display the inverse
+                fpr_value = models_data[selected_model]['FPR'][device]
+                st.metric(
+                    "False Positive Rate", 
+                    f"{fpr_value * 100:.2f}%",
+                    delta=None,
+                    delta_color="normal"
+                )
+                
+                # TECA - convert to percentage
+                teca_value = models_data[selected_model]['TECA'][device]
+                st.metric(
+                    "TECA (%)", 
+                    f"{teca_value * 100:.2f}%",
+                    delta=None,
+                    delta_color="normal"
+                )
+    
+    with trend_col:
+        st.markdown("### Performance Trend")
+        
+        # Get the first device as default if device_types is not empty
+        default_device = device_types[0] if device_types else "EV Charging"
+        
+        # Allow user to select a device for the trend visualization
+        trend_device = st.selectbox(
+            "Select device for trend analysis", 
+            device_types,
+            index=0
+        )
+        
+        # Prepare data for the line chart showing performance over model versions
+        trend_data = []
+        
+        for model in ["V1", "V2", "V3", "V4", "V5"]:
+            trend_data.append({
+                "Model": model,
+                "DPSPerc (%)": models_data[model]["DPSPerc"][trend_device],
+                "FPR (%)": models_data[model]["FPR"][trend_device] * 100,  # Convert to percentage
+                "TECA (%)": models_data[model]["TECA"][trend_device] * 100  # Convert to percentage
+            })
+        
+        trend_df = pd.DataFrame(trend_data)
+        
+        # Find best model for each metric
+        best_dpsperc_model = trend_df.loc[trend_df["DPSPerc (%)"].idxmax()]["Model"]
+        best_fpr_model = trend_df.loc[trend_df["FPR (%)"].idxmin()]["Model"]  # Lowest is best for FPR
+        best_teca_model = trend_df.loc[trend_df["TECA (%)"].idxmax()]["Model"]
+        
+        # Create line chart
+        fig = go.Figure()
+        
+        # Add DPSPerc line
+        fig.add_trace(go.Scatter(
+            x=trend_df["Model"],
+            y=trend_df["DPSPerc (%)"],
+            mode='lines+markers',
+            name='DPSPerc (%)',
+            line=dict(color=primary_purple, width=3),
+            marker=dict(size=10)
+        ))
+        
+        # Add FPR line
+        fig.add_trace(go.Scatter(
+            x=trend_df["Model"],
+            y=trend_df["FPR (%)"],
+            mode='lines+markers',
+            name='FPR (%)',
+            line=dict(color=salmon, width=3),
+            marker=dict(size=10)
+        ))
+        
+        # Add TECA line
+        fig.add_trace(go.Scatter(
+            x=trend_df["Model"],
+            y=trend_df["TECA (%)"],
+            mode='lines+markers',
+            name='TECA (%)',
+            line=dict(color=green, width=3),
+            marker=dict(size=10)
+        ))
+        
+        # Highlight best model for each metric with stars
+        # DPSPerc best
+        dpsperc_best_idx = trend_df[trend_df["Model"] == best_dpsperc_model].index[0]
+        fig.add_trace(go.Scatter(
+            x=[best_dpsperc_model],
+            y=[trend_df.iloc[dpsperc_best_idx]["DPSPerc (%)"]],
+            mode='markers',
+            marker=dict(
+                symbol='star',
+                size=16,
+                color=primary_purple,
+                line=dict(color='white', width=1)
+            ),
+            name="Best DPSPerc",
+            showlegend=True
+        ))
+        
+        # FPR best
+        fpr_best_idx = trend_df[trend_df["Model"] == best_fpr_model].index[0]
+        fig.add_trace(go.Scatter(
+            x=[best_fpr_model],
+            y=[trend_df.iloc[fpr_best_idx]["FPR (%)"]],
+            mode='markers',
+            marker=dict(
+                symbol='star',
+                size=16,
+                color=salmon,
+                line=dict(color='white', width=1)
+            ),
+            name="Best FPR",
+            showlegend=True
+        ))
+        
+        # TECA best
+        teca_best_idx = trend_df[trend_df["Model"] == best_teca_model].index[0]
+        fig.add_trace(go.Scatter(
+            x=[best_teca_model],
+            y=[trend_df.iloc[teca_best_idx]["TECA (%)"]],
+            mode='markers',
+            marker=dict(
+                symbol='star',
+                size=16,
+                color=green,
+                line=dict(color='white', width=1)
+            ),
+            name="Best TECA",
+            showlegend=True
+        ))
+        
+        # Highlight the currently selected model with circles
+        current_model_index = ["V1", "V2", "V3", "V4", "V5"].index(selected_model)
+        
+        # Add vertical line for currently selected model
+        fig.add_shape(
+            type="line",
+            x0=selected_model,
+            y0=0,
+            x1=selected_model,
+            y1=100,
+            line=dict(
+                color="rgba(80, 80, 80, 0.3)",
+                width=6,
+                dash="dot",
+            )
+        )
+        
+        # Add timeline elements - faint vertical lines and model version labels at bottom
+        for model in ["V1", "V2", "V3", "V4", "V5"]:
+            if model != selected_model:  # We already added a line for the selected model
+                fig.add_shape(
+                    type="line",
+                    x0=model,
+                    y0=0,
+                    x1=model,
+                    y1=100,
+                    line=dict(
+                        color="rgba(200, 200, 200, 0.3)",
+                        width=1,
+                    )
+                )
+        
+        # Determine which model has best average performance
+        trend_df['FPR_inv'] = 100 - trend_df['FPR (%)']  # Invert FPR so higher is better
+        trend_df['avg_score'] = (trend_df['DPSPerc (%)'] + trend_df['FPR_inv'] + trend_df['TECA (%)']) / 3
+        best_overall = trend_df.loc[trend_df['avg_score'].idxmax()]['Model']
+
+        # Add highlight rectangle for the best overall model
+        fig.add_shape(
+            type="rect",
+            xref="x",
+            yref="paper",
+            x0=float(["V1", "V2", "V3", "V4", "V5"].index(best_overall)) - 0.4,
+            y0=0,
+            x1=float(["V1", "V2", "V3", "V4", "V5"].index(best_overall)) + 0.4,
+            y1=1,
+            fillcolor=light_purple,
+            opacity=0.15,
+            layer="below",
+            line_width=0,
+        )
+        
+        # Add "Best Overall" annotation for models
+        if len(set([best_dpsperc_model, best_fpr_model, best_teca_model])) == 1:
+            # If one model is best at everything
+            best_model = best_dpsperc_model
+            fig.add_annotation(
+                x=best_model,
+                y=100,
+                text=f"BEST OVERALL",
+                showarrow=False,
+                yanchor="bottom",
+                font=dict(color=dark_purple, size=12, family="Arial Black"),
+                bgcolor="rgba(255, 255, 255, 0.8)",
+                bordercolor=primary_purple,
+                borderwidth=2,
+                borderpad=4
+            )
+        else:            
+            fig.add_annotation(
+                x=best_overall,
+                y=100,
+                text=f"BEST OVERALL",
+                showarrow=False,
+                yanchor="bottom",
+                font=dict(color=dark_purple, size=12, family="Arial Black"),
+                bgcolor="rgba(255, 255, 255, 0.8)",
+                bordercolor=primary_purple,
+                borderwidth=2,
+                borderpad=4
+            )
+        
+        # Update layout
+        fig.update_layout(
+            xaxis_title="Model Version Timeline",
+            yaxis_title="Performance (%)",
+            xaxis=dict(
+                tickmode='array',
+                tickvals=["V1", "V2", "V3", "V4", "V5"],
+                ticktext=["V1", "V2", "V3", "V4", "V5"],
+                tickangle=0,
+                tickfont=dict(size=12, color=dark_purple),
+                showgrid=False
+            ),
+            yaxis=dict(
+                range=[0, 100]
+            ),
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            paper_bgcolor=white,
+            plot_bgcolor=white,
+            font=dict(color=dark_purple),
+            height=500,
+            margin=dict(l=20, r=20, t=30, b=20)
+        )
+        
+        # Add a note about FPR
+        fig.add_annotation(
+            x=0.98,
+            y=0.03,
+            xref="paper",
+            yref="paper",
+            text="Note: Lower FPR is better",
+            showarrow=False,
+            bgcolor="rgba(255, 255, 255, 0.8)",
+            bordercolor=salmon,
+            borderwidth=1,
+            borderpad=4,
+            font=dict(color=dark_purple, size=10)
+        )
+        
+        # Display the chart
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Add key stats about best models
+        st.markdown(f"""
+        <div style="border-left: 3px solid {primary_purple}; padding-left: 10px; margin: 10px 0;">
+            <small>
+            <strong>Best DPSPerc:</strong> {best_dpsperc_model} ({trend_df.loc[trend_df['Model'] == best_dpsperc_model, 'DPSPerc (%)'].values[0]:.2f}%)<br>
+            <strong>Best FPR:</strong> {best_fpr_model} ({trend_df.loc[trend_df['Model'] == best_fpr_model, 'FPR (%)'].values[0]:.2f}%)<br>
+            <strong>Best TECA:</strong> {best_teca_model} ({trend_df.loc[trend_df['Model'] == best_teca_model, 'TECA (%)'].values[0]:.2f}%)
+            </small>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Add a brief explanation
+        if selected_model == "V5":
+            st.caption(f"The timeline shows how metrics for {trend_device} have evolved through model versions. Stars indicate best performance for each metric.")
+        else:
+            st.caption(f"The timeline shows how metrics for {trend_device} have evolved through versions. Try selecting different models to compare their performance.")
+
+    # Sample Composition Table
+    st.markdown("### Sample Composition")
+    st.markdown("Distribution of positive and negative samples in the test dataset:")
+
+    # Calculate percentages
+    sample_composition = {
+        'Device Type': ['EV Charging', 'AC Usage', 'PV Usage'],
+        'Negative Class (%)': [64.56, 54.43, 36.08],
+        'Positive Class (%)': [35.44, 45.57, 63.92]
+    }
+
+    # Create a DataFrame
+    sample_df = pd.DataFrame(sample_composition)
+
+    # Add count information in tooltips
+    sample_df['Negative Count'] = [102, 86, 57]
+    sample_df['Positive Count'] = [56, 72, 101]
+
+    # Style the table
+    def highlight_class_imbalance(val):
+        """Highlight cells based on class balance"""
+        if isinstance(val, float):
+            if val < 20:
+                return 'background-color: rgba(211, 116, 95, 0.2)'  # Light red for very imbalanced
+            elif val > 80:
+                return 'background-color: rgba(211, 116, 95, 0.2)'  # Light red for very imbalanced
+        return ''
+
+    # Apply styling with custom formatting for percentages
+    styled_df = sample_df[['Device Type', 'Negative Class (%)', 'Positive Class (%)']].style\
+        .format({'Negative Class (%)': '{:.2f}%', 'Positive Class (%)': '{:.2f}%'})\
+        .applymap(highlight_class_imbalance, subset=['Negative Class (%)', 'Positive Class (%)'])\
+        .set_properties(**{'text-align': 'center', 'font-size': '1rem', 'border-color': light_purple})
+
+    st.table(styled_df)
+
+    # Add an explanatory note about class imbalance
+    st.caption(f"""
+    Sample composition shows the distribution of positive and negative examples in our test dataset.
+    The dataset has a relatively balanced distribution for AC and EV detection, while PV detection has more positive examples.
+    """)
+
+    # Model comparison
+    st.markdown("### Model Comparison")
+
+    # Create tabs for different metrics
+    metric_tabs = st.tabs(["DPSPerc", "FPR", "TECA"])
+
+    with metric_tabs[0]:  # DPSPerc tab
+        # Create bar chart for DPSPerc across models and devices
+        dpsperc_data = []
+        for model in ["V1", "V2", "V3", "V4", "V5"]:
+            for device in device_types:
+                dpsperc_data.append({
+                    "Model": model,
+                    "Device": device,
+                    "DPSPerc (%)": models_data[model]["DPSPerc"][device]
+                })
+        
+        dpsperc_df = pd.DataFrame(dpsperc_data)
+        
+        fig = px.bar(
+            dpsperc_df, 
+            x="Model", 
+            y="DPSPerc (%)", 
+            color="Device",
+            barmode="group",
+            color_discrete_map={
+                "EV Charging": primary_purple,
+                "AC Usage": green,
+                "PV Usage": cream
+            },
+            template="plotly_white"
+        )
+        
+        fig.update_layout(
+            title="DPSPerc Comparison Across Models (Higher is Better)",
+            xaxis_title="Model",
+            yaxis_title="DPSPerc (%)",
+            legend_title="Device",
+            paper_bgcolor=white,
+            plot_bgcolor=white,
+            font=dict(color=dark_purple)
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+
+    with metric_tabs[1]:  # FPR tab
+        # Create bar chart for FPR across models and devices
+        fpr_data = []
+        for model in ["V1", "V2", "V3", "V4", "V5"]:
+            for device in device_types:
+                fpr_data.append({
+                    "Model": model,
+                    "Device": device,
+                    "FPR (%)": models_data[model]["FPR"][device] * 100  # Convert to percentage
+                })
+        
+        fpr_df = pd.DataFrame(fpr_data)
+        
+        fig = px.bar(
+            fpr_df, 
+            x="Model", 
+            y="FPR (%)", 
+            color="Device",
+            barmode="group",
+            color_discrete_map={
+                "EV Charging": primary_purple,
+                "AC Usage": green,
+                "PV Usage": cream
+            },
+            template="plotly_white"
+        )
+        
+        fig.update_layout(
+            title="False Positive Rate Comparison Across Models (Lower is Better)",
+            xaxis_title="Model",
+            yaxis_title="FPR (%)",
+            legend_title="Device",
+            paper_bgcolor=white,
+            plot_bgcolor=white,
+            font=dict(color=dark_purple)
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+
+    with metric_tabs[2]:  # TECA tab
+        # Create bar chart for TECA across models and devices
+        teca_data = []
+        for model in ["V1", "V2", "V3", "V4", "V5"]:
+            for device in device_types:
+                teca_data.append({
+                    "Model": model,
+                    "Device": device,
+                    "TECA (%)": models_data[model]["TECA"][device] * 100
+                })
+        
+        teca_df = pd.DataFrame(teca_data)
+        
+        fig = px.bar(
+            teca_df, 
+            x="Model", 
+            y="TECA (%)", 
+            color="Device",
+            barmode="group",
+            color_discrete_map={
+                "EV Charging": primary_purple,
+                "AC Usage": green,
+                "PV Usage": cream
+            },
+            template="plotly_white"
+        )
+        
+        fig.update_layout(
+            title="Total Energy Correctly Assigned Across Models (Higher is Better)",
+            xaxis_title="Model",
+            yaxis_title="TECA (%)",
+            legend_title="Device",
+            paper_bgcolor=white,
+            plot_bgcolor=white,
+            font=dict(color=dark_purple)
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+
+    # Create two columns for radar plot and confusion matrix
+    st.markdown("### Performance Visualization")
+    viz_col1, viz_col2 = st.columns(2)
+
+    with viz_col1:
+        # Radar Chart
+        categories = ['DPSPerc', 'Low FPR', 'TECA']
+        
+        # Process data for radar chart (0-1)
+        radar_data = {}
+        for device in device_types:
+            radar_data[device] = [
+                models_data[selected_model]['DPSPerc'][device]/100,  # DPSPerc scaled to 0-1
+                1 - models_data[selected_model]['FPR'][device],      # Invert FPR (higher is better)
+                max(0, models_data[selected_model]['TECA'][device])  # TECA already in 0-1 range
+            ]
+
+        # Create radar chart
+        fig = go.Figure()
+
+        for device in device_types:
+            fig.add_trace(go.Scatterpolar(
+                r=radar_data[device] + [radar_data[device][0]],  # Close the loop
+                theta=categories + [categories[0]],
+                fill='toself',
+                name=device,
+                line_color=device_colors[device]
+            ))
+
+        fig.update_layout(
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, 1]
+                )),
+            showlegend=True,
+            paper_bgcolor=white,
+            plot_bgcolor=white,
+            font=dict(color=dark_purple),
+            margin=dict(l=20, r=20, t=30, b=20),
+            height=400
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption(f"Performance metrics for {selected_model} model across all dimensions")
+
+    with viz_col2:
+        # Add device selector for confusion matrix
+        selected_device = st.selectbox(
+            "Select Device for Confusion Matrix",
+            device_types,
+            key="confusion_matrix_selector"
+        )
+        
+        # Create synthetic confusion matrix based on DPSPerc and FPR
+        # This is an approximation since we don't have the actual confusion matrix values
+        dpsperc = models_data[selected_model]['DPSPerc'][selected_device]
+        fpr = models_data[selected_model]['FPR'][selected_device]
+        
+        # Calculate true positive rate (TPR) from DPSPerc
+        tpr = dpsperc / 100
+        
+        # Calculate true negative rate (TNR) from FPR
+        tnr = 1 - fpr
+        
+        # Create confusion matrix
+        cm = np.array([
+            [tnr*100, fpr*100],         # True Negatives %, False Positives %
+            [(1-tpr)*100, tpr*100]      # False Negatives %, True Positives %
+        ])
+        
+        # Determine labels based on device
+        if selected_device == "EV Charging":
+            labels = ['No EV', 'EV Detected']
+            title = 'EV Charging Detection'
+            cmap = 'Blues'
+        elif selected_device == "AC Usage":
+            labels = ['No AC', 'AC Detected']
+            title = 'AC Usage Detection'
+            cmap = 'Greens'
+        else:  # PV Usage
+            labels = ['No PV', 'PV Detected']
+            title = 'PV Usage Detection'
+            cmap = 'Oranges'
+
+        # Create and display the selected confusion matrix
+        fig, ax = plt.subplots(figsize=(6, 4))
+        sns.heatmap(cm, annot=True, fmt='.1f', cmap=cmap, ax=ax,
+                  xticklabels=labels,
+                  yticklabels=[f'No {selected_device.split()[0]}', f'{selected_device.split()[0]} Present'])
+        plt.title(title)
+        st.pyplot(fig)
+        st.caption(f"Confusion matrix for {selected_device} detection (%) with {selected_model} model")
+
+    # Key findings section
+    st.markdown("### Key Findings")
+    st.markdown(f"""
+    - The **{selected_model}** model shows strong performance across all device types, with PV Usage detection being particularly accurate.
+    - EV Charging detection shows a good balance between DPSPerc ({models_data[selected_model]['DPSPerc']['EV Charging']:.2f}%) and false positives ({models_data[selected_model]['FPR']['EV Charging'] * 100:.2f}%).
+    - PV Usage detection achieves the highest DPSPerc ({models_data[selected_model]['DPSPerc']['PV Usage']:.2f}%) among all device types.
+    """)
+
+    # Add model comparison insights
+    if selected_model == "V4":
+        st.markdown("""
+        **Model Comparison Insights:**
+        - The V4 model achieves the highest EV Charging DPSPerc (85.81%) with the lowest FPR (11.76%), offering the most accurate EV detection.
+        - AC Usage detection shows comparable performance across models, with the V4 model providing the best balance of accuracy and false positives.
+        - All models demonstrate similar PV detection capabilities, with minor variations in performance metrics.
+        """)
+    elif selected_model == "V5":
+        st.markdown("""
+        **Model Comparison Insights:**
+        - The V5 model offers improved AC Usage detection with a DPSPerc of 77.58%, higher than previous models.
+        - For EV Charging, V5 provides a balanced approach with a DPSPerc of 81.11% and moderate FPR of 13.73%, making it more reliable than earlier versions but not as aggressive as V4.
+        - PV Usage detection in V5 (91.93% DPSPerc) remains strong and consistent with previous models.
+        - The TECA scores show that V5 achieves good energy assignment accuracy for AC Usage (0.6912) and PV Usage (0.7680), though slightly lower for EV Charging (0.6697) compared to V4.
+        - Overall, V5 represents a more balanced model that prioritizes consistent performance across all device types rather than optimizing for any single metric.
+        """)
+
+    # Footer (using the same styling as the main page)
+    st.markdown("---")
+    st.markdown(f"""
+    <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
+        This dashboard presents the performance metrics of our NILM algorithm for detecting various device usage patterns.
+        These results help guide model selection and identify areas for further improvement.
+    </div>
+    """, unsafe_allow_html=True)
