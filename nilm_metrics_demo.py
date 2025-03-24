@@ -988,7 +988,7 @@ if page == "Sample Output":
             if reset_view:
                 st.session_state.selected_state = None
                 st.session_state.show_zoomed_state = False
-                st.experimental_rerun()
+                st.rerun()
         
         # Display zoomed state view with household data if a state is selected
         if 'show_zoomed_state' in st.session_state and st.session_state.show_zoomed_state and 'selected_state' in st.session_state and st.session_state.selected_state:
