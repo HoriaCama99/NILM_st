@@ -836,12 +836,17 @@ if page == "Sample Output":
         """)
     
     with map_col2:
+        # Add state click handling using session state
+        if 'selected_state' not in st.session_state:
+            st.session_state.selected_state = None
+            st.session_state.zoomed_in = False
+        
         # Set up the color scales for different metrics
         color_scales = {
             "Grid Consumption (kWh)": [light_purple, primary_purple, dark_purple],
             "Solar Production (kWh)": ["#F9F0D9", cream, green],
             "EV Charging (kWh)": ["#D9DCFF", light_purple, primary_purple],
-            "AC Usage (kWh)": ["#D9F2EC", green, "#43867F"],
+            "AC Usage (kWh)": ["#F9F0D9", green, "#43867F"],
             "Solar Coverage (%)": ["#F9F0D9", cream, green],
             "PV Adoption Rate (%)": ["#F9F0D9", cream, green],
             "EV Adoption Rate (%)": ["#D9DCFF", light_purple, primary_purple],
@@ -862,415 +867,53 @@ if page == "Sample Output":
         
         selected_metric = metric_mappings[map_metric]
         
-        # Create the map visualization with click events
-        fig = px.choropleth(
-            filtered_geo_df,
-            locations='state',
-            color=selected_metric,
-            locationmode="USA-states",
-            scope="usa",
-            color_continuous_scale=color_scales[map_metric],
-            range_color=[filtered_geo_df[selected_metric].min(), filtered_geo_df[selected_metric].max()],
-            hover_name='state',
-            hover_data={
-                'state': False,
-                'region': True,
-                'grid_consumption': ':.1f',
-                'solar_production': ':.1f',
-                'ev_charging': ':.1f',
-                'ac_usage': ':.1f',
-                'pv_adoption_rate': ':.1f',
-                'ev_adoption_rate': ':.1f',
-                'solar_coverage': ':.1f',
-                'home_count': True
-            },
-            labels={
-                'grid_consumption': 'Grid (kWh)',
-                'solar_production': 'Solar (kWh)',
-                'ev_charging': 'EV (kWh)',
-                'ac_usage': 'AC (kWh)',
-                'pv_adoption_rate': 'PV Adoption (%)',
-                'ev_adoption_rate': 'EV Adoption (%)',
-                'solar_coverage': 'Solar Coverage (%)',
-                'home_count': 'Homes'
-            }
-        )
-        
-        # Update map layout with clickable states
-        fig.update_layout(
-            margin=dict(l=0, r=0, t=0, b=0),
-            paper_bgcolor=white,
-            geo=dict(
-                showlakes=True,
-                lakecolor=white,
-                showsubunits=True,
-                subunitcolor="lightgray"
-            ),
-            coloraxis_colorbar=dict(
-                title=dict(
-                    text=map_metric,
-                    font=dict(color=dark_purple)
-                ),
-                tickfont=dict(color=dark_purple)
-            ),
-            height=550
-        )
-        
-        # Use session state to track which state is selected
-        if 'selected_state' not in st.session_state:
-            st.session_state.selected_state = None
-
-        # Display the map with click events
-        map_chart = st.plotly_chart(fig, use_container_width=True)
-
-        # Add a container for click events 
-        click_container = st.container()
-
-        # Capture clicks on the map - this requires JavaScript callbacks
-        clicked_state = None
-
-        # Add a small note above the map
-        st.markdown("👆 **Click on any state in the map to see its trend over time**")
-
-        # After the map visualization, add key statistics
-        # Add summary statistics for the selected metric
-        metric_col = map_metric.split(" (")[0].lower().replace(" ", "_")
-        if metric_col in filtered_geo_df.columns:
-            avg_value = filtered_geo_df[metric_col].mean()
-            min_value = filtered_geo_df[metric_col].min()
-            max_value = filtered_geo_df[metric_col].max()
-            range_value = max_value - min_value
-            
-            st.markdown("### Key Statistics")
-            
-            # Create inline metrics with the same styling as Key Metrics section - full width
-            stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
-            
-            with stat_col1:
-                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-                st.metric(
-                    label="Average",
-                    value=f"{avg_value:.1f}",
-                    help=f"Average {map_metric.lower()} across selected regions"
-                )
-                st.markdown("</div>", unsafe_allow_html=True)
-                
-            with stat_col2:
-                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-                st.metric(
-                    label="Minimum",
-                    value=f"{min_value:.1f}",
-                    help=f"Lowest {map_metric.lower()} in selected regions"
-                )
-                st.markdown("</div>", unsafe_allow_html=True)
-                
-            with stat_col3:
-                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-                st.metric(
-                    label="Maximum",
-                    value=f"{max_value:.1f}",
-                    help=f"Highest {map_metric.lower()} in selected regions"
-                )
-                st.markdown("</div>", unsafe_allow_html=True)
-                
-            with stat_col4:
-                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-                st.metric(
-                    label="Range",
-                    value=f"{range_value:.1f}",
-                    help=f"Difference between highest and lowest values"
-                )
-                st.markdown("</div>", unsafe_allow_html=True)
-
-        # Define colors for trend visualization metrics
-        trend_colors = {
-            'Grid': primary_purple,
-            'Solar': green,
-            'EV': light_purple,
-            'AC': salmon,
-            'Solar Coverage': cream,
-            'PV Adoption': green,
-            'EV Adoption': light_purple,
-            'Energy Efficiency': green
-        }
-
-        # Add a checkbox to toggle the state trend section (simulating the functionality of clicking a state)
-        show_trend_analysis = st.checkbox("Show State Trend Analysis", value=False)
-
-        if show_trend_analysis:
-            # State dropdown for selecting a state to view trends
-            st.subheader("State Trend Analysis")
-            selected_state = st.selectbox(
-                "Select a state to view trends over time",
-                options=sorted(geo_df['state'].unique()),
-                index=geo_df['state'].unique().tolist().index('CA') if 'CA' in geo_df['state'].unique() else 0
-            )
-
-            # Get all data for this state
-            state_data = geo_df[geo_df['state'] == selected_state].copy()
-
-            # Sort by time period to ensure correct ordering
-            state_data = state_data.sort_values('date_value')  # Sort by actual date value for proper time ordering
-
-            # Create a time series chart - with only the single metric line
-            fig_ts = px.line(
-                state_data,
-                x='period_label',
-                y=selected_metric,
-                markers=True,
-                title=f"{map_metric} Evolution for {selected_state}",
-                color_discrete_sequence=[trend_colors.get(map_metric.split(" ")[0], primary_purple)]
-            )
-
-            # Update the layout
-            fig_ts.update_layout(
-                xaxis_title="Time Period",
-                yaxis_title=map_metric,
-                paper_bgcolor=white,
-                plot_bgcolor=white,
-                font=dict(color=dark_purple),
-                xaxis=dict(
-                    tickangle=45,
-                    tickmode='array',
-                    tickvals=state_data['period_label'][::3],  # Show every 3rd label to avoid crowding
-                    tickfont=dict(size=10)
-                )
-            )
-
-            # Find seasonal patterns
-            if len(state_data) >= 12:
-                winter_data = state_data[state_data['month'].isin([12, 1, 2])]
-                summer_data = state_data[state_data['month'].isin([6, 7, 8])]
-                
-                winter_avg = winter_data[selected_metric].mean()
-                summer_avg = summer_data[selected_metric].mean()
-                
-                seasonal_diff = abs(summer_avg - winter_avg)
-                seasonal_percentage = (seasonal_diff / state_data[selected_metric].mean()) * 100
-                
-                # Add seasonal annotation if the difference is significant
-                if seasonal_percentage > 15:  # Only annotate if there's a significant seasonal difference
-                    season_with_higher_value = "Summer" if summer_avg > winter_avg else "Winter"
-                    
-                    # Add annotation for seasonal patterns
-                    fig_ts.add_annotation(
-                        x=0.95,
-                        y=0.15,
-                        xref="paper",
-                        yref="paper",
-                        text=f"📊 {season_with_higher_value} values are {seasonal_percentage:.1f}% higher on average",
-                        showarrow=False,
-                        bgcolor="rgba(255, 255, 255, 0.8)",
-                        bordercolor=primary_purple,
-                        borderwidth=1,
-                        borderpad=4,
-                        font=dict(color=dark_purple, size=12)
-                    )
-
-            # Calculate growth rate (comparing oldest to newest data)
-            oldest_value = state_data.iloc[0][selected_metric]
-            newest_value = state_data.iloc[-1][selected_metric]
-
-            if oldest_value > 0:
-                growth_rate = ((newest_value - oldest_value) / oldest_value) * 100
-                
-                # Add annotation for growth rate
-                growth_direction = "increase" if growth_rate > 0 else "decrease"
-                fig_ts.add_annotation(
-                    x=0.95,
-                    y=0.05,
-                    xref="paper",
-                    yref="paper",
-                    text=f"📈 {abs(growth_rate):.1f}% {growth_direction} over past 2 years",
-                    showarrow=False,
-                    bgcolor="rgba(255, 255, 255, 0.8)",
-                    bordercolor=primary_purple,
-                    borderwidth=1,
-                    borderpad=4,
-                    font=dict(color=dark_purple, size=12)
-                )
-
-            # Display the time series chart
-            st.plotly_chart(fig_ts, use_container_width=True)
-
-            # Add contextual information about the selected state
-            state_context_col1, state_context_col2 = st.columns(2)
-
-            with state_context_col1:
-                # Get current metrics for the selected state
-                current_state_data = state_data.iloc[-1]
-                
-                st.markdown(f"### {selected_state} State Profile")
-                st.markdown(f"""
-                **Region:** {current_state_data['region']}
-                
-                **Current {map_metric}:** {current_state_data[selected_metric]:.1f}
-                
-                **Grid Consumption:** {current_state_data['grid_consumption']:.1f} kWh
-                
-                **Solar Production:** {current_state_data['solar_production']:.1f} kWh
-                
-                **EV Charging:** {current_state_data['ev_charging']:.1f} kWh
-                """)
-
-            with state_context_col2:
-                # Compare to similar states
-                same_region_states = geo_df[
-                    (geo_df['region'] == current_state_data['region']) & 
-                    (geo_df['state'] != selected_state) &
-                    (geo_df['period_label'] == selected_period)
-                ]
-                
-                similar_states = same_region_states.iloc[(same_region_states[selected_metric] - current_state_data[selected_metric]).abs().argsort()[:3]]
-                
-                st.markdown("### Similar States")
-                st.markdown(f"States in the {current_state_data['region']} region with similar {map_metric.lower()} patterns:")
-                
-                for _, similar_state in similar_states.iterrows():
-                    diff = similar_state[selected_metric] - current_state_data[selected_metric]
-                    diff_percentage = (diff / current_state_data[selected_metric]) * 100 if current_state_data[selected_metric] != 0 else 0
-                    diff_direction = "higher" if diff > 0 else "lower"
-                    
-                    st.markdown(f"""
-                    **{similar_state['state']}:** {similar_state[selected_metric]:.1f} ({abs(diff_percentage):.1f}% {diff_direction})
-                    """)
-
-    # Solar Production Coverage Analysis 
-    st.subheader("Solar Production Coverage Analysis")
-
-    # Check if we have any homes with solar in the filtered dataset
-    if filtered_df['pv detected'].sum() == 0:
-        st.info("No homes with solar production in the current filtered dataset.")
-    else:
-        # Solar homes only
-        solar_homes = filtered_df[filtered_df['pv detected'] == 1].copy()
-        
-        # Use actual grid consumption for coverage calculation
-        solar_homes['solar_coverage'] = 100 * solar_homes.apply(
-            lambda row: row['solar production (kWh)'] / row['grid (kWh)'] 
-            if row['grid (kWh)'] > 0 else 0, 
-            axis=1
-        )
-        
-        # Create coverage categories for pie chart
-        def categorize_coverage(coverage):
-            if coverage >= 100:
-                return "Exceeds Consumption (100%+)"
-            elif coverage >= 75:
-                return "High Coverage (75-99%)"
-            elif coverage >= 50:
-                return "Medium Coverage (50-74%)"
-            elif coverage >= 25:
-                return "Low Coverage (25-49%)"
-            else:
-                return "Minimal Coverage (<25%)"
-        
-        solar_homes['coverage_category'] = solar_homes['solar_coverage'].apply(categorize_coverage)
-        
-        # Count homes in each category
-        category_counts = solar_homes['coverage_category'].value_counts().reset_index()
-        category_counts.columns = ['Coverage Category', 'Number of Homes']
-        
-        # Define colors and order for pie chart
-        category_order = [
-            "Exceeds Consumption (100%+)",
-            "High Coverage (75-99%)",
-            "Medium Coverage (50-74%)",
-            "Low Coverage (25-49%)",
-            "Minimal Coverage (<25%)"
-        ]
-        
-        # Keep only categories that exist in the data
-        category_order = [cat for cat in category_order if cat in category_counts['Coverage Category'].values]
-        
-        # Sort the dataframe by our custom order
-        category_counts['order'] = category_counts['Coverage Category'].apply(lambda x: category_order.index(x) if x in category_order else 999)
-        category_counts = category_counts.sort_values('order').drop('order', axis=1)
-        
-        # Simple metrics row with team-colored containers
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            # Count homes where solar production exceeds consumption
-            net_positive = (solar_homes['solar_coverage'] >= 100).sum()
-            avg_coverage = solar_homes['solar_coverage'].mean()
-            
-            st.metric(
-                label="Solar Homes",
-                value=f"{len(solar_homes)} ({net_positive} net positive)",
-                help="Number of homes with solar production detected"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            st.metric(
-                label="Average Solar Coverage",
-                value=f"{avg_coverage:.1f}%",
-                help="Average percentage of grid consumption covered by solar production"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        # Create pie chart with team colors
-        fig = px.pie(
-            category_counts,
-            values='Number of Homes',
-            names='Coverage Category',
-            title='Distribution of Solar Coverage Levels',
-            color='Coverage Category',
-            color_discrete_map={
-                "Exceeds Consumption (100%+)": green,
-                "High Coverage (75-99%)": cream,
-                "Medium Coverage (50-74%)": primary_purple,
-                "Low Coverage (25-49%)": dark_purple,
-                "Minimal Coverage (<25%)": salmon
-            },
-        )
-        
-        # Update layout 
-        fig.update_layout(
-            legend_title="Coverage Level",
-            margin=dict(l=20, r=20, t=50, b=20),
-            paper_bgcolor=white,
-            plot_bgcolor=white,
-            font=dict(color=dark_purple),
-            title_font=dict(color=primary_purple),
-            legend=dict(font=dict(color=dark_purple))
-        )
-        
-        fig.update_traces(
-            textinfo='percent+label',
-            hovertemplate='%{label}<br>%{value} homes<br>%{percent}',
-            textfont=dict(color=white)  
-        )
-        
-        # Display the plot
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Minimal explanation 
-        st.markdown(f"""
-        <div style="color:{primary_purple}; font-style:italic; text-align:center; margin-top:-20px;">
-            Solar coverage shows what percentage of each home's total grid consumption is offset by solar production.
-        </div>
-        """, unsafe_allow_html=True)
-
-    # Add footer with primary purple color
-    st.markdown("---")
-    st.markdown(f"""
-    <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
-        This sample output demonstrates the type of insights available from the disaggregation model. 
-        In a full deployment, thousands of households would be analyzed to provide statistically significant patterns and trends.
-    </div>
-    """, unsafe_allow_html=True)
-
-else:  # Performance Metrics page
-    # Just one title, with a more comprehensive subheader
-    st.title("NILM Algorithm Performance Dashboard")
-    st.subheader(f"Device Detection Performance Analysis")
-    
-    # Define metrics data with updated values
+        # Generate mock home data for the selected state when zoomed in
     @st.cache_data
+        def generate_home_data(state, count=50):
+            import random
+            from geopy.geocoders import Nominatim
+            
+            # State bounding boxes (approximations)
+            state_bounds = {
+                'AL': (30.1, -88.5, 35.0, -84.9),  # min_lat, min_lon, max_lat, max_lon
+                'AK': (51.0, -179.0, 71.5, -130.0),
+                'AZ': (31.3, -114.8, 37.0, -109.0),
+                'AR': (33.0, -94.6, 36.5, -89.6),
+                'CA': (32.5, -124.4, 42.0, -114.1),
+                'CO': (37.0, -109.1, 41.0, -102.0),
+                'CT': (40.9, -73.7, 42.1, -71.8),
+                'DE': (38.4, -75.8, 39.9, -75.0),
+                'FL': (24.5, -87.6, 31.0, -80.0),
+                'GA': (30.5, -85.6, 35.0, -80.8),
+                'HI': (18.7, -160.3, 22.3, -154.8),
+                'ID': (42.0, -117.2, 49.0, -111.0),
+                'IL': (36.9, -91.5, 42.5, -87.0),
+                'IN': (37.8, -88.1, 41.8, -84.8),
+                'IA': (40.3, -96.6, 43.5, -90.1),
+                'KS': (37.0, -102.1, 40.0, -94.6),
+                'KY': (36.5, -89.6, 39.2, -81.9),
+                'LA': (29.0, -94.1, 33.0, -89.0),
+                'ME': (43.0, -71.1, 47.5, -66.9),
+                'MD': (38.0, -79.5, 39.7, -75.0),
+                'MA': (41.2, -73.5, 42.9, -69.9),
+                'MI': (41.7, -90.4, 48.3, -82.1),
+                'MN': (43.5, -97.2, 49.4, -89.5),
+                'MS': (30.1, -91.7, 35.0, -88.1),
+                'MO': (36.0, -95.8, 40.6, -89.1),
+                'MT': (44.3, -116.1, 49.0, -104.0),
+                'NE': (40.0, -104.1, 43.0, -95.3),
+                'NV': (35.0, -120.0, 42.0, -114.0),
+                'NH': (42.7, -72.6, 45.3, -70.6),
+                'NJ': (38.9, -75.6, 41.4, -73.9),
+                'NM': (31.3, -109.1, 37.0, -103.0),
+                'NY': (40.5, -79.8, 45.0, -71.8),
+                'NC': (33.8, -84.3, 36.6, -75.5),
+                'ND': (45.9, -104.1, 49.0, -96.6),
+                'OH': (38.4, -84.8, 42.0, -80.5),
+                'OK': (33.6, -103.0, 37.0, -94.4),
+                'OR': (42.0, -124.6, 46.3, -116.5),
+                'PA': (39.7, -80.5, 42.3, -74.7),
+                'RI': (41.1, -71.9, 42.0, -71.1),
     def load_performance_data():
         # Data for all models
         models_data = {
