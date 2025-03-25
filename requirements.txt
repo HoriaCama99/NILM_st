@@ -6,3 +6,4 @@ numpy
 pillow
 seaborn
 geopy
+folium
