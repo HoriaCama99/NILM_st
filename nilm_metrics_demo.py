@@ -1795,16 +1795,12 @@ else:  # Performance Metrics page
         current_model_index = ["V1", "V2", "V3", "V4", "V5"].index(selected_model)
         
         # Add vertical line for currently selected model
-        # Calculate the y-axis range for the line
-        y_min = min(60, min(trend_df["DPSPerc (%)"].min(), trend_df["TECA (%)"].min()) - 5)
-        y_max = max(trend_df["DPSPerc (%)"].max(), trend_df["TECA (%)"].max()) + 5
-        
         fig.add_shape(
             type="line",
             x0=selected_model_display,
-            y0=y_min,
+            y0=0,
             x1=selected_model_display,
-            y1=y_max,
+            y1=100,
             line=dict(
                 color="rgba(80, 80, 80, 0.3)",
                 width=6,
@@ -1820,9 +1816,9 @@ else:  # Performance Metrics page
                 fig.add_shape(
                     type="line",
                     x0=model_display,
-                    y0=y_min,
+                    y0=0,
                     x1=model_display,
-                    y1=y_max,
+                    y1=100,
                     line=dict(
                         color="rgba(200, 200, 200, 0.3)",
                         width=1,
@@ -1881,11 +1877,8 @@ else:  # Performance Metrics page
                 showgrid=False
             ),
             yaxis=dict(
-                # Use focused ranges to better highlight differences
-                range=[
-                    min(60, min(trend_df["DPSPerc (%)"].min(), trend_df["TECA (%)"].min()) - 5),  # Lower bound at least 60%
-                    max(trend_df["DPSPerc (%)"].max(), trend_df["TECA (%)"].max()) + 5  # Upper bound with padding
-                ]
+                # Use full range to show all metrics including FPR
+                range=[0, 100]
             ),
             legend=dict(
                 orientation="h",
@@ -1911,21 +1904,6 @@ else:  # Performance Metrics page
             showarrow=False,
             bgcolor="rgba(255, 255, 255, 0.8)",
             bordercolor=salmon,
-            borderwidth=1,
-            borderpad=4,
-            font=dict(color=dark_purple, size=10)
-        )
-        
-        # Add a note about the zoomed y-axis
-        fig.add_annotation(
-            x=0.02,
-            y=0.03,
-            xref="paper",
-            yref="paper",
-            text="Note: Y-axis zoomed to highlight differences",
-            showarrow=False,
-            bgcolor="rgba(255, 255, 255, 0.8)",
-            bordercolor=dark_purple,
             borderwidth=1,
             borderpad=4,
             font=dict(color=dark_purple, size=10)
