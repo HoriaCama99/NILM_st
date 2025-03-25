@@ -1831,7 +1831,21 @@ else:  # Performance Metrics page
         best_overall_display = trend_df.loc[trend_df['avg_score'].idxmax()]['Model']
         best_overall = model_display_to_key[best_overall_display]
 
-        # No need for a highlight rectangle, we'll just use the annotation
+        # Add highlight for the best overall model - using a vertical bar instead of rectangle
+        fig.add_shape(
+            type="line",
+            x0=best_overall_display,
+            y0=0,
+            x1=best_overall_display,
+            y1=100,
+            line=dict(
+                color=primary_purple,
+                width=10,
+                dash="dash",
+            ),
+            opacity=0.3,
+            layer="below",
+        )
         
         # Add "Best Overall" annotation for models
         if len(set([best_dpsperc_model, best_fpr_model, best_teca_model])) == 1:
