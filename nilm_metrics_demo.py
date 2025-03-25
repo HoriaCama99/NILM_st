@@ -1363,6 +1363,7 @@ elif page == "Interactive Map":
     # Create map
     st.markdown("### Interactive Map")
     st.markdown("Click on any state to zoom in and view homes with smart devices")
+    st.markdown("**DISCLAIMER:** Currently, the map was generated using synthetic data, for testing purposes.")
     
     # Create two types of maps: overview and detail
     if selected_state == "":
@@ -1402,7 +1403,6 @@ elif page == "Interactive Map":
             )
         ).add_to(m)
         
-        st.markdown("**DISCLAIMER:** Currently, the map was generated using synthetic data, for testing purposes.")
         
         # Add state markers with statistics
         for state_code, state_info in states_data.items():
