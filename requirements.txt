@@ -7,3 +7,4 @@ pillow
 seaborn
 geopy
 folium
+streamlit_folium
