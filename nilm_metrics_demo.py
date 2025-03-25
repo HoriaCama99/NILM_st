@@ -1402,6 +1402,8 @@ elif page == "Interactive Map":
             )
         ).add_to(m)
         
+        st.markdown("**DISCLAIMER:** Currently, the map was generated using synthetic data, for testing purposes.")
+        
         # Add state markers with statistics
         for state_code, state_info in states_data.items():
             # Create popup content with statistics
