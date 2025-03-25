@@ -366,6 +366,23 @@ elif page == "Performance Metrics":
                     'AC Usage': 0.6912,
                     'PV Usage': 0.7680
                 }
+            },
+            'V6': {
+                'DPSPerc': {
+                    'EV Charging': 86.5757,
+                    'AC Usage': 83.0483,
+                    'PV Usage': 85.0008
+                },
+                'FPR': {
+                    'EV Charging': 0.0541,
+                    'AC Usage': 0.3750,
+                    'PV Usage': 0.0000
+                },
+                'TECA': {
+                    'EV Charging': 0.7491,
+                    'AC Usage': 0.7739,
+                    'PV Usage': 0.6443
+                }
             }
         }
         
@@ -380,14 +397,15 @@ elif page == "Performance Metrics":
         "V2": "March 6",
         "V3": "March 7",
         "V4": "March 13",
-        "V5": "March 18"
+        "V5": "March 18",
+        "V6": "March 25"
     }
 
     # Model selection in sidebar
     selected_model = st.sidebar.selectbox(
         "Select Model",
-        ["V1", "V2", "V3", "V4", "V5"],
-        index=4,  # Default to V5
+        ["V1", "V2", "V3", "V4", "V5", "V6"],
+        index=5,  # Default to V6
         format_func=lambda x: f"{x} ({model_dates[x]})"  # Format with dates
     )
 
@@ -438,7 +456,7 @@ elif page == "Performance Metrics":
     # After the sidebar elements but before the Key metrics display
     st.markdown(f"""
     This dashboard presents performance metrics for the **{selected_model} ({model_dates[selected_model]})** model 
-    in detecting EV Charging, AC Usage, PV Usage, and WH Usage consumption patterns. For this benchmark, we have used five versions of the model (V1-V5), each with different hyperparameters and training strategies.
+    in detecting EV Charging, AC Usage, PV Usage, and WH Usage consumption patterns. For this benchmark, we have used six versions of the model (V1-V6), each with different hyperparameters and training strategies.
     """)
 
     # Main content area for Performance Metrics page
@@ -508,7 +526,7 @@ elif page == "Performance Metrics":
         # Prepare data for the line chart showing performance over model versions
         trend_data = []
         
-        for model in ["V1", "V2", "V3", "V4", "V5"]:
+        for model in ["V1", "V2", "V3", "V4", "V5", "V6"]:
             trend_data.append({
                 "Model": f"{model} ({model_dates[model]})",
                 "DPSPerc (%)": models_data[model]["DPSPerc"][trend_device],
@@ -519,7 +537,7 @@ elif page == "Performance Metrics":
         trend_df = pd.DataFrame(trend_data)
         
         # Create a mapping to convert display names back to model keys
-        model_display_to_key = {f"{model} ({model_dates[model]})": model for model in ["V1", "V2", "V3", "V4", "V5"]}
+        model_display_to_key = {f"{model} ({model_dates[model]})": model for model in ["V1", "V2", "V3", "V4", "V5", "V6"]}
         
         # Find best model for each metric
         best_dpsperc_display = trend_df.loc[trend_df["DPSPerc (%)"].idxmax()]["Model"]
@@ -617,7 +635,7 @@ elif page == "Performance Metrics":
         selected_model_display = f"{selected_model} ({model_dates[selected_model]})"
         
         # Highlight the currently selected model with circles
-        current_model_index = ["V1", "V2", "V3", "V4", "V5"].index(selected_model)
+        current_model_index = ["V1", "V2", "V3", "V4", "V5", "V6"].index(selected_model)
         
         # Add vertical line for currently selected model
         fig.add_shape(
@@ -634,7 +652,7 @@ elif page == "Performance Metrics":
         )
         
         # Add timeline elements - faint vertical lines and model version labels at bottom
-        model_display_names = [f"{model} ({model_dates[model]})" for model in ["V1", "V2", "V3", "V4", "V5"]]
+        model_display_names = [f"{model} ({model_dates[model]})" for model in ["V1", "V2", "V3", "V4", "V5", "V6"]]
         
         for model_display in model_display_names:
             if model_display != selected_model_display:  # We already added a line for the selected model
@@ -762,7 +780,7 @@ elif page == "Performance Metrics":
         """, unsafe_allow_html=True)
         
         # Add a brief explanation
-        if selected_model == "V5":
+        if selected_model == "V6":
             st.caption(f"The timeline shows how metrics for {trend_device} have evolved through model versions. Stars indicate best performance for each metric.")
         else:
             st.caption(f"The timeline shows how metrics for {trend_device} have evolved through versions. Try selecting different models to compare their performance.")
@@ -771,19 +789,35 @@ elif page == "Performance Metrics":
     st.markdown("### Sample Composition")
     st.markdown("Distribution of positive and negative samples in the test dataset:")
 
-    # Calculate percentages
-    sample_composition = {
-        'Device Type': ['EV Charging', 'AC Usage', 'PV Usage'],
-        'Negative Class (%)': [64.56, 54.43, 36.08],
-        'Positive Class (%)': [35.44, 45.57, 63.92]
-    }
-
-    # Create a DataFrame
-    sample_df = pd.DataFrame(sample_composition)
-
-    # Add count information in tooltips
-    sample_df['Negative Count'] = [102, 86, 57]
-    sample_df['Positive Count'] = [56, 72, 101]
+    # Determine which sample composition to show based on selected model
+    if selected_model == "V6":
+        # New sample composition for V6
+        sample_composition = {
+            'Device Type': ['EV Charging', 'AC Usage', 'PV Usage'],
+            'Negative Class (%)': [77.08, 33.33, 31.25],
+            'Positive Class (%)': [22.92, 66.67, 68.75]
+        }
+        
+        # Create a DataFrame
+        sample_df = pd.DataFrame(sample_composition)
+        
+        # Add count information in tooltips
+        sample_df['Negative Count'] = [37, 16, 15]
+        sample_df['Positive Count'] = [11, 32, 33]
+    else:
+        # Original sample composition for V1-V5
+        sample_composition = {
+            'Device Type': ['EV Charging', 'AC Usage', 'PV Usage'],
+            'Negative Class (%)': [64.56, 54.43, 36.08],
+            'Positive Class (%)': [35.44, 45.57, 63.92]
+        }
+        
+        # Create a DataFrame
+        sample_df = pd.DataFrame(sample_composition)
+        
+        # Add count information in tooltips
+        sample_df['Negative Count'] = [102, 86, 57]
+        sample_df['Positive Count'] = [56, 72, 101]
 
     # Style the table
     def highlight_class_imbalance(val):
@@ -806,7 +840,11 @@ elif page == "Performance Metrics":
     # Add an explanatory note about class imbalance
     st.caption(f"""
     Sample composition shows the distribution of positive and negative examples in our test dataset.
-    The dataset has a relatively balanced distribution for AC and EV detection, while PV detection has more positive examples.
+    {
+    "The V6 model was tested on a different dataset with more EV charging negative examples (77.1% negative class) and more AC and PV positive examples (66.7% and 68.8% positive class respectively)." 
+    if selected_model == "V6" else 
+    "The dataset has a relatively balanced distribution for AC and EV detection, while PV detection has more positive examples."
+    }
     """)
 
     # Model comparison
@@ -818,7 +856,7 @@ elif page == "Performance Metrics":
     with metric_tabs[0]:  # DPSPerc tab
         # Create bar chart for DPSPerc across models and devices
         dpsperc_data = []
-        for model in ["V1", "V2", "V3", "V4", "V5"]:
+        for model in ["V1", "V2", "V3", "V4", "V5", "V6"]:
             for device in device_types:
                 dpsperc_data.append({
                     "Model": f"{model} ({model_dates[model]})",
@@ -876,7 +914,7 @@ elif page == "Performance Metrics":
     with metric_tabs[1]:  # FPR tab
         # Create bar chart for FPR across models and devices
         fpr_data = []
-        for model in ["V1", "V2", "V3", "V4", "V5"]:
+        for model in ["V1", "V2", "V3", "V4", "V5", "V6"]:
             for device in device_types:
                 fpr_data.append({
                     "Model": f"{model} ({model_dates[model]})",
@@ -934,7 +972,7 @@ elif page == "Performance Metrics":
     with metric_tabs[2]:  # TECA tab
         # Create bar chart for TECA across models and devices
         teca_data = []
-        for model in ["V1", "V2", "V3", "V4", "V5"]:
+        for model in ["V1", "V2", "V3", "V4", "V5", "V6"]:
             for device in device_types:
                 teca_data.append({
                     "Model": f"{model} ({model_dates[model]})",
@@ -1108,6 +1146,17 @@ elif page == "Performance Metrics":
         - The TECA scores show that V5 achieves good energy assignment accuracy for AC Usage (0.6912) and PV Usage (0.7680), though slightly lower for EV Charging (0.6697) compared to V4.
         - Overall, V5 represents a more balanced model that prioritizes consistent performance across all device types rather than optimizing for any single metric.
         """)
+    elif selected_model == "V6":
+        st.markdown("""
+        **Model Comparison Insights:**
+        - The V6 (March 25) model represents a significant breakthrough in overall performance balance across all device types.
+        - EV Charging detection shows the highest DPSPerc (86.58%) among all models with an impressively low FPR of just 5.41%.
+        - AC Usage detection achieves a notable improvement with a DPSPerc of 83.05%, substantially higher than any previous model.
+        - PV Usage detection achieves a perfect 0% false positive rate while maintaining a strong DPSPerc of 85.00%.
+        - TECA scores are well-balanced, with particularly strong energy assignment accuracy for AC Usage (0.7739).
+        - The V6 model demonstrates remarkable improvement in reducing false positives while maintaining or improving detection accuracy.
+        - The model's performance is particularly impressive considering the different sample distribution compared to earlier versions.
+        """)
 
     # Footer (using the same styling as the main page)
     st.markdown("---")
@@ -1270,7 +1319,7 @@ elif page == "Interactive Map":
     show_pv = st.sidebar.checkbox("Show Solar Panels", value=True)
     
     # Get state from URL parameter if available
-    params = st.experimental_get_query_params()
+    params = st.query_params()
     url_state = params.get("state", [""])[0]
     
     if url_state in states_data:
