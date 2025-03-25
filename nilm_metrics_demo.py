@@ -1788,15 +1788,18 @@ else:  # Performance Metrics page
             showlegend=True
         ))
         
+        # Define the selected model display name here
+        selected_model_display = f"{selected_model} ({model_dates[selected_model]})"
+        
         # Highlight the currently selected model with circles
         current_model_index = ["V1", "V2", "V3", "V4", "V5"].index(selected_model)
         
         # Add vertical line for currently selected model
         fig.add_shape(
             type="line",
-            x0=selected_model,
+            x0=selected_model_display,
             y0=0,
-            x1=selected_model,
+            x1=selected_model_display,
             y1=100,
             line=dict(
                 color="rgba(80, 80, 80, 0.3)",
@@ -1806,13 +1809,15 @@ else:  # Performance Metrics page
         )
         
         # Add timeline elements - faint vertical lines and model version labels at bottom
-        for model in ["V1", "V2", "V3", "V4", "V5"]:
-            if model != selected_model:  # We already added a line for the selected model
+        model_display_names = [f"{model} ({model_dates[model]})" for model in ["V1", "V2", "V3", "V4", "V5"]]
+        
+        for model_display in model_display_names:
+            if model_display != selected_model_display:  # We already added a line for the selected model
                 fig.add_shape(
                     type="line",
-                    x0=model,
+                    x0=model_display,
                     y0=0,
-                    x1=model,
+                    x1=model_display,
                     y1=100,
                     line=dict(
                         color="rgba(200, 200, 200, 0.3)",
@@ -1823,29 +1828,18 @@ else:  # Performance Metrics page
         # Determine which model has best average performance
         trend_df['FPR_inv'] = 100 - trend_df['FPR (%)']  # Invert FPR so higher is better
         trend_df['avg_score'] = (trend_df['DPSPerc (%)'] + trend_df['FPR_inv'] + trend_df['TECA (%)']) / 3
-        best_overall = trend_df.loc[trend_df['avg_score'].idxmax()]['Model']
+        best_overall_display = trend_df.loc[trend_df['avg_score'].idxmax()]['Model']
+        best_overall = model_display_to_key[best_overall_display]
 
-        # Add highlight rectangle for the best overall model
-        fig.add_shape(
-            type="rect",
-            xref="x",
-            yref="paper",
-            x0=float(["V1", "V2", "V3", "V4", "V5"].index(best_overall)) - 0.4,
-            y0=0,
-            x1=float(["V1", "V2", "V3", "V4", "V5"].index(best_overall)) + 0.4,
-            y1=1,
-            fillcolor=light_purple,
-            opacity=0.15,
-            layer="below",
-            line_width=0,
-        )
+        # No need for a highlight rectangle, we'll just use the annotation
         
         # Add "Best Overall" annotation for models
         if len(set([best_dpsperc_model, best_fpr_model, best_teca_model])) == 1:
             # If one model is best at everything
             best_model = best_dpsperc_model
+            best_model_display = best_dpsperc_display
             fig.add_annotation(
-                x=best_model,
+                x=best_model_display,
                 y=100,
                 text=f"BEST OVERALL",
                 showarrow=False,
@@ -1858,7 +1852,7 @@ else:  # Performance Metrics page
             )
         else:            
             fig.add_annotation(
-                x=best_overall,
+                x=best_overall_display,
                 y=100,
                 text=f"BEST OVERALL",
                 showarrow=False,
@@ -1876,8 +1870,8 @@ else:  # Performance Metrics page
             yaxis_title="Performance (%)",
             xaxis=dict(
                 tickmode='array',
-                tickvals=["V1", "V2", "V3", "V4", "V5"],
-                ticktext=["V1", "V2", "V3", "V4", "V5"],
+                tickvals=trend_df["Model"].tolist(),
+                ticktext=trend_df["Model"].tolist(),
                 tickangle=0,
                 tickfont=dict(size=12, color=dark_purple),
                 showgrid=False
@@ -1921,9 +1915,9 @@ else:  # Performance Metrics page
         st.markdown(f"""
         <div style="border-left: 3px solid {primary_purple}; padding-left: 10px; margin: 10px 0;">
             <small>
-            <strong>Best DPSPerc:</strong> {best_dpsperc_model} ({trend_df.loc[trend_df['Model'] == best_dpsperc_model, 'DPSPerc (%)'].values[0]:.2f}%)<br>
-            <strong>Best FPR:</strong> {best_fpr_model} ({trend_df.loc[trend_df['Model'] == best_fpr_model, 'FPR (%)'].values[0]:.2f}%)<br>
-            <strong>Best TECA:</strong> {best_teca_model} ({trend_df.loc[trend_df['Model'] == best_teca_model, 'TECA (%)'].values[0]:.2f}%)
+            <strong>Best DPSPerc:</strong> {best_dpsperc_display} ({trend_df.loc[trend_df['Model'] == best_dpsperc_display, 'DPSPerc (%)'].values[0]:.2f}%)<br>
+            <strong>Best FPR:</strong> {best_fpr_display} ({trend_df.loc[trend_df['Model'] == best_fpr_display, 'FPR (%)'].values[0]:.2f}%)<br>
+            <strong>Best TECA:</strong> {best_teca_display} ({trend_df.loc[trend_df['Model'] == best_teca_display, 'TECA (%)'].values[0]:.2f}%)
             </small>
         </div>
         """, unsafe_allow_html=True)
