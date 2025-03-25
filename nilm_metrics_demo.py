@@ -666,7 +666,6 @@ elif page == "Performance Metrics":
             line=dict(
                 color=primary_purple,
                 width=10,
-                dash="dash",
             ),
             opacity=0.3,
             layer="below",
