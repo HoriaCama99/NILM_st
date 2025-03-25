@@ -271,6 +271,278 @@ if page == "Sample Output":
     
     # Add more sample output content as needed
     
+    # Create a sample visualization of the disaggregation results
+    st.subheader("Energy Disaggregation Example")
+    
+    # Generate sample data for visualization
+    @st.cache_data
+    def generate_sample_data():
+        # Time range for 24 hours with 15-minute intervals
+        date_range = pd.date_range(start='2023-03-01', periods=96, freq='15min')
+        
+        # Base load (always present)
+        base_load = np.random.uniform(0.2, 0.5, len(date_range))
+        
+        # EV charging pattern (active in evening)
+        ev_pattern = np.zeros(len(date_range))
+        ev_start = 68  # around 5 PM
+        ev_end = 84    # around 9 PM
+        ev_pattern[ev_start:ev_end] = np.random.uniform(6.0, 7.5, ev_end-ev_start)
+        
+        # AC pattern (active during hot afternoon)
+        ac_pattern = np.zeros(len(date_range))
+        ac_start = 48  # around noon
+        ac_end = 72    # around 6 PM
+        ac_curve = -0.5 * np.cos(np.linspace(0, np.pi, ac_end-ac_start)) + 0.5
+        ac_pattern[ac_start:ac_end] = ac_curve * 3.5
+        
+        # PV pattern (active during daylight)
+        pv_pattern = np.zeros(len(date_range))
+        pv_start = 28  # around 7 AM
+        pv_end = 76    # around 7 PM
+        pv_curve = np.sin(np.linspace(0, np.pi, pv_end-pv_start))
+        pv_pattern[pv_start:pv_end] = pv_curve * 5.0
+        
+        # Random water heater usage
+        wh_pattern = np.zeros(len(date_range))
+        wh_times = [12, 36, 56, 80]  # Random times for water heater usage
+        for t in wh_times:
+            duration = np.random.randint(3, 6)
+            wh_pattern[t:t+duration] = np.random.uniform(3.0, 4.0, duration)
+        
+        # Total consumption (sum of all except PV which is negative)
+        total = base_load + ev_pattern + ac_pattern - pv_pattern + wh_pattern
+        
+        # Make sure total is always positive
+        total = np.maximum(total, 0.1)
+        
+        # Create DataFrame
+        df = pd.DataFrame({
+            'Timestamp': date_range,
+            'Total Consumption': total,
+            'EV Charging': ev_pattern,
+            'AC Usage': ac_pattern,
+            'PV Generation': -pv_pattern,  # Negative for generation
+            'Water Heater': wh_pattern,
+            'Base Load': base_load
+        })
+        
+        return df
+    
+    # Get the sample data
+    sample_data = generate_sample_data()
+    
+    # Create a plotly figure
+    fig = go.Figure()
+    
+    # Add total consumption line
+    fig.add_trace(go.Scatter(
+        x=sample_data['Timestamp'],
+        y=sample_data['Total Consumption'],
+        name='Total Consumption',
+        line=dict(color='black', width=2, dash='solid'),
+    ))
+    
+    # Add device traces
+    device_colors = {
+        'EV Charging': primary_purple,
+        'AC Usage': green,
+        'PV Generation': cream,
+        'Water Heater': salmon,
+        'Base Load': '#888888'
+    }
+    
+    visible_devices = ['EV Charging', 'AC Usage', 'PV Generation']
+    
+    for device in visible_devices:
+        fig.add_trace(go.Scatter(
+            x=sample_data['Timestamp'],
+            y=sample_data[device],
+            name=device,
+            line=dict(color=device_colors[device], width=2),
+            fill='tozeroy' if device != 'PV Generation' else None,  # Only fill for consumption
+        ))
+    
+    # Update layout
+    fig.update_layout(
+        title="24-Hour Energy Consumption Breakdown",
+        xaxis_title="Time of Day",
+        yaxis_title="Power (kW)",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        paper_bgcolor=white,
+        plot_bgcolor=white,
+        font=dict(color=dark_purple),
+        yaxis=dict(
+            # Set reasonable limits
+            range=[-6, 10]
+        ),
+        height=500,
+        margin=dict(l=20, r=20, t=50, b=20)
+    )
+    
+    # Add grid lines
+    fig.update_xaxes(
+        showgrid=True,
+        gridwidth=1,
+        gridcolor='#eeeeee',
+        tickformat='%H:%M',
+    )
+    
+    fig.update_yaxes(
+        showgrid=True,
+        gridwidth=1,
+        gridcolor='#eeeeee',
+        zeroline=True,
+        zerolinewidth=1,
+        zerolinecolor='#cccccc'
+    )
+    
+    # Show the chart
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Add explanation
+    st.markdown("""
+    The chart above shows an example of energy disaggregation results over a 24-hour period:
+    
+    - **Total Consumption** (black line) represents the overall energy usage measured by the smart meter
+    - **EV Charging** (purple) typically occurs in the evening when residents return home
+    - **AC Usage** (green) peaks during the hot afternoon hours
+    - **PV Generation** (yellow) produces energy during daylight hours, offsetting consumption
+    
+    Our NILM algorithm can detect these patterns and provide detailed breakdowns of energy usage by device type.
+    """)
+    
+    # Add example detection metrics
+    st.subheader("Detection Performance Example")
+    
+    detection_col1, detection_col2 = st.columns(2)
+    
+    with detection_col1:
+        # Create example confusion matrix for EV detection
+        fig, ax = plt.subplots(figsize=(5, 4))
+        cm = np.array([
+            [85, 15],  # TN, FP
+            [12, 88]   # FN, TP
+        ])
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax,
+                  xticklabels=['No EV', 'EV Detected'],
+                  yticklabels=['No EV', 'EV Present'])
+        plt.title('EV Charging Detection Results')
+        st.pyplot(fig)
+    
+    with detection_col2:
+        # Add metrics table
+        metrics_data = {
+            'Metric': ['Accuracy', 'Precision', 'Recall', 'F1 Score'],
+            'EV Charging': ['86.5%', '85.4%', '88.0%', '86.7%'],
+            'AC Usage': ['84.2%', '82.1%', '87.5%', '84.7%'],
+            'PV Generation': ['91.8%', '94.3%', '90.2%', '92.2%']
+        }
+        
+        metrics_df = pd.DataFrame(metrics_data)
+        
+        # Style the table
+        st.dataframe(metrics_df.style.set_properties(**{
+            'background-color': f'rgba({",".join(str(int(x*255)) for x in matplotlib.colors.to_rgb(light_purple))}, 0.2)',
+            'color': dark_purple,
+            'font-size': '1rem',
+            'border-color': light_purple
+        }))
+    
+    # Add customer example
+    st.subheader("Customer Insights Example")
+    
+    customer_col1, customer_col2 = st.columns([2, 1])
+    
+    with customer_col1:
+        # Monthly breakdown for a customer
+        monthly_data = pd.DataFrame({
+            'Month': ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+            'EV Charging': [120, 105, 118, 125, 130, 142],
+            'AC Usage': [15, 20, 35, 78, 130, 210],
+            'PV Generation': [-45, -65, -120, -170, -210, -240],
+            'Base Load': [180, 175, 185, 175, 178, 182]
+        })
+        
+        # Calculate total
+        monthly_data['Total'] = monthly_data['EV Charging'] + monthly_data['AC Usage'] + \
+                               monthly_data['PV Generation'] + monthly_data['Base Load']
+        
+        # Create stacked bar chart
+        fig = px.bar(
+            monthly_data, 
+            x='Month', 
+            y=['Base Load', 'EV Charging', 'AC Usage', 'PV Generation'],
+            title='6-Month Energy Consumption by Device (kWh)',
+            barmode='relative',
+            color_discrete_map={
+                'Base Load': '#888888',
+                'EV Charging': primary_purple,
+                'AC Usage': green,
+                'PV Generation': cream
+            }
+        )
+        
+        # Add total consumption line
+        fig.add_trace(go.Scatter(
+            x=monthly_data['Month'],
+            y=monthly_data['Total'],
+            mode='lines+markers',
+            name='Net Consumption',
+            line=dict(color='black', width=2)
+        ))
+        
+        # Update layout
+        fig.update_layout(
+            paper_bgcolor=white,
+            plot_bgcolor=white,
+            font=dict(color=dark_purple),
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            margin=dict(l=20, r=20, t=50, b=20)
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with customer_col2:
+        # Customer insights card
+        st.markdown(f"""
+        <div style="background-color:rgba({",".join(str(int(x*255)) for x in matplotlib.colors.to_rgb(light_purple))}, 0.2); 
+                    padding:20px; border-radius:10px; height:300px; border: 1px solid {primary_purple};">
+            <h4 style="color:{primary_purple};">Customer Insights</h4>
+            <ul style="color:{dark_purple};">
+                <li>EV charging costs increased by 18% since January</li>
+                <li>AC usage has grown 14x from winter to summer</li>
+                <li>Solar generation is offsetting 75% of consumption in June</li>
+                <li>Potential savings of $45/month by shifting EV charging to solar production hours</li>
+            </ul>
+            <div style="background-color:{primary_purple}; color:white; text-align:center; 
+                        padding:8px; border-radius:5px; margin-top:30px;">
+                View Complete Energy Report
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Footer
+    st.markdown("---")
+    st.markdown(f"""
+    <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
+        The sample outputs demonstrate how our NILM algorithm can detect and disaggregate various devices from the total energy signal,
+        providing valuable insights for customers and utilities.
+    </div>
+    """, unsafe_allow_html=True)
+
 elif page == "Performance Metrics":
     # Performance Metrics page
     # Just one title, with a more comprehensive subheader
@@ -1319,7 +1591,7 @@ elif page == "Interactive Map":
     show_pv = st.sidebar.checkbox("Show Solar Panels", value=True)
     
     # Get state from URL parameter if available
-    params = st.experimental_get_query_params()
+    params = st.query_params()
     url_state = params.get("state", [""])[0]
     
     if url_state in states_data:
