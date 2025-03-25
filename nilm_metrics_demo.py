@@ -1271,7 +1271,7 @@ elif page == "Interactive Map":
     show_pv = st.sidebar.checkbox("Show Solar Panels", value=True)
     
     # Get state from URL parameter if available
-    params = st.query_params()
+    params = st.experimental_get_query_params()
     url_state = params.get("state", [""])[0]
     
     if url_state in states_data:
