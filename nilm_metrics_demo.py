@@ -862,7 +862,149 @@ if page == "Sample Output":
         
         selected_metric = metric_mappings[map_metric]
         
-        # Create the map visualization with click events
+        # Use session state to track which state is selected
+        if 'selected_state' not in st.session_state:
+            st.session_state.selected_state = None
+            
+        if 'show_zoomed_state' not in st.session_state:
+            st.session_state.show_zoomed_state = False
+        
+        # Add custom JavaScript for capturing clicks
+        js_code = """
+        <script>
+            const figure = document.querySelector('div[data-testid="stPlotlyChart"] .js-plotly-plot');
+            if (figure) {
+                figure.on('plotly_click', function(data) {
+                    const clickedState = data.points[0].customdata;
+                    if (clickedState) {
+                        // Send message to Streamlit
+                        const message = {
+                            type: "streamlit:setComponentValue",
+                            value: clickedState,
+                            dataType: "str"
+                        };
+                        window.parent.postMessage(message, "*");
+                        
+                        // Auto-submit the form to trigger a rerun
+                        setTimeout(function() {
+                            window.parent.document.querySelector('button[kind="secondaryFormSubmit"]').click();
+                        }, 100);
+                    }
+                });
+            }
+        </script>
+        """
+        
+        # State coordinates for centering the map on selected state
+        state_centers = {
+            'AL': (32.7794, -86.8287), 'AK': (64.0685, -152.2782), 'AZ': (34.2744, -111.6602),
+            'AR': (34.8938, -92.4426), 'CA': (37.1841, -119.4696), 'CO': (38.9972, -105.5478),
+            'CT': (41.6219, -72.7273), 'DE': (38.9896, -75.5050), 'FL': (28.6305, -82.4497),
+            'GA': (32.6415, -83.4426), 'HI': (20.2927, -156.3737), 'ID': (44.3509, -114.6130),
+            'IL': (40.0417, -89.1965), 'IN': (39.8942, -86.2816), 'IA': (42.0751, -93.4960),
+            'KS': (38.4937, -98.3804), 'KY': (37.5347, -85.3021), 'LA': (31.0689, -91.9968),
+            'ME': (45.3695, -69.2428), 'MD': (39.0550, -76.7909), 'MA': (42.2596, -71.8083),
+            'MI': (44.3467, -85.4102), 'MN': (46.2807, -94.3053), 'MS': (32.7364, -89.6678),
+            'MO': (38.3566, -92.4580), 'MT': (47.0527, -109.6333), 'NE': (41.5378, -99.7951),
+            'NV': (39.3289, -116.6312), 'NH': (43.6805, -71.5811), 'NJ': (40.1907, -74.6728),
+            'NM': (34.4071, -106.1126), 'NY': (42.9538, -75.5268), 'NC': (35.5557, -79.3877),
+            'ND': (47.4501, -100.4659), 'OH': (40.2862, -82.7937), 'OK': (35.5889, -97.4943),
+            'OR': (43.9336, -120.5583), 'PA': (40.8781, -77.7996), 'RI': (41.6762, -71.5562),
+            'SC': (33.9169, -80.8964), 'SD': (44.4443, -100.2263), 'TN': (35.8600, -86.3505),
+            'TX': (31.4757, -99.3312), 'UT': (39.3055, -111.6703), 'VT': (44.0687, -72.6658),
+            'VA': (37.5215, -78.8537), 'WA': (47.3826, -120.4472), 'WV': (38.6409, -80.6227),
+            'WI': (44.6243, -89.9941), 'WY': (42.9957, -107.5512)
+        }
+        
+        # Add buttons above the map for interaction controls
+        col1, col2, col3 = st.columns([2, 3, 2])
+        with col1:
+            # Dropdown for state selection (alternative to clicking)
+            selected_state = st.selectbox(
+                "Select a state:",
+                options=[''] + sorted(filtered_geo_df['state'].unique()),
+                key="state_selector",
+                index=0
+            )
+        
+        with col2:
+            st.markdown("👆 **Click on any state in the map to zoom in and view household data**")
+        
+        with col3:
+            # Reset button to return to national view
+            reset_view = st.button("Reset Map View")
+        
+        # Process state selection (either from click or dropdown)
+        if selected_state or ('selected_state' in st.session_state and st.session_state.selected_state):
+            # Update session state
+            if selected_state and selected_state != st.session_state.selected_state:
+                st.session_state.selected_state = selected_state
+                st.session_state.show_zoomed_state = True
+        
+        # Reset map view if requested
+        if reset_view:
+            st.session_state.selected_state = None
+            st.session_state.show_zoomed_state = False
+            st.experimental_rerun()
+        
+        # Get the current state selection
+        zoom_state = None
+        if 'selected_state' in st.session_state and st.session_state.selected_state:
+            zoom_state = st.session_state.selected_state
+        
+        # Function to generate random household data
+        def generate_households(state_code, count=100):
+            # Get state data from our dataset
+            state_info = filtered_geo_df[filtered_geo_df['state'] == state_code].iloc[0]
+            
+            # Get state center coordinates
+            if state_code not in state_centers:
+                # Default to middle of US if state not found
+                center_lat, center_lon = (39.8283, -98.5795)
+            else:
+                center_lat, center_lon = state_centers[state_code]
+            
+            # Generate random households around the state center
+            import random
+            households = []
+            
+            # Use the state's adoption rates to determine device presence probabilities
+            ev_prob = state_info['ev_adoption_rate'] / 100
+            pv_prob = state_info['pv_adoption_rate'] / 100
+            ac_prob = 0.7  # AC is common in most homes
+            
+            for i in range(count):
+                # Generate a random point within the state (within ~50 miles of center)
+                lat = center_lat + (random.random() - 0.5) * 0.7
+                lon = center_lon + (random.random() - 0.5) * 0.7
+                
+                # Determine device presence
+                has_ev = random.random() < ev_prob
+                has_pv = random.random() < pv_prob
+                has_ac = random.random() < ac_prob
+                
+                # Generate household energy data based on state averages and device presence
+                grid_consumption = state_info['grid_consumption'] * (0.7 + random.random() * 0.6)
+                solar_production = state_info['solar_production'] * (0.7 + random.random() * 0.6) if has_pv else 0
+                ev_charging = state_info['ev_charging'] * (0.7 + random.random() * 0.6) if has_ev else 0
+                ac_usage = state_info['ac_usage'] * (0.7 + random.random() * 0.6) if has_ac else 0
+                
+                households.append({
+                    'lat': lat,
+                    'lon': lon,
+                    'has_ev': has_ev,
+                    'has_pv': has_pv,
+                    'has_ac': has_ac,
+                    'grid_consumption': grid_consumption,
+                    'solar_production': solar_production,
+                    'ev_charging': ev_charging,
+                    'ac_usage': ac_usage,
+                    'household_id': f"H{i+1}"
+                })
+            
+            return pd.DataFrame(households)
+        
+        # Create the main visualization (choropleth for states)
         fig = px.choropleth(
             filtered_geo_df,
             locations='state',
@@ -896,41 +1038,235 @@ if page == "Sample Output":
             }
         )
         
-        # Update map layout with clickable states
-        fig.update_layout(
-            margin=dict(l=0, r=0, t=0, b=0),
-            paper_bgcolor=white,
-            geo=dict(
-                showlakes=True,
-                lakecolor=white,
-                showsubunits=True,
-                subunitcolor="lightgray"
-            ),
-            coloraxis_colorbar=dict(
-                title=dict(
-                    text=map_metric,
+        # Update map layout based on whether zoomed in or not
+        if zoom_state and 'show_zoomed_state' in st.session_state and st.session_state.show_zoomed_state:
+            # Generate household data for selected state
+            households_df = generate_households(zoom_state, count=100)
+            
+            # Extract state center coordinates
+            if zoom_state in state_centers:
+                center_lat, center_lon = state_centers[zoom_state]
+            else:
+                center_lat, center_lon = (39.8283, -98.5795)  # Default to US center
+            
+            # Add device filter controls if zoomed in
+            filter_cols = st.columns(4)
+            with filter_cols[0]:
+                show_ev = st.checkbox("Show EV Homes", value=True)
+            with filter_cols[1]:
+                show_pv = st.checkbox("Show PV Homes", value=True)
+            with filter_cols[2]:
+                show_ac = st.checkbox("Show AC Homes", value=True)
+            with filter_cols[3]:
+                show_none = st.checkbox("Show Homes without devices", value=False)
+            
+            # Apply filters to household data
+            filtered_households = households_df.copy()
+            device_filters = []
+            
+            if show_ev:
+                device_filters.append(filtered_households['has_ev'] == True)
+            if show_pv:
+                device_filters.append(filtered_households['has_pv'] == True)
+            if show_ac:
+                device_filters.append(filtered_households['has_ac'] == True)
+            
+            if device_filters:
+                # Combine with OR if any device filter is active
+                combined_filter = device_filters[0]
+                for f in device_filters[1:]:
+                    combined_filter = combined_filter | f
+                
+                # Apply the filter
+                if not show_none:
+                    filtered_households = filtered_households[combined_filter]
+            elif not show_none:
+                # If no device filters are active but show_none is False, show no households
+                filtered_households = filtered_households[filtered_households['household_id'] == "NONE"]
+            
+            # Create device-specific dataframes for layered visualization
+            ev_households = filtered_households[filtered_households['has_ev']]
+            pv_households = filtered_households[filtered_households['has_pv']]
+            ac_households = filtered_households[filtered_households['has_ac']]
+            basic_households = filtered_households[~(filtered_households['has_ev'] | filtered_households['has_pv'] | filtered_households['has_ac'])]
+            
+            # Add households with no special devices
+            if len(basic_households) > 0 and show_none:
+                fig.add_trace(go.Scattergeo(
+                    lon=basic_households['lon'],
+                    lat=basic_households['lat'],
+                    text=basic_households['household_id'],
+                    mode='markers',
+                    marker=dict(
+                        size=8,
+                        color=light_purple,
+                        opacity=0.7,
+                        line=dict(width=1, color='white')
+                    ),
+                    name='Basic Homes',
+                    hovertemplate='<b>%{text}</b><br>No special devices<br><extra></extra>'
+                ))
+            
+            # Add AC households
+            if len(ac_households) > 0 and show_ac:
+                fig.add_trace(go.Scattergeo(
+                    lon=ac_households['lon'],
+                    lat=ac_households['lat'],
+                    text=ac_households['household_id'],
+                    mode='markers',
+                    marker=dict(
+                        size=10,
+                        color=green,
+                        opacity=0.8,
+                        line=dict(width=1, color='white'),
+                        symbol='circle'
+                    ),
+                    name='AC Homes',
+                    hovertemplate='<b>%{text}</b><br>Has AC<br>AC: %{customdata[0]:.1f} kWh<br>Grid: %{customdata[1]:.1f} kWh<br><extra></extra>',
+                    customdata=ac_households[['ac_usage', 'grid_consumption']]
+                ))
+            
+            # Add PV households
+            if len(pv_households) > 0 and show_pv:
+                fig.add_trace(go.Scattergeo(
+                    lon=pv_households['lon'],
+                    lat=pv_households['lat'],
+                    text=pv_households['household_id'],
+                    mode='markers',
+                    marker=dict(
+                        size=12,
+                        color=cream,
+                        opacity=0.8,
+                        line=dict(width=1, color='white'),
+                        symbol='diamond'
+                    ),
+                    name='PV Homes',
+                    hovertemplate='<b>%{text}</b><br>Has Solar PV<br>Solar: %{customdata[0]:.1f} kWh<br>Grid: %{customdata[1]:.1f} kWh<br><extra></extra>',
+                    customdata=pv_households[['solar_production', 'grid_consumption']]
+                ))
+            
+            # Add EV households
+            if len(ev_households) > 0 and show_ev:
+                fig.add_trace(go.Scattergeo(
+                    lon=ev_households['lon'],
+                    lat=ev_households['lat'],
+                    text=ev_households['household_id'],
+                    mode='markers',
+                    marker=dict(
+                        size=14,
+                        color=primary_purple,
+                        opacity=0.9,
+                        line=dict(width=1, color='white'),
+                        symbol='star'
+                    ),
+                    name='EV Homes',
+                    hovertemplate='<b>%{text}</b><br>Has EV Charging<br>EV: %{customdata[0]:.1f} kWh<br>Grid: %{customdata[1]:.1f} kWh<br><extra></extra>',
+                    customdata=ev_households[['ev_charging', 'grid_consumption']]
+                ))
+            
+            # Update map layout for zoomed view
+            fig.update_layout(
+                margin=dict(l=0, r=0, t=30, b=0),
+                paper_bgcolor=white,
+                geo=dict(
+                    scope='usa',
+                    center=dict(lat=center_lat, lon=center_lon),
+                    projection_scale=6,  # Higher value = more zoomed in
+                    showlakes=True,
+                    lakecolor=white,
+                    showsubunits=True,
+                    subunitcolor="lightgray"
+                ),
+                coloraxis_colorbar=dict(
+                    title=dict(
+                        text=map_metric,
+                        font=dict(color=dark_purple)
+                    ),
+                    tickfont=dict(color=dark_purple)
+                ),
+                title=f"Household Energy Data in {zoom_state}",
+                legend=dict(
+                    orientation='h',
+                    y=1.02,
+                    x=0.5,
+                    xanchor='center',
+                    bgcolor=white,
                     font=dict(color=dark_purple)
                 ),
-                tickfont=dict(color=dark_purple)
-            ),
-            height=550
+                height=550
+            )
+            
+            # Display household statistics for the zoomed state
+            # These appear below the map
+            st.subheader(f"Household Statistics for {zoom_state}")
+            
+            stat_cols = st.columns(4)
+            with stat_cols[0]:
+                st.metric(
+                    label="Total Households",
+                    value=len(filtered_households),
+                    help="Number of households shown with current filters"
+                )
+            
+            with stat_cols[1]:
+                ev_percent = (len(ev_households) / len(filtered_households) * 100) if len(filtered_households) > 0 else 0
+                st.metric(
+                    label="EV Adoption",
+                    value=f"{ev_percent:.1f}%",
+                    help="Percentage of households with EV charging"
+                )
+            
+            with stat_cols[2]:
+                pv_percent = (len(pv_households) / len(filtered_households) * 100) if len(filtered_households) > 0 else 0
+                st.metric(
+                    label="Solar PV Adoption",
+                    value=f"{pv_percent:.1f}%",
+                    help="Percentage of households with solar PV systems"
+                )
+            
+            with stat_cols[3]:
+                ac_percent = (len(ac_households) / len(filtered_households) * 100) if len(filtered_households) > 0 else 0
+                st.metric(
+                    label="AC Usage",
+                    value=f"{ac_percent:.1f}%",
+                    help="Percentage of households with air conditioning"
+                )
+        else:
+            # Standard national map view
+            fig.update_layout(
+                margin=dict(l=0, r=0, t=0, b=0),
+                paper_bgcolor=white,
+                geo=dict(
+                    showlakes=True,
+                    lakecolor=white,
+                    showsubunits=True,
+                    subunitcolor="lightgray"
+                ),
+                coloraxis_colorbar=dict(
+                    title=dict(
+                        text=map_metric,
+                        font=dict(color=dark_purple)
+                    ),
+                    tickfont=dict(color=dark_purple)
+                ),
+                height=550
+            )
+        
+        # Add click event handling
+        fig.update_traces(
+            customdata=filtered_geo_df['state'],
+            hovertemplate='<b>%{hovertext}</b><br><extra></extra>'
         )
         
-        # Use session state to track which state is selected
-        if 'selected_state' not in st.session_state:
-            st.session_state.selected_state = None
-
         # Display the map with click events
-        map_chart = st.plotly_chart(fig, use_container_width=True)
-
-        # Add a container for click events 
-        click_container = st.container()
-
-        # Capture clicks on the map - this requires JavaScript callbacks
-        clicked_state = None
-
-        # Add a small note above the map
-        st.markdown("👆 **Click on any state in the map to see its trend over time**")
+        map_container = st.container()
+        with map_container:
+            map_chart = st.plotly_chart(fig, use_container_width=True)
+            st.markdown(js_code, unsafe_allow_html=True)
+            
+        # Note about the data if zoomed in
+        if zoom_state and 'show_zoomed_state' in st.session_state and st.session_state.show_zoomed_state:
+            st.caption("Note: Household data is generated based on state-level metrics and is for demonstration purposes.")
 
         # After the map visualization, add key statistics
         # Add summary statistics for the selected metric
@@ -981,159 +1317,6 @@ if page == "Sample Output":
                     help=f"Difference between highest and lowest values"
                 )
                 st.markdown("</div>", unsafe_allow_html=True)
-
-        # Define colors for trend visualization metrics
-        trend_colors = {
-            'Grid': primary_purple,
-            'Solar': green,
-            'EV': light_purple,
-            'AC': salmon,
-            'Solar Coverage': cream,
-            'PV Adoption': green,
-            'EV Adoption': light_purple,
-            'Energy Efficiency': green
-        }
-
-        # Add a checkbox to toggle the state trend section (simulating the functionality of clicking a state)
-        show_trend_analysis = st.checkbox("Show State Trend Analysis", value=False)
-
-        if show_trend_analysis:
-            # State dropdown for selecting a state to view trends
-            st.subheader("State Trend Analysis")
-            selected_state = st.selectbox(
-                "Select a state to view trends over time",
-                options=sorted(geo_df['state'].unique()),
-                index=geo_df['state'].unique().tolist().index('CA') if 'CA' in geo_df['state'].unique() else 0
-            )
-
-            # Get all data for this state
-            state_data = geo_df[geo_df['state'] == selected_state].copy()
-
-            # Sort by time period to ensure correct ordering
-            state_data = state_data.sort_values('date_value')  # Sort by actual date value for proper time ordering
-
-            # Create a time series chart - with only the single metric line
-            fig_ts = px.line(
-                state_data,
-                x='period_label',
-                y=selected_metric,
-                markers=True,
-                title=f"{map_metric} Evolution for {selected_state}",
-                color_discrete_sequence=[trend_colors.get(map_metric.split(" ")[0], primary_purple)]
-            )
-
-            # Update the layout
-            fig_ts.update_layout(
-                xaxis_title="Time Period",
-                yaxis_title=map_metric,
-                paper_bgcolor=white,
-                plot_bgcolor=white,
-                font=dict(color=dark_purple),
-                xaxis=dict(
-                    tickangle=45,
-                    tickmode='array',
-                    tickvals=state_data['period_label'][::3],  # Show every 3rd label to avoid crowding
-                    tickfont=dict(size=10)
-                )
-            )
-
-            # Find seasonal patterns
-            if len(state_data) >= 12:
-                winter_data = state_data[state_data['month'].isin([12, 1, 2])]
-                summer_data = state_data[state_data['month'].isin([6, 7, 8])]
-                
-                winter_avg = winter_data[selected_metric].mean()
-                summer_avg = summer_data[selected_metric].mean()
-                
-                seasonal_diff = abs(summer_avg - winter_avg)
-                seasonal_percentage = (seasonal_diff / state_data[selected_metric].mean()) * 100
-                
-                # Add seasonal annotation if the difference is significant
-                if seasonal_percentage > 15:  # Only annotate if there's a significant seasonal difference
-                    season_with_higher_value = "Summer" if summer_avg > winter_avg else "Winter"
-                    
-                    # Add annotation for seasonal patterns
-                    fig_ts.add_annotation(
-                        x=0.95,
-                        y=0.15,
-                        xref="paper",
-                        yref="paper",
-                        text=f"📊 {season_with_higher_value} values are {seasonal_percentage:.1f}% higher on average",
-                        showarrow=False,
-                        bgcolor="rgba(255, 255, 255, 0.8)",
-                        bordercolor=primary_purple,
-                        borderwidth=1,
-                        borderpad=4,
-                        font=dict(color=dark_purple, size=12)
-                    )
-
-            # Calculate growth rate (comparing oldest to newest data)
-            oldest_value = state_data.iloc[0][selected_metric]
-            newest_value = state_data.iloc[-1][selected_metric]
-
-            if oldest_value > 0:
-                growth_rate = ((newest_value - oldest_value) / oldest_value) * 100
-                
-                # Add annotation for growth rate
-                growth_direction = "increase" if growth_rate > 0 else "decrease"
-                fig_ts.add_annotation(
-                    x=0.95,
-                    y=0.05,
-                    xref="paper",
-                    yref="paper",
-                    text=f"📈 {abs(growth_rate):.1f}% {growth_direction} over past 2 years",
-                    showarrow=False,
-                    bgcolor="rgba(255, 255, 255, 0.8)",
-                    bordercolor=primary_purple,
-                    borderwidth=1,
-                    borderpad=4,
-                    font=dict(color=dark_purple, size=12)
-                )
-
-            # Display the time series chart
-            st.plotly_chart(fig_ts, use_container_width=True)
-
-            # Add contextual information about the selected state
-            state_context_col1, state_context_col2 = st.columns(2)
-
-            with state_context_col1:
-                # Get current metrics for the selected state
-                current_state_data = state_data.iloc[-1]
-                
-                st.markdown(f"### {selected_state} State Profile")
-                st.markdown(f"""
-                **Region:** {current_state_data['region']}
-                
-                **Current {map_metric}:** {current_state_data[selected_metric]:.1f}
-                
-                **Grid Consumption:** {current_state_data['grid_consumption']:.1f} kWh
-                
-                **Solar Production:** {current_state_data['solar_production']:.1f} kWh
-                
-                **EV Charging:** {current_state_data['ev_charging']:.1f} kWh
-                """)
-
-            with state_context_col2:
-                # Compare to similar states
-                same_region_states = geo_df[
-                    (geo_df['region'] == current_state_data['region']) & 
-                    (geo_df['state'] != selected_state) &
-                    (geo_df['period_label'] == selected_period)
-                ]
-                
-                similar_states = same_region_states.iloc[(same_region_states[selected_metric] - current_state_data[selected_metric]).abs().argsort()[:3]]
-                
-                st.markdown("### Similar States")
-                st.markdown(f"States in the {current_state_data['region']} region with similar {map_metric.lower()} patterns:")
-                
-                for _, similar_state in similar_states.iterrows():
-                    diff = similar_state[selected_metric] - current_state_data[selected_metric]
-                    diff_percentage = (diff / current_state_data[selected_metric]) * 100 if current_state_data[selected_metric] != 0 else 0
-                    diff_direction = "higher" if diff > 0 else "lower"
-                    
-                    st.markdown(f"""
-                    **{similar_state['state']}:** {similar_state[selected_metric]:.1f} ({abs(diff_percentage):.1f}% {diff_direction})
-                    """)
 
     # Solar Production Coverage Analysis 
     st.subheader("Solar Production Coverage Analysis")
@@ -1274,7 +1457,7 @@ else:  # Performance Metrics page
     def load_performance_data():
         # Data for all models
         models_data = {
-            'V1 (03.03)': {
+            'V1': {
                 'DPSPerc': {
                     'EV Charging': 80.2603,
                     'AC Usage': 76.6360,
@@ -1291,7 +1474,7 @@ else:  # Performance Metrics page
                     'PV Usage': 0.8602
                 }
             },
-            'V2 (03.06)': {
+            'V2': {
                 'DPSPerc': {
                     'EV Charging': 82.4146,
                     'AC Usage': 76.6360,
@@ -1308,7 +1491,7 @@ else:  # Performance Metrics page
                     'PV Usage': 0.8812
                 }
             },
-            'V3 (03.07)': {
+            'V3': {
                 'DPSPerc': {
                     'EV Charging': 81.8612,
                     'AC Usage': 73.0220,
@@ -1325,7 +1508,7 @@ else:  # Performance Metrics page
                     'PV Usage': 0.8513
                 }
             },
-            'V4 (03.13)': {
+            'V4': {
                 'DPSPerc': {
                     'EV Charging': 85.8123,
                     'AC Usage': 76.3889,
@@ -1342,7 +1525,7 @@ else:  # Performance Metrics page
                     'PV Usage': 0.8395
                 }
             },
-            'V5 (03.18)': {
+            'V5': {
                 'DPSPerc': {
                     'EV Charging': 81.1060,
                     'AC Usage': 77.5813,
@@ -1366,12 +1549,21 @@ else:  # Performance Metrics page
     # Load performance data
     models_data = load_performance_data()
 
+    # Define model dates
+    model_dates = {
+        "V1": "March 3",
+        "V2": "March 6",
+        "V3": "March 7",
+        "V4": "March 13",
+        "V5": "March 18"
+    }
+
     # Model selection in sidebar
     selected_model = st.sidebar.selectbox(
         "Select Model",
         ["V1", "V2", "V3", "V4", "V5"],
         index=4,  # Default to V5
-        format_func=lambda x: x  # No need to transform the names anymore
+        format_func=lambda x: f"{x} ({model_dates[x]})"  # Format with dates
     )
 
     # Add device type filter in sidebar - remove WH Usage
@@ -1420,12 +1612,12 @@ else:  # Performance Metrics page
 
     # After the sidebar elements but before the Key metrics display
     st.markdown(f"""
-    This dashboard presents performance metrics for the **{selected_model}** model 
-    in detecting EV Charging, AC Usage, PV Usage, and WH Usage consumption patterns. For this benchmark, we have used four versions of the model (V1-V4), each with different hyperparameters and training strategies.
+    This dashboard presents performance metrics for the **{selected_model} ({model_dates[selected_model]})** model 
+    in detecting EV Charging, AC Usage, PV Usage, and WH Usage consumption patterns. For this benchmark, we have used five versions of the model (V1-V5), each with different hyperparameters and training strategies.
     """)
 
     # Main content area for Performance Metrics page
-    st.subheader(f"Model: {selected_model}")
+    st.subheader(f"Model: {selected_model} ({model_dates[selected_model]})")
 
     # Key metrics display section - now in a 2-column layout
     metrics_col, trend_col = st.columns([1, 1])
@@ -1493,7 +1685,7 @@ else:  # Performance Metrics page
         
         for model in ["V1", "V2", "V3", "V4", "V5"]:
             trend_data.append({
-                "Model": model,
+                "Model": f"{model} ({model_dates[model]})",
                 "DPSPerc (%)": models_data[model]["DPSPerc"][trend_device],
                 "FPR (%)": models_data[model]["FPR"][trend_device] * 100,  # Convert to percentage
                 "TECA (%)": models_data[model]["TECA"][trend_device] * 100  # Convert to percentage
@@ -1501,10 +1693,18 @@ else:  # Performance Metrics page
         
         trend_df = pd.DataFrame(trend_data)
         
+        # Create a mapping to convert display names back to model keys
+        model_display_to_key = {f"{model} ({model_dates[model]})": model for model in ["V1", "V2", "V3", "V4", "V5"]}
+        
         # Find best model for each metric
-        best_dpsperc_model = trend_df.loc[trend_df["DPSPerc (%)"].idxmax()]["Model"]
-        best_fpr_model = trend_df.loc[trend_df["FPR (%)"].idxmin()]["Model"]  # Lowest is best for FPR
-        best_teca_model = trend_df.loc[trend_df["TECA (%)"].idxmax()]["Model"]
+        best_dpsperc_display = trend_df.loc[trend_df["DPSPerc (%)"].idxmax()]["Model"]
+        best_fpr_display = trend_df.loc[trend_df["FPR (%)"].idxmin()]["Model"]  # Lowest is best for FPR
+        best_teca_display = trend_df.loc[trend_df["TECA (%)"].idxmax()]["Model"]
+        
+        # Store original model keys for data lookup
+        best_dpsperc_model = model_display_to_key[best_dpsperc_display]
+        best_fpr_model = model_display_to_key[best_fpr_display]
+        best_teca_model = model_display_to_key[best_teca_display]
         
         # Create line chart
         fig = go.Figure()
@@ -1541,9 +1741,9 @@ else:  # Performance Metrics page
         
         # Highlight best model for each metric with stars
         # DPSPerc best
-        dpsperc_best_idx = trend_df[trend_df["Model"] == best_dpsperc_model].index[0]
+        dpsperc_best_idx = trend_df[trend_df["Model"] == best_dpsperc_display].index[0]
         fig.add_trace(go.Scatter(
-            x=[best_dpsperc_model],
+            x=[best_dpsperc_display],
             y=[trend_df.iloc[dpsperc_best_idx]["DPSPerc (%)"]],
             mode='markers',
             marker=dict(
@@ -1557,9 +1757,9 @@ else:  # Performance Metrics page
         ))
         
         # FPR best
-        fpr_best_idx = trend_df[trend_df["Model"] == best_fpr_model].index[0]
+        fpr_best_idx = trend_df[trend_df["Model"] == best_fpr_display].index[0]
         fig.add_trace(go.Scatter(
-            x=[best_fpr_model],
+            x=[best_fpr_display],
             y=[trend_df.iloc[fpr_best_idx]["FPR (%)"]],
             mode='markers',
             marker=dict(
@@ -1573,9 +1773,9 @@ else:  # Performance Metrics page
         ))
         
         # TECA best
-        teca_best_idx = trend_df[trend_df["Model"] == best_teca_model].index[0]
+        teca_best_idx = trend_df[trend_df["Model"] == best_teca_display].index[0]
         fig.add_trace(go.Scatter(
-            x=[best_teca_model],
+            x=[best_teca_display],
             y=[trend_df.iloc[teca_best_idx]["TECA (%)"]],
             mode='markers',
             marker=dict(
@@ -1788,7 +1988,7 @@ else:  # Performance Metrics page
         for model in ["V1", "V2", "V3", "V4", "V5"]:
             for device in device_types:
                 dpsperc_data.append({
-                    "Model": model,
+                    "Model": f"{model} ({model_dates[model]})",
                     "Device": device,
                     "DPSPerc (%)": models_data[model]["DPSPerc"][device]
                 })
@@ -1827,7 +2027,7 @@ else:  # Performance Metrics page
         for model in ["V1", "V2", "V3", "V4", "V5"]:
             for device in device_types:
                 fpr_data.append({
-                    "Model": model,
+                    "Model": f"{model} ({model_dates[model]})",
                     "Device": device,
                     "FPR (%)": models_data[model]["FPR"][device] * 100  # Convert to percentage
                 })
@@ -1866,7 +2066,7 @@ else:  # Performance Metrics page
         for model in ["V1", "V2", "V3", "V4", "V5"]:
             for device in device_types:
                 teca_data.append({
-                    "Model": model,
+                    "Model": f"{model} ({model_dates[model]})",
                     "Device": device,
                     "TECA (%)": models_data[model]["TECA"][device] * 100
                 })
@@ -1943,7 +2143,7 @@ else:  # Performance Metrics page
         )
 
         st.plotly_chart(fig, use_container_width=True)
-        st.caption(f"Performance metrics for {selected_model} model across all dimensions")
+        st.caption(f"Performance metrics for {selected_model} ({model_dates[selected_model]}) model across all dimensions")
 
     with viz_col2:
         # Add device selector for confusion matrix
@@ -1991,12 +2191,12 @@ else:  # Performance Metrics page
                   yticklabels=[f'No {selected_device.split()[0]}', f'{selected_device.split()[0]} Present'])
         plt.title(title)
         st.pyplot(fig)
-        st.caption(f"Confusion matrix for {selected_device} detection (%) with {selected_model} model")
+        st.caption(f"Confusion matrix for {selected_device} detection (%) with {selected_model} ({model_dates[selected_model]}) model")
 
     # Key findings section
     st.markdown("### Key Findings")
     st.markdown(f"""
-    - The **{selected_model}** model shows strong performance across all device types, with PV Usage detection being particularly accurate.
+    - The **{selected_model} ({model_dates[selected_model]})** model shows strong performance across all device types, with PV Usage detection being particularly accurate.
     - EV Charging detection shows a good balance between DPSPerc ({models_data[selected_model]['DPSPerc']['EV Charging']:.2f}%) and false positives ({models_data[selected_model]['FPR']['EV Charging'] * 100:.2f}%).
     - PV Usage detection achieves the highest DPSPerc ({models_data[selected_model]['DPSPerc']['PV Usage']:.2f}%) among all device types.
     """)
@@ -2005,15 +2205,15 @@ else:  # Performance Metrics page
     if selected_model == "V4":
         st.markdown("""
         **Model Comparison Insights:**
-        - The V4 model achieves the highest EV Charging DPSPerc (85.81%) with the lowest FPR (11.76%), offering the most accurate EV detection.
+        - The V4 (March 13) model achieves the highest EV Charging DPSPerc (85.81%) with the lowest FPR (11.76%), offering the most accurate EV detection.
         - AC Usage detection shows comparable performance across models, with the V4 model providing the best balance of accuracy and false positives.
         - All models demonstrate similar PV detection capabilities, with minor variations in performance metrics.
         """)
     elif selected_model == "V5":
         st.markdown("""
         **Model Comparison Insights:**
-        - The V5 model offers improved AC Usage detection with a DPSPerc of 77.58%, higher than previous models.
-        - For EV Charging, V5 provides a balanced approach with a DPSPerc of 81.11% and moderate FPR of 13.73%, making it more reliable than earlier versions but not as aggressive as V4.
+        - The V5 (March 18) model offers improved AC Usage detection with a DPSPerc of 77.58%, higher than previous models.
+        - For EV Charging, V5 provides a balanced approach with a DPSPerc of 81.11% and moderate FPR of 13.73%, making it more reliable than earlier versions but not as aggressive as V4 (March 13).
         - PV Usage detection in V5 (91.93% DPSPerc) remains strong and consistent with previous models.
         - The TECA scores show that V5 achieves good energy assignment accuracy for AC Usage (0.6912) and PV Usage (0.7680), though slightly lower for EV Charging (0.6697) compared to V4.
         - Overall, V5 represents a more balanced model that prioritizes consistent performance across all device types rather than optimizing for any single metric.
