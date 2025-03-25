@@ -1274,7 +1274,7 @@ else:  # Performance Metrics page
     def load_performance_data():
         # Data for all models
         models_data = {
-            'V1': {
+            'V1 (03.03)': {
                 'DPSPerc': {
                     'EV Charging': 80.2603,
                     'AC Usage': 76.6360,
@@ -1291,7 +1291,7 @@ else:  # Performance Metrics page
                     'PV Usage': 0.8602
                 }
             },
-            'V2': {
+            'V2 (03.06)': {
                 'DPSPerc': {
                     'EV Charging': 82.4146,
                     'AC Usage': 76.6360,
@@ -1308,7 +1308,7 @@ else:  # Performance Metrics page
                     'PV Usage': 0.8812
                 }
             },
-            'V3': {
+            'V3 (03.07)': {
                 'DPSPerc': {
                     'EV Charging': 81.8612,
                     'AC Usage': 73.0220,
@@ -1325,7 +1325,7 @@ else:  # Performance Metrics page
                     'PV Usage': 0.8513
                 }
             },
-            'V4': {
+            'V4 (03.13)': {
                 'DPSPerc': {
                     'EV Charging': 85.8123,
                     'AC Usage': 76.3889,
@@ -1342,7 +1342,7 @@ else:  # Performance Metrics page
                     'PV Usage': 0.8395
                 }
             },
-            'V5': {
+            'V5 (03.18)': {
                 'DPSPerc': {
                     'EV Charging': 81.1060,
                     'AC Usage': 77.5813,
