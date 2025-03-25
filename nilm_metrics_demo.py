@@ -1,12 +1,19 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 import plotly.express as px
 import plotly.graph_objects as go
-import numpy as np
-from plotly.subplots import make_subplots
+import random
+from datetime import datetime, timedelta
+import folium
+from streamlit_folium import folium_static
+import json
+import geopandas as gpd
+from folium.plugins import MarkerCluster
+import plotly.subplots as sp
 from PIL import Image
-import seaborn as sns
 import datetime
 
 # Hide the default Streamlit navigation menu
@@ -237,8 +244,8 @@ st.markdown("""
 # Define the banner path once at the top of the script
 banner_path = "ECMX_linkedinheader_SN.png"  
 
-# Add page selection at the top (only two options)
-page = st.sidebar.radio("Select Page", ["Sample Output", "Performance Metrics"])
+# Add page selection at the top (now with three options)
+page = st.sidebar.radio("Select Page", ["Sample Output", "Performance Metrics", "Interactive Map"], index=1)
 
 # Display banner on both pages
 try:
@@ -249,1207 +256,25 @@ except Exception as e:
     st.warning(f"Banner image not found at {banner_path}. Please update the path in the code.")
 
 if page == "Sample Output":
-    # Convert the sample data to a DataFrame
-    df = pd.read_csv('disagg_sample.csv') 
-
-    # Page title and introduction
-    st.title("Energy Disaggregation Model: Sample Output")
-
+    # Sample Output page code goes here
+    st.title("Sample Output")
+    st.subheader("Example NILM Device Detection Results")
+    
+    # Sample output code and visualization
     st.markdown("""
-    This dashboard presents a sample output from our energy disaggregation model, which analyzes household 
-    energy consumption data and identifies specific appliance usage patterns.
-
-    ### Key Assumptions:
-    - Sample represents output for multiple homes with diverse energy profiles
-    - Values reflect monthly average energy consumption in kWh
-    - Detection flags (0/1) indicate presence of each appliance
-    - Grid consumption represents total household electricity usage
-    - Model confidence levels are not shown in this simplified output
+    This page shows sample outputs from our NILM algorithm, demonstrating its ability to detect and disaggregate
+    various devices from the total energy consumption signal.
     """)
-
-    # Add interactive filtering directly with the first dataframe
-    st.subheader("Sample Model Output with Interactive Filtering")
-
-    # Add filter controls in a more compact format
-    filter_cols = st.columns(4)
-
-    with filter_cols[0]:
-        ev_filter = st.selectbox("EV Charging", ["Any", "Present", "Not Present"])
-
-    with filter_cols[1]:
-        ac_filter = st.selectbox("Air Conditioning", ["Any", "Present", "Not Present"])
-
-    with filter_cols[2]:
-        pv_filter = st.selectbox("Solar PV", ["Any", "Present", "Not Present"])
-
-    with filter_cols[3]:
-        wh_filter = st.selectbox("Water Heater", ["Any", "Present", "Not Present"])
-
-    # Apply filters
-    filtered_df = df.copy()
-
-    if ev_filter == "Present":
-        filtered_df = filtered_df[filtered_df['ev detected'] == 1]
-    elif ev_filter == "Not Present":
-        filtered_df = filtered_df[filtered_df['ev detected'] == 0]
-
-    if ac_filter == "Present":
-        filtered_df = filtered_df[filtered_df['ac detected'] == 1]
-    elif ac_filter == "Not Present":
-        filtered_df = filtered_df[filtered_df['ac detected'] == 0]
-
-    if pv_filter == "Present":
-        filtered_df = filtered_df[filtered_df['pv detected'] == 1]
-    elif pv_filter == "Not Present":
-        filtered_df = filtered_df[filtered_df['pv detected'] == 0]
-
-    if wh_filter == "Present":
-        filtered_df = filtered_df[filtered_df['water heater detected'] == 1]
-    elif wh_filter == "Not Present":
-        filtered_df = filtered_df[filtered_df['water heater detected'] == 0]
-
-    # Display filtered dataframe with record count
-    st.dataframe(filtered_df, use_container_width=True)
-    st.caption(f"Showing {len(filtered_df)} of {len(df)} homes")
-
-    # Create two columns for the interactive plots
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("Appliance Presence in Housing Portfolio")
-        
-        # Calculate presence percentages
-        appliance_presence = {
-            'EV Charging': filtered_df['ev detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
-            'Air Conditioning': filtered_df['ac detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
-            'Solar PV': filtered_df['pv detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
-            'Water Heater': filtered_df['water heater detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0
-        }
-        
-        # Create interactive bar chart using Plotly with team colors
-        fig1 = px.bar(
-            x=list(appliance_presence.keys()),
-            y=list(appliance_presence.values()),
-            labels={'x': 'Appliance Type', 'y': 'Percentage of Homes (%)'},
-            color=list(appliance_presence.keys()),
-            color_discrete_map={
-                    'EV Charging': primary_purple,
-                    'Air Conditioning': green,
-                    'Solar PV': cream,
-                    'Water Heater': salmon
-            },
-            text=[f"{val:.1f}%" for val in appliance_presence.values()]
-        )
-        
-        # Update layout with team colors - now with white background
-        fig1.update_layout(
-            showlegend=False,
-            xaxis_title="Appliance Type",
-            yaxis_title="Percentage of Homes (%)",
-            yaxis_range=[0, 100],
-            margin=dict(l=20, r=20, t=30, b=20),
-                paper_bgcolor=white,
-                plot_bgcolor=white,
-                font=dict(color=dark_purple)
-        )
-        
-        fig1.update_traces(textposition='outside', textfont=dict(color=dark_purple))
-        fig1.update_xaxes(showgrid=False, gridcolor=light_purple, tickfont=dict(color=dark_purple))
-        fig1.update_yaxes(showgrid=True, gridcolor=light_purple, tickfont=dict(color=dark_purple))
     
-    # Display the plot
-    st.plotly_chart(fig1, use_container_width=True)
+    # Placeholder for sample output visualization
+    st.info("Sample visualizations of device detection would be shown here.")
     
-    # Add interactive details
-    with st.expander("About Appliance Presence"):
-        st.markdown("""
-        This chart shows the percentage of homes in the sample where each appliance type was detected.
-        
-        - **Air Conditioning**: Most commonly detected appliance
-        - **Solar PV**: Shows significant renewable adoption
-        - **EV Charging**: Indicates electric vehicle ownership
-        - **Water Heater**: Least commonly detected in this sample
-        
-        Detection is based on energy signature patterns identified by the disaggregation model.
-        """)
-
-    with col2:
-        st.subheader("Total Energy Distribution by Type")
-        
-        # Calculate disaggregated appliance total
-        disaggregated_total = (filtered_df['ev charging (kWh)'].sum() + 
-                              filtered_df['air conditioning (kWh)'].sum() + 
-                              filtered_df['water heater (kWh)'].sum())
-        
-        # Calculate "Other Consumption" by subtracting known appliances from grid total
-        other_consumption = filtered_df['grid (kWh)'].sum() - disaggregated_total
-        other_consumption = max(0, other_consumption)  # Ensure it's not negative
-        
-    energy_totals = {
-        'EV Charging': filtered_df['ev charging (kWh)'].sum(),
-        'Air Conditioning': filtered_df['air conditioning (kWh)'].sum(),
-            'Water Heater': filtered_df['water heater (kWh)'].sum(),
-            'Other Consumption': other_consumption
-    }
+    # Add more sample output content as needed
     
-        # Create interactive pie chart using Plotly with team colors
-    fig2 = px.pie(
-        values=list(energy_totals.values()),
-        names=list(energy_totals.keys()),
-        color=list(energy_totals.keys()),
-        color_discrete_map={
-                'EV Charging': primary_purple,
-                'Air Conditioning': green,
-                'Water Heater': salmon,
-                'Other Consumption': light_purple
-        },
-        hole=0.4
-    )
-    
-        # Update layout with team colors - now with white background
-    fig2.update_layout(
-        legend_title="Energy Type",
-        margin=dict(l=20, r=20, t=30, b=20),
-            paper_bgcolor=white,
-            plot_bgcolor=white,
-            font=dict(color=dark_purple),
-            legend=dict(font=dict(color=dark_purple))
-    )
-    
-    fig2.update_traces(
-        textinfo='percent+label',
-            hovertemplate='%{label}<br>%{value:.1f} kWh<br>%{percent}',
-            textfont=dict(color=dark_gray)  # Darker text for better contrast
-    )
-    
-    # Display the plot
-    st.plotly_chart(fig2, use_container_width=True)
-    
-    # Add interactive details
-    with st.expander("About Energy Distribution"):
-        st.markdown("""
-            This chart shows how the total energy consumption is distributed across different appliance types.
-        
-        - **Air Conditioning**: Typically accounts for significant consumption
-        - **EV Charging**: Can be a major energy consumer when present
-        - **Water Heater**: Generally smaller portion of total energy use
-            - **Other Consumption**: Remaining grid usage not attributed to the three main appliances
-        
-        Understanding this distribution helps identify the highest impact areas for efficiency improvements.
-        """)
-
-    # Add summary metrics
-    st.markdown(f"""
-    <style>
-        .metric-container {{
-            background-color: {primary_purple};
-            border-radius: 10px;
-            padding: 15px 15px;
-            margin: 10px 0;
-            border: 2px solid {primary_purple};
-        }}
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.subheader("Key Metrics")
-    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-
-    with metric_col1:
-        st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-        st.metric(
-            label="Total Homes",
-            value=len(filtered_df),
-            delta=f"{len(filtered_df) - len(df)}" if len(filtered_df) != len(df) else None,
-            help="Number of households in the filtered dataset"
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    with metric_col2:
-        st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-        avg_grid = filtered_df['grid (kWh)'].mean() if len(filtered_df) > 0 else 0
-        st.metric(
-            label="Avg. Grid Consumption",
-            value=f"{avg_grid:.1f} kWh",
-            help="Average total electricity consumption per home"
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    with metric_col3:
-        st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-        pv_homes = filtered_df[filtered_df['pv detected'] == 1]
-        pv_avg = pv_homes['solar production (kWh)'].mean() if len(pv_homes) > 0 else 0
-        st.metric(
-            label="Avg. Solar Production",
-            value=f"{pv_avg:.1f} kWh",
-            help="Average solar production for homes with PV systems"
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    with metric_col4:
-        st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-        # Percentage of consumption identified by model
-        total_grid = filtered_df['grid (kWh)'].sum()
-        total_identified = disaggregated_total
-        pct_identified = (total_identified / total_grid * 100) if total_grid > 0 else 0
-        
-        st.metric(
-            label="Consumption Identified",
-            value=f"{pct_identified:.1f}%",
-            help="Percentage of total grid consumption attributed to specific appliances"
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # Geographic Energy Insights Map
-    st.subheader("Geographical Energy Insights")
-    
-    # Mock dataset for geographical visualization
-    @st.cache_data
-    def generate_geo_data():
-        import random
-        import datetime
-        
-        # Define states and regions
-        regions = {
-            'Northeast': ['ME', 'NH', 'VT', 'MA', 'RI', 'CT', 'NY', 'NJ', 'PA'],
-            'Southeast': ['DE', 'MD', 'VA', 'WV', 'KY', 'NC', 'SC', 'TN', 'GA', 'FL', 'AL', 'MS', 'AR', 'LA'],
-            'Midwest': ['OH', 'MI', 'IN', 'IL', 'WI', 'MN', 'IA', 'MO', 'ND', 'SD', 'NE', 'KS'],
-            'Southwest': ['OK', 'TX', 'NM', 'AZ'],
-            'West': ['CO', 'WY', 'MT', 'ID', 'WA', 'OR', 'UT', 'NV', 'CA', 'AK', 'HI']
-        }
-        
-        # Create a base for our mock dataset
-        geo_data = []
-        
-        # Define time periods - will create data for past 24 months
-        current_date = datetime.datetime.now()
-        start_date = current_date - datetime.timedelta(days=24*30)  # approx 24 months back
-        time_periods = []
-        
-        # Generate monthly time periods
-        for i in range(24):
-            month_date = start_date + datetime.timedelta(days=30*i)
-            time_periods.append({
-                'date': month_date,
-                'year': month_date.year,
-                'month': month_date.month,
-                'month_name': month_date.strftime('%b'),
-                'quarter': (month_date.month-1)//3 + 1,
-                'period_label': month_date.strftime('%b %Y')
-            })
-        
-        # Set region-specific patterns
-        base_region_characteristics = {
-            'Northeast': {
-                'grid_range': (800, 1200),  # Higher consumption due to heating
-                'solar_range': (100, 350),   # Moderate solar production
-                'ev_range': (150, 400),      # Higher EV adoption 
-                'ac_range': (100, 300),      # Lower AC due to climate
-                'water_heater_range': (150, 300),  # Higher water heating needs
-                'pv_adoption_range': (15, 40),     # Moderate solar adoption
-                'ev_adoption_range': (15, 45)      # Higher EV adoption
-            },
-            'Southeast': {
-                'grid_range': (900, 1400),   # Higher consumption due to AC
-                'solar_range': (200, 450),   # Good solar production
-                'ev_range': (50, 250),       # Lower EV adoption
-                'ac_range': (250, 500),      # Higher AC usage
-                'water_heater_range': (100, 200),  # Lower water heating needs
-                'pv_adoption_range': (10, 35),     # Moderate solar adoption
-                'ev_adoption_range': (5, 25)       # Lower EV adoption
-            },
-            'Midwest': {
-                'grid_range': (700, 1100),   # Moderate consumption
-                'solar_range': (50, 250),    # Lower solar production
-                'ev_range': (50, 200),       # Moderate-low EV adoption
-                'ac_range': (150, 350),      # Moderate AC usage
-                'water_heater_range': (120, 250),  # Moderate water heating
-                'pv_adoption_range': (5, 25),      # Lower solar adoption
-                'ev_adoption_range': (8, 30)       # Moderate EV adoption
-            },
-            'Southwest': {
-                'grid_range': (900, 1300),   # Higher consumption due to AC
-                'solar_range': (300, 600),   # High solar production
-                'ev_range': (100, 300),      # Moderate EV adoption
-                'ac_range': (300, 550),      # Very high AC usage
-                'water_heater_range': (80, 180),   # Lower water heating
-                'pv_adoption_range': (25, 60),     # High solar adoption
-                'ev_adoption_range': (10, 35)      # Moderate EV adoption
-            },
-            'West': {
-                'grid_range': (600, 1000),   # Lower grid consumption (efficiency)
-                'solar_range': (250, 550),   # High solar production
-                'ev_range': (150, 450),      # High EV adoption
-                'ac_range': (150, 350),      # Moderate AC usage
-                'water_heater_range': (100, 200),  # Moderate water heating
-                'pv_adoption_range': (20, 55),     # High solar adoption
-                'ev_adoption_range': (15, 50)      # High EV adoption
-            }
-        }
-        
-        # Define seasonal adjustments by month
-        seasonal_factors = {
-            # Month -> (grid, solar, ev, ac, water_heater)
-            1:  (1.2,  0.7,  0.9, 0.3, 1.4),  # January
-            2:  (1.15, 0.8,  0.9, 0.3, 1.3),  # February
-            3:  (1.0,  0.9,  0.95, 0.5, 1.2),  # March
-            4:  (0.9,  1.0,  1.0, 0.7, 1.0),  # April
-            5:  (0.8,  1.1,  1.0, 0.9, 0.9),  # May
-            6:  (0.9,  1.2,  1.0, 1.3, 0.8),  # June
-            7:  (1.0,  1.2,  1.1, 1.5, 0.7),  # July
-            8:  (1.0,  1.15, 1.1, 1.4, 0.7),  # August
-            9:  (0.9,  1.1,  1.05, 1.2, 0.8),  # September
-            10: (0.85, 0.9,  1.0, 0.8, 0.9),  # October
-            11: (0.95, 0.8,  0.95, 0.5, 1.1),  # November
-            12: (1.1,  0.7,  0.9, 0.3, 1.3)   # December
-        }
-        
-        # Define more pronounced yearly growth trends - make historical progression more noticeable
-        # The factors represent multipliers for (grid, solar, ev, ac, water_heater, pv_adoption, ev_adoption, efficiency)
-        yearly_growth = {
-            # 0 = oldest data, 1 = middle data, 2 = newest data (2 years of data)
-            0: (1.15, 0.7, 0.6, 1.0, 1.05, 0.5, 0.4, 0.7),  # 2 years ago: higher grid use, lower renewables & efficiency
-            1: (1.05, 0.85, 0.8, 1.0, 1.0, 0.75, 0.7, 0.85),  # 1 year ago: transitioning
-            2: (1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0)  # Current year: baseline
-        }
-        
-        # Define innovation adoption tiers for states (which states adopt technologies first)
-        # This creates more realistic patterns where certain states lead in adoption
-        state_adoption_tiers = {
-            'early_adopters': ['CA', 'NY', 'MA', 'WA', 'OR', 'CO', 'HI', 'VT'],
-            'early_majority': ['CT', 'NJ', 'MD', 'IL', 'MN', 'AZ', 'NV', 'TX', 'FL', 'UT', 'NM'],
-            'late_majority': ['PA', 'OH', 'MI', 'NC', 'SC', 'GA', 'VA', 'WI', 'IA', 'NH', 'ME', 'RI', 'DE'],
-            'laggards': ['WV', 'KY', 'TN', 'AL', 'MS', 'AR', 'LA', 'OK', 'KS', 'NE', 'SD', 'ND', 'MT', 'ID', 'WY', 'AK']
-        }
-        
-        # Adoption multipliers based on time and state tier
-        # Format: [early_adopters, early_majority, late_majority, laggards]
-        adoption_timeline = {
-            0: [0.7, 0.4, 0.25, 0.1],  # 2 years ago
-            1: [0.9, 0.7, 0.5, 0.3],   # 1 year ago
-            2: [1.0, 0.9, 0.8, 0.6]    # Current
-        }
-        
-        # Generate data for each state, time period, and state
-        for time_period in time_periods:
-            year_delta = min(2, time_period['year'] - start_date.year)  # Cap at 2 years difference
-            month = time_period['month']
-            
-            # Get seasonal and yearly adjustment factors
-            season_factor = seasonal_factors[month]
-            year_factor = yearly_growth.get(year_delta, yearly_growth[0])  # Use 0 if not found
-            
-            for region, states in regions.items():
-                base_char = base_region_characteristics[region]
-                
-                # Adjust base characteristics for this time period
-                char = {
-                    'grid_range': (
-                        base_char['grid_range'][0] * season_factor[0] * year_factor[0],
-                        base_char['grid_range'][1] * season_factor[0] * year_factor[0]
-                    ),
-                    'solar_range': (
-                        base_char['solar_range'][0] * season_factor[1] * year_factor[1],
-                        base_char['solar_range'][1] * season_factor[1] * year_factor[1]
-                    ),
-                    'ev_range': (
-                        base_char['ev_range'][0] * season_factor[2] * year_factor[2],
-                        base_char['ev_range'][1] * season_factor[2] * year_factor[2]
-                    ),
-                    'ac_range': (
-                        base_char['ac_range'][0] * season_factor[3] * year_factor[3],
-                        base_char['ac_range'][1] * season_factor[3] * year_factor[3]
-                    ),
-                    'water_heater_range': (
-                        base_char['water_heater_range'][0] * season_factor[4] * year_factor[4],
-                        base_char['water_heater_range'][1] * season_factor[4] * year_factor[4]
-                    ),
-                    'pv_adoption_range': (
-                        base_char['pv_adoption_range'][0] * year_factor[5],
-                        base_char['pv_adoption_range'][1] * year_factor[5]
-                    ),
-                    'ev_adoption_range': (
-                        base_char['ev_adoption_range'][0] * year_factor[6],
-                        base_char['ev_adoption_range'][1] * year_factor[6]
-                    )
-                }
-                
-                for state in states:
-                    # Determine which adoption tier this state belongs to
-                    state_tier = None
-                    for tier, states_list in state_adoption_tiers.items():
-                        if state in states_list:
-                            state_tier = tier
-                            break
-                    
-                    # Get adoption multiplier based on state tier and time period
-                    if state_tier == 'early_adopters':
-                        tier_index = 0
-                    elif state_tier == 'early_majority':
-                        tier_index = 1
-                    elif state_tier == 'late_majority':
-                        tier_index = 2
-                    else:  # laggards
-                        tier_index = 3
-                    
-                    # Get adoption multiplier for this time period and state tier
-                    adoption_multiplier = adoption_timeline[year_delta][tier_index]
-                    
-                    # Add some realistic variance within regions
-                    variance_factor = random.uniform(0.8, 1.2)
-                    
-                    # Base metrics 
-                    grid_consumption = random.uniform(*char['grid_range']) * variance_factor
-                    
-                    # Apply state-specific adoption multipliers
-                    solar_production = random.uniform(*char['solar_range']) * variance_factor * adoption_multiplier
-                    ev_charging = random.uniform(*char['ev_range']) * variance_factor * adoption_multiplier
-                    ac_usage = random.uniform(*char['ac_range']) * variance_factor
-                    water_heater = random.uniform(*char['water_heater_range']) * variance_factor
-                    
-                    # Adoption rates (percentages) with stronger historical progression
-                    pv_adoption = random.uniform(*char['pv_adoption_range']) * adoption_multiplier
-                    ev_adoption = random.uniform(*char['ev_adoption_range']) * adoption_multiplier
-                    
-                    # Energy efficiency improves over time, with early adopter states leading
-                    efficiency_base = 55 + random.uniform(-5, 5)  # Base efficiency
-                    efficiency_growth = year_factor[7] * adoption_multiplier  # Apply time and state tier factors
-                    efficiency_score = min(98, efficiency_base * efficiency_growth)  # Cap at 98
-                    
-                    # Home counts for context - with growth over time
-                    home_count = int(random.uniform(500, 5000) * (1 + year_delta * 0.05))
-                    
-                    # Calculate derived metrics
-                    solar_coverage = (solar_production / grid_consumption * 100) if grid_consumption > 0 else 0
-                    ev_percentage = (ev_charging / grid_consumption * 100) if grid_consumption > 0 else 0
-                    ac_percentage = (ac_usage / grid_consumption * 100) if grid_consumption > 0 else 0
-                    
-                    geo_data.append({
-                        'state': state,
-                        'region': region,
-                        'year': time_period['year'],
-                        'month': time_period['month'],
-                        'month_name': time_period['month_name'],
-                        'quarter': time_period['quarter'],
-                        'period_label': time_period['period_label'],
-                        'date_value': time_period['date'],  # Store the actual date object for proper sorting
-                        'grid_consumption': grid_consumption,
-                        'solar_production': solar_production,
-                        'ev_charging': ev_charging,
-                        'ac_usage': ac_usage,
-                        'water_heater_usage': water_heater,
-                        'pv_adoption_rate': pv_adoption,
-                        'ev_adoption_rate': ev_adoption,
-                        'solar_coverage': solar_coverage,
-                        'ev_percentage': ev_percentage,
-                        'ac_percentage': ac_percentage,
-                        'efficiency_score': efficiency_score,
-                        'home_count': home_count
-                    })
-        
-        return pd.DataFrame(geo_data)
-    
-    # Generate geographic data
-    geo_df = generate_geo_data()
-    
-    # Add time period selection controls at the top
-    st.subheader("Time Period Selection")
-    
-    # Get unique time periods
-    time_periods = sorted(geo_df['period_label'].unique())
-    
-    # Create columns for different time controls
-    time_control_col1, time_control_col2 = st.columns([3, 1])
-    
-    with time_control_col1:
-        # Add time period slider - without using format_func which is not supported
-        selected_time_index = st.slider(
-            "Select Time Period",
-            min_value=0,
-            max_value=len(time_periods)-1,
-            value=len(time_periods)-1  # Default to latest time period
-        )
-        # Display the currently selected time period
-        selected_period = time_periods[selected_time_index]
-        st.caption(f"Currently viewing: **{selected_period}**")
-    
-    with time_control_col2:
-        # Empty column for balance
-        st.markdown("")  # Just to keep the layout balanced
-    
-    # Filter by selected time period - only Single Period is now supported
-    time_filtered_geo_df = geo_df[geo_df['period_label'] == selected_period]
-    period_title = f"Data for {selected_period}"
-    
-    # Create a two-column layout for map controls and explanations
-    st.subheader(f"Geographical Energy Insights: {period_title}")
-    map_col1, map_col2 = st.columns([1, 3])
-    
-    with map_col1:
-        # Add map control options
-        map_metric = st.selectbox(
-            "Select Map Metric",
-            [
-                "Grid Consumption (kWh)",
-                "Solar Production (kWh)",
-                "EV Charging (kWh)",
-                "AC Usage (kWh)",
-                "Solar Coverage (%)",
-                "PV Adoption Rate (%)",
-                "EV Adoption Rate (%)",
-                "Energy Efficiency Score"
-            ]
-        )
-        
-        # Add region filter
-        selected_regions = st.multiselect(
-            "Filter by Region",
-            ["Northeast", "Southeast", "Midwest", "Southwest", "West"],
-            default=["Northeast", "Southeast", "Midwest", "Southwest", "West"]
-        )
-        
-        # Filter data by selected regions and time
-        if selected_regions:
-            filtered_geo_df = time_filtered_geo_df[time_filtered_geo_df['region'].isin(selected_regions)]
-        else:
-            filtered_geo_df = time_filtered_geo_df
-            
-        # Add explanatory text about the selected metric
-        metric_explanations = {
-            "Grid Consumption (kWh)": "Average monthly electricity consumption from the grid per household.",
-            "Solar Production (kWh)": "Average monthly solar energy production per household with PV systems.",
-            "EV Charging (kWh)": "Average monthly electricity used for EV charging in homes with EVs.",
-            "AC Usage (kWh)": "Average monthly electricity consumed by air conditioning systems.",
-            "Solar Coverage (%)": "Percentage of grid consumption offset by solar production.",
-            "PV Adoption Rate (%)": "Percentage of homes with solar PV systems installed.",
-            "EV Adoption Rate (%)": "Percentage of homes with electric vehicles.",
-            "Energy Efficiency Score": "Overall energy efficiency score (higher is better)."
-        }
-        
-        st.markdown(f"""
-        ### About This Metric
-        
-        **{map_metric}**
-        
-        {metric_explanations.get(map_metric, "")}
-        
-        This map shows variations across different states and regions, highlighting geographic patterns in energy usage and technology adoption.
-        """)
-    
-    with map_col2:
-        # Set up the color scales for different metrics
-        color_scales = {
-            "Grid Consumption (kWh)": [light_purple, primary_purple, dark_purple],
-            "Solar Production (kWh)": ["#F9F0D9", cream, green],
-            "EV Charging (kWh)": ["#D9DCFF", light_purple, primary_purple],
-            "AC Usage (kWh)": ["#D9F2EC", green, "#43867F"],
-            "Solar Coverage (%)": ["#F9F0D9", cream, green],
-            "PV Adoption Rate (%)": ["#F9F0D9", cream, green],
-            "EV Adoption Rate (%)": ["#D9DCFF", light_purple, primary_purple],
-            "Energy Efficiency Score": [salmon, cream, green]
-        }
-        
-        # Map metric name to dataframe column
-        metric_mappings = {
-            "Grid Consumption (kWh)": "grid_consumption",
-            "Solar Production (kWh)": "solar_production",
-            "EV Charging (kWh)": "ev_charging",
-            "AC Usage (kWh)": "ac_usage",
-            "Solar Coverage (%)": "solar_coverage",
-            "PV Adoption Rate (%)": "pv_adoption_rate",
-            "EV Adoption Rate (%)": "ev_adoption_rate",
-            "Energy Efficiency Score": "efficiency_score"
-        }
-        
-        selected_metric = metric_mappings[map_metric]
-        
-        # Use session state to track which state is selected
-        if 'selected_state' not in st.session_state:
-            st.session_state.selected_state = None
-            
-        if 'show_zoomed_state' not in st.session_state:
-            st.session_state.show_zoomed_state = False
-        
-        # Add custom JavaScript for capturing clicks
-        js_code = """
-        <script>
-            const figure = document.querySelector('div[data-testid="stPlotlyChart"] .js-plotly-plot');
-            if (figure) {
-                figure.on('plotly_click', function(data) {
-                    const clickedState = data.points[0].customdata;
-                    if (clickedState) {
-                        // Send message to Streamlit
-                        const message = {
-                            type: "streamlit:setComponentValue",
-                            value: clickedState,
-                            dataType: "str"
-                        };
-                        window.parent.postMessage(message, "*");
-                        
-                        // Auto-submit the form to trigger a rerun
-                        setTimeout(function() {
-                            window.parent.document.querySelector('button[kind="secondaryFormSubmit"]').click();
-                        }, 100);
-                    }
-                });
-            }
-        </script>
-        """
-        
-        # State coordinates for centering the map on selected state
-        state_centers = {
-            'AL': (32.7794, -86.8287), 'AK': (64.0685, -152.2782), 'AZ': (34.2744, -111.6602),
-            'AR': (34.8938, -92.4426), 'CA': (37.1841, -119.4696), 'CO': (38.9972, -105.5478),
-            'CT': (41.6219, -72.7273), 'DE': (38.9896, -75.5050), 'FL': (28.6305, -82.4497),
-            'GA': (32.6415, -83.4426), 'HI': (20.2927, -156.3737), 'ID': (44.3509, -114.6130),
-            'IL': (40.0417, -89.1965), 'IN': (39.8942, -86.2816), 'IA': (42.0751, -93.4960),
-            'KS': (38.4937, -98.3804), 'KY': (37.5347, -85.3021), 'LA': (31.0689, -91.9968),
-            'ME': (45.3695, -69.2428), 'MD': (39.0550, -76.7909), 'MA': (42.2596, -71.8083),
-            'MI': (44.3467, -85.4102), 'MN': (46.2807, -94.3053), 'MS': (32.7364, -89.6678),
-            'MO': (38.3566, -92.4580), 'MT': (47.0527, -109.6333), 'NE': (41.5378, -99.7951),
-            'NV': (39.3289, -116.6312), 'NH': (43.6805, -71.5811), 'NJ': (40.1907, -74.6728),
-            'NM': (34.4071, -106.1126), 'NY': (42.9538, -75.5268), 'NC': (35.5557, -79.3877),
-            'ND': (47.4501, -100.4659), 'OH': (40.2862, -82.7937), 'OK': (35.5889, -97.4943),
-            'OR': (43.9336, -120.5583), 'PA': (40.8781, -77.7996), 'RI': (41.6762, -71.5562),
-            'SC': (33.9169, -80.8964), 'SD': (44.4443, -100.2263), 'TN': (35.8600, -86.3505),
-            'TX': (31.4757, -99.3312), 'UT': (39.3055, -111.6703), 'VT': (44.0687, -72.6658),
-            'VA': (37.5215, -78.8537), 'WA': (47.3826, -120.4472), 'WV': (38.6409, -80.6227),
-            'WI': (44.6243, -89.9941), 'WY': (42.9957, -107.5512)
-        }
-        
-        # Add buttons above the map for interaction controls
-        col1, col2, col3 = st.columns([2, 3, 2])
-        with col1:
-            # Dropdown for state selection (alternative to clicking)
-            selected_state = st.selectbox(
-                "Select a state:",
-                options=[''] + sorted(filtered_geo_df['state'].unique()),
-                key="state_selector",
-                index=0
-            )
-        
-        with col2:
-            st.markdown("👆 **Click on any state in the map to zoom in and view household data**")
-        
-        with col3:
-            # Reset button to return to national view
-            reset_view = st.button("Reset Map View")
-        
-        # Process state selection (either from click or dropdown)
-        if selected_state or ('selected_state' in st.session_state and st.session_state.selected_state):
-            # Update session state
-            if selected_state and selected_state != st.session_state.selected_state:
-                st.session_state.selected_state = selected_state
-                st.session_state.show_zoomed_state = True
-        
-        # Reset map view if requested
-        if reset_view:
-            st.session_state.selected_state = None
-            st.session_state.show_zoomed_state = False
-            st.experimental_rerun()
-        
-        # Get the current state selection
-        zoom_state = None
-        if 'selected_state' in st.session_state and st.session_state.selected_state:
-            zoom_state = st.session_state.selected_state
-        
-        # Function to generate random household data
-        def generate_households(state_code, count=100):
-            # Get state data from our dataset
-            state_info = filtered_geo_df[filtered_geo_df['state'] == state_code].iloc[0]
-            
-            # Get state center coordinates
-            if state_code not in state_centers:
-                # Default to middle of US if state not found
-                center_lat, center_lon = (39.8283, -98.5795)
-            else:
-                center_lat, center_lon = state_centers[state_code]
-            
-            # Generate random households around the state center
-            import random
-            households = []
-            
-            # Use the state's adoption rates to determine device presence probabilities
-            ev_prob = state_info['ev_adoption_rate'] / 100
-            pv_prob = state_info['pv_adoption_rate'] / 100
-            ac_prob = 0.7  # AC is common in most homes
-            
-            for i in range(count):
-                # Generate a random point within the state (within ~50 miles of center)
-                lat = center_lat + (random.random() - 0.5) * 0.7
-                lon = center_lon + (random.random() - 0.5) * 0.7
-                
-                # Determine device presence
-                has_ev = random.random() < ev_prob
-                has_pv = random.random() < pv_prob
-                has_ac = random.random() < ac_prob
-                
-                # Generate household energy data based on state averages and device presence
-                grid_consumption = state_info['grid_consumption'] * (0.7 + random.random() * 0.6)
-                solar_production = state_info['solar_production'] * (0.7 + random.random() * 0.6) if has_pv else 0
-                ev_charging = state_info['ev_charging'] * (0.7 + random.random() * 0.6) if has_ev else 0
-                ac_usage = state_info['ac_usage'] * (0.7 + random.random() * 0.6) if has_ac else 0
-                
-                households.append({
-                    'lat': lat,
-                    'lon': lon,
-                    'has_ev': has_ev,
-                    'has_pv': has_pv,
-                    'has_ac': has_ac,
-                    'grid_consumption': grid_consumption,
-                    'solar_production': solar_production,
-                    'ev_charging': ev_charging,
-                    'ac_usage': ac_usage,
-                    'household_id': f"H{i+1}"
-                })
-            
-            return pd.DataFrame(households)
-        
-        # Create the main visualization (choropleth for states)
-        fig = px.choropleth(
-            filtered_geo_df,
-            locations='state',
-            color=selected_metric,
-            locationmode="USA-states",
-            scope="usa",
-            color_continuous_scale=color_scales[map_metric],
-            range_color=[filtered_geo_df[selected_metric].min(), filtered_geo_df[selected_metric].max()],
-            hover_name='state',
-            hover_data={
-                'state': False,
-                'region': True,
-                'grid_consumption': ':.1f',
-                'solar_production': ':.1f',
-                'ev_charging': ':.1f',
-                'ac_usage': ':.1f',
-                'pv_adoption_rate': ':.1f',
-                'ev_adoption_rate': ':.1f',
-                'solar_coverage': ':.1f',
-                'home_count': True
-            },
-            labels={
-                'grid_consumption': 'Grid (kWh)',
-                'solar_production': 'Solar (kWh)',
-                'ev_charging': 'EV (kWh)',
-                'ac_usage': 'AC (kWh)',
-                'pv_adoption_rate': 'PV Adoption (%)',
-                'ev_adoption_rate': 'EV Adoption (%)',
-                'solar_coverage': 'Solar Coverage (%)',
-                'home_count': 'Homes'
-            }
-        )
-        
-        # Update map layout based on whether zoomed in or not
-        if zoom_state and 'show_zoomed_state' in st.session_state and st.session_state.show_zoomed_state:
-            # Generate household data for selected state
-            households_df = generate_households(zoom_state, count=100)
-            
-            # Extract state center coordinates
-            if zoom_state in state_centers:
-                center_lat, center_lon = state_centers[zoom_state]
-            else:
-                center_lat, center_lon = (39.8283, -98.5795)  # Default to US center
-            
-            # Add device filter controls if zoomed in
-            filter_cols = st.columns(4)
-            with filter_cols[0]:
-                show_ev = st.checkbox("Show EV Homes", value=True)
-            with filter_cols[1]:
-                show_pv = st.checkbox("Show PV Homes", value=True)
-            with filter_cols[2]:
-                show_ac = st.checkbox("Show AC Homes", value=True)
-            with filter_cols[3]:
-                show_none = st.checkbox("Show Homes without devices", value=False)
-            
-            # Apply filters to household data
-            filtered_households = households_df.copy()
-            device_filters = []
-            
-            if show_ev:
-                device_filters.append(filtered_households['has_ev'] == True)
-            if show_pv:
-                device_filters.append(filtered_households['has_pv'] == True)
-            if show_ac:
-                device_filters.append(filtered_households['has_ac'] == True)
-            
-            if device_filters:
-                # Combine with OR if any device filter is active
-                combined_filter = device_filters[0]
-                for f in device_filters[1:]:
-                    combined_filter = combined_filter | f
-                
-                # Apply the filter
-                if not show_none:
-                    filtered_households = filtered_households[combined_filter]
-            elif not show_none:
-                # If no device filters are active but show_none is False, show no households
-                filtered_households = filtered_households[filtered_households['household_id'] == "NONE"]
-            
-            # Create device-specific dataframes for layered visualization
-            ev_households = filtered_households[filtered_households['has_ev']]
-            pv_households = filtered_households[filtered_households['has_pv']]
-            ac_households = filtered_households[filtered_households['has_ac']]
-            basic_households = filtered_households[~(filtered_households['has_ev'] | filtered_households['has_pv'] | filtered_households['has_ac'])]
-            
-            # Add households with no special devices
-            if len(basic_households) > 0 and show_none:
-                fig.add_trace(go.Scattergeo(
-                    lon=basic_households['lon'],
-                    lat=basic_households['lat'],
-                    text=basic_households['household_id'],
-                    mode='markers',
-                    marker=dict(
-                        size=8,
-                        color=light_purple,
-                        opacity=0.7,
-                        line=dict(width=1, color='white')
-                    ),
-                    name='Basic Homes',
-                    hovertemplate='<b>%{text}</b><br>No special devices<br><extra></extra>'
-                ))
-            
-            # Add AC households
-            if len(ac_households) > 0 and show_ac:
-                fig.add_trace(go.Scattergeo(
-                    lon=ac_households['lon'],
-                    lat=ac_households['lat'],
-                    text=ac_households['household_id'],
-                    mode='markers',
-                    marker=dict(
-                        size=10,
-                        color=green,
-                        opacity=0.8,
-                        line=dict(width=1, color='white'),
-                        symbol='circle'
-                    ),
-                    name='AC Homes',
-                    hovertemplate='<b>%{text}</b><br>Has AC<br>AC: %{customdata[0]:.1f} kWh<br>Grid: %{customdata[1]:.1f} kWh<br><extra></extra>',
-                    customdata=ac_households[['ac_usage', 'grid_consumption']]
-                ))
-            
-            # Add PV households
-            if len(pv_households) > 0 and show_pv:
-                fig.add_trace(go.Scattergeo(
-                    lon=pv_households['lon'],
-                    lat=pv_households['lat'],
-                    text=pv_households['household_id'],
-                    mode='markers',
-                    marker=dict(
-                        size=12,
-                        color=cream,
-                        opacity=0.8,
-                        line=dict(width=1, color='white'),
-                        symbol='diamond'
-                    ),
-                    name='PV Homes',
-                    hovertemplate='<b>%{text}</b><br>Has Solar PV<br>Solar: %{customdata[0]:.1f} kWh<br>Grid: %{customdata[1]:.1f} kWh<br><extra></extra>',
-                    customdata=pv_households[['solar_production', 'grid_consumption']]
-                ))
-            
-            # Add EV households
-            if len(ev_households) > 0 and show_ev:
-                fig.add_trace(go.Scattergeo(
-                    lon=ev_households['lon'],
-                    lat=ev_households['lat'],
-                    text=ev_households['household_id'],
-                    mode='markers',
-                    marker=dict(
-                        size=14,
-                        color=primary_purple,
-                        opacity=0.9,
-                        line=dict(width=1, color='white'),
-                        symbol='star'
-                    ),
-                    name='EV Homes',
-                    hovertemplate='<b>%{text}</b><br>Has EV Charging<br>EV: %{customdata[0]:.1f} kWh<br>Grid: %{customdata[1]:.1f} kWh<br><extra></extra>',
-                    customdata=ev_households[['ev_charging', 'grid_consumption']]
-                ))
-            
-            # Update map layout for zoomed view
-            fig.update_layout(
-                margin=dict(l=0, r=0, t=30, b=0),
-                paper_bgcolor=white,
-                geo=dict(
-                    scope='usa',
-                    center=dict(lat=center_lat, lon=center_lon),
-                    projection_scale=6,  # Higher value = more zoomed in
-                    showlakes=True,
-                    lakecolor=white,
-                    showsubunits=True,
-                    subunitcolor="lightgray"
-                ),
-                coloraxis_colorbar=dict(
-                    title=dict(
-                        text=map_metric,
-                        font=dict(color=dark_purple)
-                    ),
-                    tickfont=dict(color=dark_purple)
-                ),
-                title=f"Household Energy Data in {zoom_state}",
-                legend=dict(
-                    orientation='h',
-                    y=1.02,
-                    x=0.5,
-                    xanchor='center',
-                    bgcolor=white,
-                    font=dict(color=dark_purple)
-                ),
-                height=550
-            )
-            
-            # Display household statistics for the zoomed state
-            # These appear below the map
-            st.subheader(f"Household Statistics for {zoom_state}")
-            
-            stat_cols = st.columns(4)
-            with stat_cols[0]:
-                st.metric(
-                    label="Total Households",
-                    value=len(filtered_households),
-                    help="Number of households shown with current filters"
-                )
-            
-            with stat_cols[1]:
-                ev_percent = (len(ev_households) / len(filtered_households) * 100) if len(filtered_households) > 0 else 0
-                st.metric(
-                    label="EV Adoption",
-                    value=f"{ev_percent:.1f}%",
-                    help="Percentage of households with EV charging"
-                )
-            
-            with stat_cols[2]:
-                pv_percent = (len(pv_households) / len(filtered_households) * 100) if len(filtered_households) > 0 else 0
-                st.metric(
-                    label="Solar PV Adoption",
-                    value=f"{pv_percent:.1f}%",
-                    help="Percentage of households with solar PV systems"
-                )
-            
-            with stat_cols[3]:
-                ac_percent = (len(ac_households) / len(filtered_households) * 100) if len(filtered_households) > 0 else 0
-                st.metric(
-                    label="AC Usage",
-                    value=f"{ac_percent:.1f}%",
-                    help="Percentage of households with air conditioning"
-                )
-        else:
-            # Standard national map view
-            fig.update_layout(
-                margin=dict(l=0, r=0, t=0, b=0),
-                paper_bgcolor=white,
-                geo=dict(
-                    showlakes=True,
-                    lakecolor=white,
-                    showsubunits=True,
-                    subunitcolor="lightgray"
-                ),
-                coloraxis_colorbar=dict(
-                    title=dict(
-                        text=map_metric,
-                        font=dict(color=dark_purple)
-                    ),
-                    tickfont=dict(color=dark_purple)
-                ),
-                height=550
-            )
-        
-        # Add click event handling
-        fig.update_traces(
-            customdata=filtered_geo_df['state'],
-            hovertemplate='<b>%{hovertext}</b><br><extra></extra>'
-        )
-        
-        # Display the map with click events
-        map_container = st.container()
-        with map_container:
-            map_chart = st.plotly_chart(fig, use_container_width=True)
-            st.markdown(js_code, unsafe_allow_html=True)
-            
-        # Note about the data if zoomed in
-        if zoom_state and 'show_zoomed_state' in st.session_state and st.session_state.show_zoomed_state:
-            st.caption("Note: Household data is generated based on state-level metrics and is for demonstration purposes.")
-
-        # After the map visualization, add key statistics
-        # Add summary statistics for the selected metric
-        metric_col = map_metric.split(" (")[0].lower().replace(" ", "_")
-        if metric_col in filtered_geo_df.columns:
-            avg_value = filtered_geo_df[metric_col].mean()
-            min_value = filtered_geo_df[metric_col].min()
-            max_value = filtered_geo_df[metric_col].max()
-            range_value = max_value - min_value
-            
-            st.markdown("### Key Statistics")
-            
-            # Create inline metrics with the same styling as Key Metrics section - full width
-            stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
-            
-            with stat_col1:
-                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-                st.metric(
-                    label="Average",
-                    value=f"{avg_value:.1f}",
-                    help=f"Average {map_metric.lower()} across selected regions"
-                )
-                st.markdown("</div>", unsafe_allow_html=True)
-                
-            with stat_col2:
-                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-                st.metric(
-                    label="Minimum",
-                    value=f"{min_value:.1f}",
-                    help=f"Lowest {map_metric.lower()} in selected regions"
-                )
-                st.markdown("</div>", unsafe_allow_html=True)
-                
-            with stat_col3:
-                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-                st.metric(
-                    label="Maximum",
-                    value=f"{max_value:.1f}",
-                    help=f"Highest {map_metric.lower()} in selected regions"
-                )
-                st.markdown("</div>", unsafe_allow_html=True)
-                
-            with stat_col4:
-                st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-                st.metric(
-                    label="Range",
-                    value=f"{range_value:.1f}",
-                    help=f"Difference between highest and lowest values"
-                )
-                st.markdown("</div>", unsafe_allow_html=True)
-
-    # Solar Production Coverage Analysis 
-    st.subheader("Solar Production Coverage Analysis")
-
-    # Check if we have any homes with solar in the filtered dataset
-    if filtered_df['pv detected'].sum() == 0:
-        st.info("No homes with solar production in the current filtered dataset.")
-    else:
-        # Solar homes only
-        solar_homes = filtered_df[filtered_df['pv detected'] == 1].copy()
-        
-        # Use actual grid consumption for coverage calculation
-        solar_homes['solar_coverage'] = 100 * solar_homes.apply(
-            lambda row: row['solar production (kWh)'] / row['grid (kWh)'] 
-            if row['grid (kWh)'] > 0 else 0, 
-            axis=1
-        )
-        
-        # Create coverage categories for pie chart
-        def categorize_coverage(coverage):
-            if coverage >= 100:
-                return "Exceeds Consumption (100%+)"
-            elif coverage >= 75:
-                return "High Coverage (75-99%)"
-            elif coverage >= 50:
-                return "Medium Coverage (50-74%)"
-            elif coverage >= 25:
-                return "Low Coverage (25-49%)"
-            else:
-                return "Minimal Coverage (<25%)"
-        
-        solar_homes['coverage_category'] = solar_homes['solar_coverage'].apply(categorize_coverage)
-        
-        # Count homes in each category
-        category_counts = solar_homes['coverage_category'].value_counts().reset_index()
-        category_counts.columns = ['Coverage Category', 'Number of Homes']
-        
-        # Define colors and order for pie chart
-        category_order = [
-            "Exceeds Consumption (100%+)",
-            "High Coverage (75-99%)",
-            "Medium Coverage (50-74%)",
-            "Low Coverage (25-49%)",
-            "Minimal Coverage (<25%)"
-        ]
-        
-        # Keep only categories that exist in the data
-        category_order = [cat for cat in category_order if cat in category_counts['Coverage Category'].values]
-        
-        # Sort the dataframe by our custom order
-        category_counts['order'] = category_counts['Coverage Category'].apply(lambda x: category_order.index(x) if x in category_order else 999)
-        category_counts = category_counts.sort_values('order').drop('order', axis=1)
-        
-        # Simple metrics row with team-colored containers
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            # Count homes where solar production exceeds consumption
-            net_positive = (solar_homes['solar_coverage'] >= 100).sum()
-            avg_coverage = solar_homes['solar_coverage'].mean()
-            
-            st.metric(
-                label="Solar Homes",
-                value=f"{len(solar_homes)} ({net_positive} net positive)",
-                help="Number of homes with solar production detected"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            st.metric(
-                label="Average Solar Coverage",
-                value=f"{avg_coverage:.1f}%",
-                help="Average percentage of grid consumption covered by solar production"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        # Create pie chart with team colors
-        fig = px.pie(
-            category_counts,
-            values='Number of Homes',
-            names='Coverage Category',
-            title='Distribution of Solar Coverage Levels',
-            color='Coverage Category',
-            color_discrete_map={
-                "Exceeds Consumption (100%+)": green,
-                "High Coverage (75-99%)": cream,
-                "Medium Coverage (50-74%)": primary_purple,
-                "Low Coverage (25-49%)": dark_purple,
-                "Minimal Coverage (<25%)": salmon
-            },
-        )
-        
-        # Update layout 
-        fig.update_layout(
-            legend_title="Coverage Level",
-            margin=dict(l=20, r=20, t=50, b=20),
-            paper_bgcolor=white,
-            plot_bgcolor=white,
-            font=dict(color=dark_purple),
-            title_font=dict(color=primary_purple),
-            legend=dict(font=dict(color=dark_purple))
-        )
-        
-        fig.update_traces(
-            textinfo='percent+label',
-            hovertemplate='%{label}<br>%{value} homes<br>%{percent}',
-            textfont=dict(color=white)  
-        )
-        
-        # Display the plot
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Minimal explanation 
-        st.markdown(f"""
-        <div style="color:{primary_purple}; font-style:italic; text-align:center; margin-top:-20px;">
-            Solar coverage shows what percentage of each home's total grid consumption is offset by solar production.
-        </div>
-        """, unsafe_allow_html=True)
-
-    # Add footer with primary purple color
-    st.markdown("---")
-    st.markdown(f"""
-    <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
-        This sample output demonstrates the type of insights available from the disaggregation model. 
-        In a full deployment, thousands of households would be analyzed to provide statistically significant patterns and trends.
-    </div>
-    """, unsafe_allow_html=True)
-
-else:  # Performance Metrics page
+elif page == "Performance Metrics":
+    # Performance Metrics page
     # Just one title, with a more comprehensive subheader
-    st.title("NILM Algorithm Performance Dashboard")
+    st.title("NILM Performance Dashboard")
     st.subheader(f"Device Detection Performance Analysis")
     
     # Define metrics data with updated values
@@ -1841,6 +666,7 @@ else:  # Performance Metrics page
             line=dict(
                 color=primary_purple,
                 width=10,
+                dash="dash",
             ),
             opacity=0.3,
             layer="below",
@@ -2290,5 +1116,408 @@ else:  # Performance Metrics page
     <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
         This dashboard presents the performance metrics of our NILM algorithm for detecting various device usage patterns.
         These results help guide model selection and identify areas for further improvement.
+    </div>
+    """, unsafe_allow_html=True)
+
+elif page == "Interactive Map":
+    # Interactive Map page
+    st.title("NILM Deployment Map")
+    st.subheader("Geographic Distribution of Homes with Smart Devices")
+    
+    # Description
+    st.markdown("""
+    This map shows the geographic distribution of homes equipped with NILM-detected devices.
+    **Click on a state** to zoom in and see individual homes with EV chargers, AC units, and solar panels.
+    """)
+    
+    # Create function to generate mock data for US states
+    @st.cache_data
+    def generate_geo_data():
+        # US states with coordinates (approximate centers)
+        states_data = {
+            'CA': {'name': 'California', 'lat': 36.7783, 'lon': -119.4179, 'zoom': 6},
+            'TX': {'name': 'Texas', 'lat': 31.9686, 'lon': -99.9018, 'zoom': 6},
+            'NY': {'name': 'New York', 'lat': 42.1657, 'lon': -74.9481, 'zoom': 7},
+            'FL': {'name': 'Florida', 'lat': 27.6648, 'lon': -81.5158, 'zoom': 6},
+            'IL': {'name': 'Illinois', 'lat': 40.6331, 'lon': -89.3985, 'zoom': 7},
+            'PA': {'name': 'Pennsylvania', 'lat': 41.2033, 'lon': -77.1945, 'zoom': 7},
+            'OH': {'name': 'Ohio', 'lat': 40.4173, 'lon': -82.9071, 'zoom': 7},
+            'MA': {'name': 'Massachusetts', 'lat': 42.4072, 'lon': -71.3824, 'zoom': 8},
+            'WA': {'name': 'Washington', 'lat': 47.7511, 'lon': -120.7401, 'zoom': 7}
+        }
+        
+        # Generate stats for each state
+        for state_code in states_data:
+            state = states_data[state_code]
+            state['total_homes'] = random.randint(150, 500)
+            state['ev_homes'] = random.randint(30, int(state['total_homes'] * 0.3))
+            state['ac_homes'] = random.randint(int(state['total_homes'] * 0.5), int(state['total_homes'] * 0.9))
+            state['pv_homes'] = random.randint(20, int(state['total_homes'] * 0.25))
+        
+        def generate_households(state_code, count=100):
+            """Generate mock household data within a state"""
+            state = states_data[state_code]
+            households = []
+            
+            # Define the spread of points (in degrees)
+            lat_spread = 1.5
+            lon_spread = 1.5
+            
+            for i in range(count):
+                # Randomly place homes around the state center
+                lat = state['lat'] + (random.random() - 0.5) * lat_spread
+                lon = state['lon'] + (random.random() - 0.5) * lon_spread
+                
+                # Assign devices randomly but weighted by state percentages
+                has_ev = random.random() < (state['ev_homes'] / state['total_homes'])
+                has_ac = random.random() < (state['ac_homes'] / state['total_homes'])
+                has_pv = random.random() < (state['pv_homes'] / state['total_homes'])
+                
+                # Ensure at least one device is present
+                if not (has_ev or has_ac or has_pv):
+                    # Assign at least one device
+                    device_type = random.choice(['ev', 'ac', 'pv'])
+                    if device_type == 'ev': has_ev = True
+                    elif device_type == 'ac': has_ac = True
+                    else: has_pv = True
+                
+                # Create household data
+                household = {
+                    'id': f"{state_code}-{i+1}",
+                    'lat': lat,
+                    'lon': lon,
+                    'has_ev': has_ev,
+                    'has_ac': has_ac,
+                    'has_pv': has_pv,
+                    'energy_consumption': random.randint(20, 100),  # kWh per day
+                    'state': state_code
+                }
+                households.append(household)
+            
+            return households
+        
+        # Generate households for each state
+        all_households = []
+        for state_code in states_data:
+            state_households = generate_households(state_code, states_data[state_code]['total_homes'])
+            all_households.extend(state_households)
+        
+        return states_data, all_households
+    
+    # Load GeoJSON data for US states
+    @st.cache_data
+    def load_us_geojson():
+        # Simplified GeoJSON for US states - this is a minimal version
+        us_states = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {"name": "California", "code": "CA"},
+                    "geometry": {"type": "Polygon", "coordinates": [[[-124.3, 32.5], [-124.3, 42.0], [-114.1, 42.0], [-114.1, 32.5], [-124.3, 32.5]]]}
+                },
+                {
+                    "type": "Feature",
+                    "properties": {"name": "Texas", "code": "TX"},
+                    "geometry": {"type": "Polygon", "coordinates": [[[-106.6, 25.8], [-106.6, 36.5], [-93.5, 36.5], [-93.5, 25.8], [-106.6, 25.8]]]}
+                },
+                {
+                    "type": "Feature",
+                    "properties": {"name": "New York", "code": "NY"},
+                    "geometry": {"type": "Polygon", "coordinates": [[[-79.8, 40.5], [-79.8, 45.0], [-71.8, 45.0], [-71.8, 40.5], [-79.8, 40.5]]]}
+                },
+                {
+                    "type": "Feature",
+                    "properties": {"name": "Florida", "code": "FL"},
+                    "geometry": {"type": "Polygon", "coordinates": [[[-87.6, 24.5], [-87.6, 31.0], [-80.0, 31.0], [-80.0, 24.5], [-87.6, 24.5]]]}
+                },
+                {
+                    "type": "Feature",
+                    "properties": {"name": "Illinois", "code": "IL"},
+                    "geometry": {"type": "Polygon", "coordinates": [[[-91.5, 37.0], [-91.5, 42.5], [-87.5, 42.5], [-87.5, 37.0], [-91.5, 37.0]]]}
+                },
+                {
+                    "type": "Feature",
+                    "properties": {"name": "Pennsylvania", "code": "PA"},
+                    "geometry": {"type": "Polygon", "coordinates": [[[-80.5, 39.7], [-80.5, 42.3], [-74.7, 42.3], [-74.7, 39.7], [-80.5, 39.7]]]}
+                },
+                {
+                    "type": "Feature",
+                    "properties": {"name": "Ohio", "code": "OH"},
+                    "geometry": {"type": "Polygon", "coordinates": [[[-84.8, 38.4], [-84.8, 42.0], [-80.5, 42.0], [-80.5, 38.4], [-84.8, 38.4]]]}
+                },
+                {
+                    "type": "Feature",
+                    "properties": {"name": "Massachusetts", "code": "MA"},
+                    "geometry": {"type": "Polygon", "coordinates": [[[-73.5, 41.2], [-73.5, 42.9], [-69.9, 42.9], [-69.9, 41.2], [-73.5, 41.2]]]}
+                },
+                {
+                    "type": "Feature",
+                    "properties": {"name": "Washington", "code": "WA"},
+                    "geometry": {"type": "Polygon", "coordinates": [[[-124.8, 45.5], [-124.8, 49.0], [-116.9, 49.0], [-116.9, 45.5], [-124.8, 45.5]]]}
+                }
+            ]
+        }
+        return us_states
+    
+    # Load the data
+    states_data, households = generate_geo_data()
+    us_states_geojson = load_us_geojson()
+    
+    # Create filter controls in sidebar
+    st.sidebar.markdown("### Map Filters")
+    show_ev = st.sidebar.checkbox("Show EV Chargers", value=True)
+    show_ac = st.sidebar.checkbox("Show AC Units", value=True)
+    show_pv = st.sidebar.checkbox("Show Solar Panels", value=True)
+    
+    # Get state from URL parameter if available
+    params = st.experimental_get_query_params()
+    url_state = params.get("state", [""])[0]
+    
+    if url_state in states_data:
+        selected_state = url_state
+    else:
+        # If no valid state in URL, use the dropdown
+        selected_state = st.selectbox(
+            "Select State to View",
+            options=list(states_data.keys()),
+            format_func=lambda x: states_data[x]['name'],
+            index=0
+        )
+    
+    # Filter households by selected state and device types
+    filtered_households = [
+        h for h in households if 
+        h['state'] == selected_state and
+        ((show_ev and h['has_ev']) or 
+         (show_ac and h['has_ac']) or 
+         (show_pv and h['has_pv']))
+    ]
+    
+    # Display stats for selected state
+    state = states_data[selected_state]
+    st.markdown(f"### {state['name']} Statistics")
+    
+    # Create metrics for the selected state
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Homes", f"{state['total_homes']:,}")
+    with col2:
+        st.metric("Homes with EV Chargers", f"{state['ev_homes']:,}", 
+                 f"{state['ev_homes']/state['total_homes']*100:.1f}%")
+    with col3:
+        st.metric("Homes with AC Units", f"{state['ac_homes']:,}", 
+                 f"{state['ac_homes']/state['total_homes']*100:.1f}%")
+    with col4:
+        st.metric("Homes with Solar Panels", f"{state['pv_homes']:,}", 
+                 f"{state['pv_homes']/state['total_homes']*100:.1f}%")
+    
+    # Create map
+    st.markdown("### Interactive Map")
+    st.markdown("Click on any state to zoom in and view homes with smart devices")
+    
+    # Create two types of maps: overview and detail
+    if selected_state == "":
+        # Overview map of all states
+        m = folium.Map(
+            location=[39.8283, -98.5795],  # Center of US
+            zoom_start=4,
+            tiles="CartoDB positron"
+        )
+        
+        # Add GeoJSON states layer with click functionality
+        folium.GeoJson(
+            us_states_geojson,
+            name="US States",
+            style_function=lambda feature: {
+                'fillColor': primary_purple,
+                'color': 'white',
+                'weight': 1,
+                'fillOpacity': 0.5,
+            },
+            highlight_function=lambda feature: {
+                'fillColor': light_purple,
+                'color': 'white',
+                'weight': 3,
+                'fillOpacity': 0.7,
+            },
+            tooltip=folium.GeoJsonTooltip(
+                fields=['name'],
+                aliases=['State:'],
+                style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px;")
+            ),
+            # Add click handler to zoom to state
+            popup=folium.GeoJsonPopup(
+                fields=['code'],
+                aliases=['Click to zoom:'],
+                style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px;")
+            )
+        ).add_to(m)
+        
+        # Add state markers with statistics
+        for state_code, state_info in states_data.items():
+            # Create popup content with statistics
+            popup_content = f"""
+            <div style="width: 200px;">
+                <h4>{state_info['name']}</h4>
+                <b>Total Homes:</b> {state_info['total_homes']}<br>
+                <b>Homes with EV:</b> {state_info['ev_homes']} ({state_info['ev_homes']/state_info['total_homes']*100:.1f}%)<br>
+                <b>Homes with AC:</b> {state_info['ac_homes']} ({state_info['ac_homes']/state_info['total_homes']*100:.1f}%)<br>
+                <b>Homes with PV:</b> {state_info['pv_homes']} ({state_info['pv_homes']/state_info['total_homes']*100:.1f}%)<br>
+                <a href="?state={state_code}" target="_self">Click to view details</a>
+            </div>
+            """
+            
+            # Add marker
+            folium.Marker(
+                location=[state_info['lat'], state_info['lon']],
+                popup=folium.Popup(popup_content, max_width=300),
+                icon=folium.Icon(icon="info-sign", prefix="fa", color="purple"),
+                tooltip=f"Click for {state_info['name']} statistics"
+            ).add_to(m)
+        
+    else:
+        # Detailed map for selected state
+        m = folium.Map(
+            location=[state['lat'], state['lon']], 
+            zoom_start=state['zoom'],
+            tiles="CartoDB positron"
+        )
+        
+        # Add a back button to the overview map
+        back_button_html = '''
+        <div style="position: absolute; 
+                    top: 10px; left: 10px; width: 100px; height: 30px; 
+                    z-index:9999; font-size:14px; background-color:white; 
+                    border-radius:4px; padding: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.2);">
+            <a href="?" style="color:#515D9A; text-decoration:none; font-weight:bold;">
+                <i class="fa fa-arrow-left"></i> Back
+            </a>
+        </div>
+        '''
+        m.get_root().html.add_child(folium.Element(back_button_html))
+        
+        # Create marker cluster for the households
+        marker_cluster = MarkerCluster().add_to(m)
+        
+        # Device count summary
+        ev_count = sum(1 for h in filtered_households if h['has_ev'])
+        ac_count = sum(1 for h in filtered_households if h['has_ac'])
+        pv_count = sum(1 for h in filtered_households if h['has_pv'])
+        
+        # Add state center marker with summary
+        summary_popup = f"""
+        <div style="width: 200px;">
+            <h4>{state['name']} Summary</h4>
+            <b>Total Displayed Homes:</b> {len(filtered_households)}<br>
+            <b>Homes with EV:</b> {ev_count}<br>
+            <b>Homes with AC:</b> {ac_count}<br>
+            <b>Homes with PV:</b> {pv_count}<br>
+        </div>
+        """
+        
+        folium.Marker(
+            [state['lat'], state['lon']],
+            popup=folium.Popup(summary_popup, max_width=300),
+            icon=folium.Icon(color="purple", icon="info-sign", prefix="fa"),
+            tooltip=f"{state['name']} Summary"
+        ).add_to(m)
+        
+        # Add markers for each household
+        for house in filtered_households:
+            # Determine marker icon based on devices
+            if house['has_ev'] and show_ev:
+                icon_color = "blue"
+                icon_name = "plug"
+            elif house['has_pv'] and show_pv:
+                icon_color = "green"
+                icon_name = "sun"
+            else:
+                icon_color = "orange"
+                icon_name = "home"
+            
+            # Create popup content
+            popup_content = f"""
+            <div style="min-width: 180px;">
+                <h4>Home {house['id']}</h4>
+                <b>Devices:</b><br>
+                {'<i class="fa fa-plug"></i> EV Charger<br>' if house['has_ev'] else ''}
+                {'<i class="fa fa-snowflake-o"></i> AC Unit<br>' if house['has_ac'] else ''}
+                {'<i class="fa fa-sun-o"></i> Solar Panels<br>' if house['has_pv'] else ''}
+                <b>Daily Energy:</b> {house['energy_consumption']} kWh
+            </div>
+            """
+            
+            # Add marker
+            folium.Marker(
+                location=[house['lat'], house['lon']],
+                popup=folium.Popup(popup_content, max_width=300),
+                icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa'),
+                tooltip=f"Home {house['id']}"
+            ).add_to(marker_cluster)
+    
+    # Add a custom layer control
+    folium.LayerControl().add_to(m)
+    
+    # Add a legend
+    legend_html = '''
+    <div style="position: fixed; 
+                bottom: 50px; right: 50px; width: 180px; height: auto;
+                border:2px solid grey; z-index:9999; background-color:white;
+                padding: 10px; font-size:14px; border-radius:6px; box-shadow: 0 0 10px rgba(0,0,0,0.2);">
+        <div style="margin-bottom: 5px;"><strong>Device Types</strong></div>
+        <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <i class="fa fa-circle" style="color:blue; margin-right: 5px;"></i> EV Charger
+        </div>
+        <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <i class="fa fa-circle" style="color:green; margin-right: 5px;"></i> Solar Panels
+        </div>
+        <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <i class="fa fa-circle" style="color:orange; margin-right: 5px;"></i> AC Unit
+        </div>
+        <div style="display: flex; align-items: center;">
+            <i class="fa fa-circle" style="color:purple; margin-right: 5px;"></i> State Summary
+        </div>
+    </div>
+    '''
+    m.get_root().html.add_child(folium.Element(legend_html))
+    
+    # Display the map
+    folium_static(m, width=1000, height=600)
+    
+    # Display data table for the filtered households if a state is selected
+    if selected_state:
+        st.markdown("### Filtered Homes Data")
+        
+        # Convert filtered households to DataFrame for display
+        df_houses = pd.DataFrame([
+            {
+                'Home ID': h['id'],
+                'Has EV Charger': '✓' if h['has_ev'] else '',
+                'Has AC Unit': '✓' if h['has_ac'] else '',
+                'Has Solar Panels': '✓' if h['has_pv'] else '',
+                'Energy Consumption (kWh/day)': h['energy_consumption']
+            }
+            for h in filtered_households
+        ])
+        
+        # Show the data table
+        st.dataframe(df_houses)
+        
+        # Add download button for the data
+        csv = df_houses.to_csv(index=False)
+        st.download_button(
+            label="Download Data as CSV",
+            data=csv,
+            file_name=f"{state['name']}_homes_data.csv",
+            mime="text/csv",
+        )
+    
+    # Footer
+    st.markdown("---")
+    st.markdown(f"""
+    <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
+        This interactive map shows the geographic distribution of homes with different smart devices.
+        Click on a state to zoom in and explore homes with EV chargers, AC units, and solar panels.
     </div>
     """, unsafe_allow_html=True)
