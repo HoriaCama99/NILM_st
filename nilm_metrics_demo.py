@@ -1598,7 +1598,7 @@ elif page == "Interactive Map":
     )
     
     # Get state from URL parameter if available
-    params = st.query_params()
+    params = st.experimental_get_query_params()
     url_state = params.get("state", [""])[0]
     
     # Create map
