@@ -1590,8 +1590,15 @@ elif page == "Interactive Map":
     show_ac = st.sidebar.checkbox("Show AC Units", value=True)
     show_pv = st.sidebar.checkbox("Show Solar Panels", value=True)
     
+    # Map layer selection
+    map_layer = st.sidebar.radio(
+        "Map Layer",
+        ["Street", "Satellite"],
+        index=0
+    )
+    
     # Get state from URL parameter if available
-    params = st.query_params
+    params = st.query_params()
     url_state = params.get("state", [""])[0]
     
     # Create map
@@ -1599,12 +1606,21 @@ elif page == "Interactive Map":
     st.markdown("Click on any state to zoom in and view homes with smart devices")
     st.markdown("**DISCLAIMER:** Currently, the map was generated using synthetic data, for testing purposes.")
     
-    # Check if a state is selected from URL
+    # Create two types of maps: overview and detail
     if url_state in states_data:
         selected_state = url_state
+        state = states_data[selected_state]
+        
+        # Filter households by selected state and device types
+        filtered_households = [
+            h for h in households if 
+            h['state'] == selected_state and
+            ((show_ev and h['has_ev']) or 
+             (show_ac and h['has_ac']) or 
+             (show_pv and h['has_pv']))
+        ]
         
         # Display stats for selected state
-        state = states_data[selected_state]
         st.markdown(f"### {state['name']} Statistics")
         
         # Create metrics for the selected state
@@ -1621,29 +1637,31 @@ elif page == "Interactive Map":
             st.metric("Homes with Solar Panels", f"{state['pv_homes']:,}", 
                      f"{state['pv_homes']/state['total_homes']*100:.1f}%")
         
-        # Filter households for the selected state
-        filtered_households = [
-            h for h in households if 
-            h['state'] == selected_state and
-            ((show_ev and h['has_ev']) or 
-             (show_ac and h['has_ac']) or 
-             (show_pv and h['has_pv']))
-        ]
-        
-        # Create the state detail map
+        # Detailed map for selected state
+        if map_layer == "Street":
+            base_map = "CartoDB positron"
+        else:
+            base_map = "Esri Satellite"
+            
         m = folium.Map(
             location=[state['lat'], state['lon']], 
             zoom_start=state['zoom'],
-            tiles="CartoDB positron"
+            tiles=base_map
         )
         
-        # Add satellite layer
-        folium.TileLayer(
-            tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-            attr='Esri',
-            name='Satellite',
-            overlay=False
-        ).add_to(m)
+        # Add satellite layer as an option
+        if map_layer == "Street":
+            folium.TileLayer(
+                tiles="Esri Satellite",
+                name="Satellite View",
+                attr="Esri"
+            ).add_to(m)
+        else:
+            folium.TileLayer(
+                tiles="CartoDB positron",
+                name="Street View",
+                attr="CartoDB"
+            ).add_to(m)
         
         # Add a back button to the overview map
         back_button_html = '''
@@ -1716,52 +1734,35 @@ elif page == "Interactive Map":
                 icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa'),
                 tooltip=f"Home {house['id']}"
             ).add_to(marker_cluster)
-        
-        # Display data table for the filtered households
-        if len(filtered_households) > 0:
-            st.markdown("### Filtered Homes Data")
-            
-            # Convert filtered households to DataFrame for display
-            df_houses = pd.DataFrame([
-                {
-                    'Home ID': h['id'],
-                    'Has EV Charger': '✓' if h['has_ev'] else '',
-                    'Has AC Unit': '✓' if h['has_ac'] else '',
-                    'Has Solar Panels': '✓' if h['has_pv'] else '',
-                    'Energy Consumption (kWh/day)': h['energy_consumption']
-                }
-                for h in filtered_households
-            ])
-            
-            # Show the data table
-            st.dataframe(df_houses)
-            
-            # Add download button for the data
-            csv = df_houses.to_csv(index=False)
-            st.download_button(
-                label="Download Data as CSV",
-                data=csv,
-                file_name=f"{state['name']}_homes_data.csv",
-                mime="text/csv",
-            )
     else:
         # Overview map of all states
+        if map_layer == "Street":
+            base_map = "CartoDB positron"
+        else:
+            base_map = "Esri Satellite"
+            
         m = folium.Map(
             location=[39.8283, -98.5795],  # Center of US
             zoom_start=4,
-            tiles="CartoDB positron"
+            tiles=base_map
         )
         
-        # Add satellite layer
-        folium.TileLayer(
-            tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-            attr='Esri',
-            name='Satellite',
-            overlay=False
-        ).add_to(m)
+        # Add satellite layer as an option
+        if map_layer == "Street":
+            folium.TileLayer(
+                tiles="Esri Satellite",
+                name="Satellite View",
+                attr="Esri"
+            ).add_to(m)
+        else:
+            folium.TileLayer(
+                tiles="CartoDB positron",
+                name="Street View",
+                attr="CartoDB"
+            ).add_to(m)
         
         # Add GeoJSON states layer with click functionality
-        folium.GeoJson(
+        geojson = folium.GeoJson(
             us_states_geojson,
             name="US States",
             style_function=lambda feature: {
@@ -1780,14 +1781,30 @@ elif page == "Interactive Map":
                 fields=['name'],
                 aliases=['State:'],
                 style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px;")
-            ),
-            # Add click handler to zoom to state
-            popup=folium.GeoJsonPopup(
-                fields=['code'],
-                aliases=['Click to zoom:'],
-                style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px;")
             )
         ).add_to(m)
+        
+        # Add clickable state feature with JavaScript
+        for feature in us_states_geojson['features']:
+            state_code = feature['properties']['code']
+            state_name = feature['properties']['name']
+            
+            # Extract the first coordinate pair to place a click handler
+            coords = feature['geometry']['coordinates'][0][0]
+            lon, lat = coords[0], coords[1]
+            
+            # Add an invisible marker with click functionality
+            folium.Marker(
+                [lat, lon],
+                popup=f'<a href="?state={state_code}" target="_self">View {state_name} details</a>',
+                icon=folium.DivIcon(
+                    icon_size=(0, 0),
+                    html=f'''
+                    <div id="{state_code}_link" style="cursor: pointer;" 
+                         onclick="window.location.href='?state={state_code}'"></div>
+                    '''
+                ),
+            ).add_to(m)
         
         # Add state markers with statistics
         for state_code, state_info in states_data.items():
@@ -1837,8 +1854,52 @@ elif page == "Interactive Map":
     '''
     m.get_root().html.add_child(folium.Element(legend_html))
     
+    # Instructions for map interaction
+    instructions_html = '''
+    <div style="position: fixed; 
+                top: 50px; right: 50px; width: 200px; height: auto;
+                border:2px solid #515D9A; z-index:9999; background-color:white;
+                padding: 10px; font-size:14px; border-radius:6px; box-shadow: 0 0 10px rgba(0,0,0,0.2);">
+        <div style="margin-bottom: 5px; color: #515D9A;"><strong>Map Instructions</strong></div>
+        <ul style="padding-left: 20px; margin: 5px 0;">
+            <li>Click on a state to view homes data</li>
+            <li>Switch between Street and Satellite views</li>
+            <li>Use the layer control to toggle map view</li>
+        </ul>
+    </div>
+    '''
+    m.get_root().html.add_child(folium.Element(instructions_html))
+    
     # Display the map
     folium_static(m, width=1000, height=600)
+    
+    # Display data table for the filtered households if a state is selected
+    if url_state in states_data:
+        st.markdown("### Filtered Homes Data")
+        
+        # Convert filtered households to DataFrame for display
+        df_houses = pd.DataFrame([
+            {
+                'Home ID': h['id'],
+                'Has EV Charger': '✓' if h['has_ev'] else '',
+                'Has AC Unit': '✓' if h['has_ac'] else '',
+                'Has Solar Panels': '✓' if h['has_pv'] else '',
+                'Energy Consumption (kWh/day)': h['energy_consumption']
+            }
+            for h in filtered_households
+        ])
+        
+        # Show the data table
+        st.dataframe(df_houses)
+        
+        # Add download button for the data
+        csv = df_houses.to_csv(index=False)
+        st.download_button(
+            label="Download Data as CSV",
+            data=csv,
+            file_name=f"{state['name']}_homes_data.csv",
+            mime="text/csv",
+        )
     
     # Footer
     st.markdown("---")
