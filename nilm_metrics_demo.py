@@ -1419,39 +1419,20 @@ elif page == "Interactive Map":
             )
         ).add_to(m)
         
-        # Add state markers with statistics
-        for state_code, state_info in states_data.items():
-            # Create popup content with statistics
-            popup_content = f"""
-            <div style="width: 200px;">
-                <h4>{state_info['name']}</h4>
-                <b>Total Homes:</b> {state_info['total_homes']}<br>
-                <b>Homes with EV:</b> {state_info['ev_homes']} ({state_info['ev_homes']/state_info['total_homes']*100:.1f}%)<br>
-                <b>Homes with AC:</b> {state_info['ac_homes']} ({state_info['ac_homes']/state_info['total_homes']*100:.1f}%)<br>
-                <b>Homes with PV:</b> {state_info['pv_homes']} ({state_info['pv_homes']/state_info['total_homes']*100:.1f}%)<br>
-                <a href="?state={state_code}" target="_self">Click to view details</a>
-            </div>
-            """
-            
-            # Add marker
-            folium.Marker(
-                location=[state_info['lat'], state_info['lon']],
-                popup=folium.Popup(popup_content, max_width=300),
-                icon=folium.Icon(icon="info-sign", prefix="fa", color="purple"),
-                tooltip=f"Click for {state_info['name']} statistics"
-            ).add_to(m)
-        
         # Add click handler JavaScript
         click_js = """
         <script>
         document.addEventListener('DOMContentLoaded', function() {
             var map = document.querySelector('#map');
-            map.addEventListener('click', function(e) {
-                var stateCode = e.target.getAttribute('data-state-code');
-                if (stateCode) {
-                    window.location.href = '?state=' + stateCode;
-                }
-            });
+            var statesLayer = map.querySelector('.leaflet-interactive');
+            if (statesLayer) {
+                statesLayer.addEventListener('click', function(e) {
+                    var stateCode = e.target.feature.properties.code;
+                    if (stateCode) {
+                        window.location.href = '?state=' + stateCode;
+                    }
+                });
+            }
         });
         </script>
         """
@@ -1465,20 +1446,20 @@ elif page == "Interactive Map":
             tiles="CartoDB positron"
         )
         
-        # Add state boundary
+        # Add state boundary with specific styling for the selected state
         folium.GeoJson(
             us_states_geojson,
             name="State Boundary",
             style_function=lambda feature: {
                 'fillColor': 'transparent',
-                'color': primary_purple,
-                'weight': 3,
+                'color': primary_purple if feature['properties']['code'] == selected_state else 'lightgray',
+                'weight': 3 if feature['properties']['code'] == selected_state else 1,
                 'fillOpacity': 0.1,
             },
             highlight_function=lambda feature: {
                 'fillColor': 'transparent',
-                'color': light_purple,
-                'weight': 4,
+                'color': light_purple if feature['properties']['code'] == selected_state else 'gray',
+                'weight': 4 if feature['properties']['code'] == selected_state else 2,
                 'fillOpacity': 0.2,
             }
         ).add_to(m)
@@ -1495,65 +1476,6 @@ elif page == "Interactive Map":
         </div>
         '''
         m.get_root().html.add_child(folium.Element(back_button_html))
-        
-        # Create marker cluster for the households
-        marker_cluster = MarkerCluster().add_to(m)
-        
-        # Device count summary
-        ev_count = sum(1 for h in filtered_households if h['has_ev'])
-        ac_count = sum(1 for h in filtered_households if h['has_ac'])
-        pv_count = sum(1 for h in filtered_households if h['has_pv'])
-        
-        # Add state center marker with summary
-        summary_popup = f"""
-        <div style="width: 200px;">
-            <h4>{state['name']} Summary</h4>
-            <b>Total Displayed Homes:</b> {len(filtered_households)}<br>
-            <b>Homes with EV:</b> {ev_count}<br>
-            <b>Homes with AC:</b> {ac_count}<br>
-            <b>Homes with PV:</b> {pv_count}<br>
-        </div>
-        """
-        
-        folium.Marker(
-            [state['lat'], state['lon']],
-            popup=folium.Popup(summary_popup, max_width=300),
-            icon=folium.Icon(color="purple", icon="info-sign", prefix="fa"),
-            tooltip=f"{state['name']} Summary"
-        ).add_to(m)
-        
-        # Add markers for each household
-        for house in filtered_households:
-            # Determine marker icon based on devices
-            if house['has_ev'] and show_ev:
-                icon_color = "blue"
-                icon_name = "plug"
-            elif house['has_pv'] and show_pv:
-                icon_color = "green"
-                icon_name = "sun"
-            else:
-                icon_color = "orange"
-                icon_name = "home"
-            
-            # Create popup content
-            popup_content = f"""
-            <div style="min-width: 180px;">
-                <h4>Home {house['id']}</h4>
-                <b>Devices:</b><br>
-                {'<i class="fa fa-plug"></i> EV Charger<br>' if house['has_ev'] else ''}
-                {'<i class="fa fa-snowflake-o"></i> AC Unit<br>' if house['has_ac'] else ''}
-                {'<i class="fa fa-sun-o"></i> Solar Panels<br>' if house['has_pv'] else ''}
-                <b>Daily Energy:</b> {house['energy_consumption']} kWh
-            </div>
-            """
-            
-            # Add marker
-            folium.Marker(
-                location=[house['lat'], house['lon']],
-                popup=folium.Popup(popup_content, max_width=300),
-                icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa'),
-                tooltip=f"Home {house['id']}"
-            ).add_to(marker_cluster)
     
     # Add a custom layer control
     folium.LayerControl().add_to(m)
