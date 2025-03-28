@@ -15,7 +15,6 @@ from folium.plugins import MarkerCluster
 import plotly.subplots as sp
 from PIL import Image
 import datetime
-from streamlit.runtime.scriptrunner import RerunData, RerunException
 
 # Hide the default Streamlit navigation menu
 st.set_page_config(
@@ -1272,57 +1271,64 @@ elif page == "Interactive Map":
     # Load GeoJSON data for US states
     @st.cache_data
     def load_us_geojson():
-        # Simplified GeoJSON for US states - this is a minimal version
+        # Use a more detailed GeoJSON for US states
+        # This will be replaced by a proper state boundaries GeoJSON
         us_states = {
             "type": "FeatureCollection",
             "features": [
                 {
                     "type": "Feature",
-                    "properties": {"name": "California", "code": "CA"},
+                    "properties": {"name": "California", "code": "CA", "density": 241.7},
                     "geometry": {"type": "Polygon", "coordinates": [[[-124.3, 32.5], [-124.3, 42.0], [-114.1, 42.0], [-114.1, 32.5], [-124.3, 32.5]]]}
                 },
                 {
                     "type": "Feature",
-                    "properties": {"name": "Texas", "code": "TX"},
+                    "properties": {"name": "Texas", "code": "TX", "density": 103.4},
                     "geometry": {"type": "Polygon", "coordinates": [[[-106.6, 25.8], [-106.6, 36.5], [-93.5, 36.5], [-93.5, 25.8], [-106.6, 25.8]]]}
                 },
                 {
                     "type": "Feature",
-                    "properties": {"name": "New York", "code": "NY"},
+                    "properties": {"name": "New York", "code": "NY", "density": 417.2},
                     "geometry": {"type": "Polygon", "coordinates": [[[-79.8, 40.5], [-79.8, 45.0], [-71.8, 45.0], [-71.8, 40.5], [-79.8, 40.5]]]}
                 },
                 {
                     "type": "Feature",
-                    "properties": {"name": "Florida", "code": "FL"},
+                    "properties": {"name": "Florida", "code": "FL", "density": 378.5},
                     "geometry": {"type": "Polygon", "coordinates": [[[-87.6, 24.5], [-87.6, 31.0], [-80.0, 31.0], [-80.0, 24.5], [-87.6, 24.5]]]}
                 },
                 {
                     "type": "Feature",
-                    "properties": {"name": "Illinois", "code": "IL"},
+                    "properties": {"name": "Illinois", "code": "IL", "density": 231.1},
                     "geometry": {"type": "Polygon", "coordinates": [[[-91.5, 37.0], [-91.5, 42.5], [-87.5, 42.5], [-87.5, 37.0], [-91.5, 37.0]]]}
                 },
                 {
                     "type": "Feature",
-                    "properties": {"name": "Pennsylvania", "code": "PA"},
+                    "properties": {"name": "Pennsylvania", "code": "PA", "density": 284.3},
                     "geometry": {"type": "Polygon", "coordinates": [[[-80.5, 39.7], [-80.5, 42.3], [-74.7, 42.3], [-74.7, 39.7], [-80.5, 39.7]]]}
                 },
                 {
                     "type": "Feature",
-                    "properties": {"name": "Ohio", "code": "OH"},
+                    "properties": {"name": "Ohio", "code": "OH", "density": 282.5},
                     "geometry": {"type": "Polygon", "coordinates": [[[-84.8, 38.4], [-84.8, 42.0], [-80.5, 42.0], [-80.5, 38.4], [-84.8, 38.4]]]}
                 },
                 {
                     "type": "Feature",
-                    "properties": {"name": "Massachusetts", "code": "MA"},
+                    "properties": {"name": "Massachusetts", "code": "MA", "density": 863.8},
                     "geometry": {"type": "Polygon", "coordinates": [[[-73.5, 41.2], [-73.5, 42.9], [-69.9, 42.9], [-69.9, 41.2], [-73.5, 41.2]]]}
                 },
                 {
                     "type": "Feature",
-                    "properties": {"name": "Washington", "code": "WA"},
+                    "properties": {"name": "Washington", "code": "WA", "density": 107.9},
                     "geometry": {"type": "Polygon", "coordinates": [[[-124.8, 45.5], [-124.8, 49.0], [-116.9, 49.0], [-116.9, 45.5], [-124.8, 45.5]]]}
                 }
             ]
         }
+        
+        # In a real implementation, you would fetch actual GeoJSON data:
+        # import requests
+        # response = requests.get("https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json")
+        # us_states = response.json()
+        
         return us_states
     
     # Load the data
@@ -1379,8 +1385,22 @@ elif page == "Interactive Map":
     
     # Create map
     st.markdown("### Interactive Map")
-    st.markdown("Click on any state to zoom in and view homes with smart devices")
-    st.markdown("**DISCLAIMER:** Currently, the map was generated using synthetic data, for testing purposes.")
+    
+    # Update the description to explain the interactivity clearly
+    st.markdown("""
+    <div style="background-color: rgba(81, 93, 154, 0.1); padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+        <h4 style="margin-top: 0;">How to Use This Map</h4>
+        <p><strong>🖱️ Click directly on any state</strong> to zoom in and view homes with smart devices.</p>
+        <p>Once zoomed in, you can see individual homes with:</p>
+        <ul>
+            <li>🔌 EV chargers</li>
+            <li>❄️ AC units</li>
+            <li>☀️ Solar panels</li>
+        </ul>
+        <p>Use the <strong>Back to Map</strong> button to return to the overview.</p>
+    </div>
+    <p><em><strong>DISCLAIMER:</strong> Currently, the map was generated using synthetic data, for testing purposes.</em></p>
+    """, unsafe_allow_html=True)
     
     # Create two types of maps: overview and detail
     if selected_state == "":
@@ -1392,38 +1412,99 @@ elif page == "Interactive Map":
         )
         
         # Add GeoJSON states layer with click functionality
-        def style_function(feature):
-            return {
-                'fillColor': primary_purple,
-                'color': 'white',
-                'weight': 1,
-                'fillOpacity': 0.5,
-            }
-
-        def highlight_function(feature):
-            return {
-                'fillColor': light_purple,
-                'color': 'white',
-                'weight': 3,
-                'fillOpacity': 0.7,
-            }
-
-        # Add click handler to zoom to state
-        def on_each_feature(feature, layer):
-            state_code = feature['properties']['code']
-            layer.on_click(lambda x: st.query_params.set("state", state_code))
-
+        style_function = lambda feature: {
+            'fillColor': primary_purple,
+            'color': 'white',
+            'weight': 1,
+            'fillOpacity': 0.5,
+        }
+        
+        highlight_function = lambda feature: {
+            'fillColor': light_purple,
+            'color': 'white',
+            'weight': 3,
+            'fillOpacity': 0.7,
+        }
+        
+        # Custom JavaScript for handling clicks on states
+        click_script = """
+        function (feature, layer) {
+            layer.on({
+                mouseover: function (e) {
+                    var layer = e.target;
+                    layer.setStyle({
+                        fillOpacity: 0.7,
+                        fillColor: '#B8BCF3',
+                        weight: 3,
+                        color: 'white'
+                    });
+                    
+                    if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                        layer.bringToFront();
+                    }
+                },
+                mouseout: function (e) {
+                    var layer = e.target;
+                    layer.setStyle({
+                        fillOpacity: 0.5,
+                        fillColor: '#515D9A',
+                        weight: 1,
+                        color: 'white'
+                    });
+                },
+                click: function (e) {
+                    // Visual feedback on click
+                    var layer = e.target;
+                    layer.setStyle({
+                        fillOpacity: 0.9,
+                        fillColor: '#515D9A',
+                        weight: 4,
+                        color: '#FFFFFF'
+                    });
+                    
+                    // Get the state code
+                    var stateCode = feature.properties.code;
+                    
+                    // Add a small delay for visual feedback before navigating
+                    setTimeout(function() {
+                        window.location.href = "?state=" + stateCode;
+                    }, 300);
+                }
+            });
+        }
+        """
+        
+        # Add the GeoJSON layer with click handler
         folium.GeoJson(
             us_states_geojson,
             name="US States",
             style_function=style_function,
             highlight_function=highlight_function,
             tooltip=folium.GeoJsonTooltip(
-                fields=['name'],
-                aliases=['State:'],
-                style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px;")
+                fields=['name', 'density'],
+                aliases=['State:', 'Population Density:'],
+                labels=True,
+                sticky=True,
+                style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.2);")
             ),
-            on_each_feature=on_each_feature
+            popup=folium.GeoJsonPopup(
+                fields=['name'],
+                aliases=['Click to view devices in:'],
+                style=("background-color: white; color: #333333; font-family: arial; font-size: 14px; padding: 10px; border-radius: 5px; font-weight: bold;")
+            ),
+            script=click_script
+        ).add_to(m)
+        
+        # Add state border lines for clarity
+        folium.GeoJson(
+            us_states_geojson,
+            name="State Borders",
+            style_function=lambda x: {
+                'color': '#666666',
+                'weight': 2,
+                'fillOpacity': 0
+            },
+            tooltip=None
         ).add_to(m)
         
         # Add state markers with statistics
@@ -1436,6 +1517,7 @@ elif page == "Interactive Map":
                 <b>Homes with EV:</b> {state_info['ev_homes']} ({state_info['ev_homes']/state_info['total_homes']*100:.1f}%)<br>
                 <b>Homes with AC:</b> {state_info['ac_homes']} ({state_info['ac_homes']/state_info['total_homes']*100:.1f}%)<br>
                 <b>Homes with PV:</b> {state_info['pv_homes']} ({state_info['pv_homes']/state_info['total_homes']*100:.1f}%)<br>
+                <a href="?state={state_code}" target="_self">Click to view details</a>
             </div>
             """
             
@@ -1455,18 +1537,38 @@ elif page == "Interactive Map":
             tiles="CartoDB positron"
         )
         
-        # Add a back button to the overview map
+        # Add a back button to the overview map with improved styling
         back_button_html = '''
         <div style="position: absolute; 
-                    top: 10px; left: 10px; width: 100px; height: 30px; 
+                    top: 10px; left: 10px; width: 120px; height: 30px; 
                     z-index:9999; font-size:14px; background-color:white; 
-                    border-radius:4px; padding: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.2);">
-            <a href="?" style="color:#515D9A; text-decoration:none; font-weight:bold;">
-                <i class="fa fa-arrow-left"></i> Back
+                    border-radius:4px; padding: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.2);
+                    text-align:center; transition: background-color 0.3s;">
+            <a href="?" style="color:#515D9A; text-decoration:none; font-weight:bold; display:block;">
+                <i class="fa fa-arrow-left"></i> Back to Map
             </a>
         </div>
         '''
         m.get_root().html.add_child(folium.Element(back_button_html))
+        
+        # Add state boundaries to the detail view
+        # Create a GeoJSON layer just for this state (if we had full US GeoJSON)
+        if selected_state in [feature['properties']['code'] for feature in us_states_geojson['features']]:
+            # Find the state feature
+            state_feature = next(feature for feature in us_states_geojson['features'] 
+                                if feature['properties']['code'] == selected_state)
+            
+            # Add just this state's boundary
+            folium.GeoJson(
+                {"type": "FeatureCollection", "features": [state_feature]},
+                name=f"{state['name']} Boundary",
+                style_function=lambda x: {
+                    'color': primary_purple,
+                    'weight': 3,
+                    'fillOpacity': 0.1,
+                    'fillColor': light_purple
+                }
+            ).add_to(m)
         
         # Create marker cluster for the households
         marker_cluster = MarkerCluster().add_to(m)
@@ -1478,14 +1580,66 @@ elif page == "Interactive Map":
         
         # Add state center marker with summary
         summary_popup = f"""
-        <div style="width: 200px;">
-            <h4>{state['name']} Summary</h4>
-            <b>Total Displayed Homes:</b> {len(filtered_households)}<br>
-            <b>Homes with EV:</b> {ev_count}<br>
-            <b>Homes with AC:</b> {ac_count}<br>
-            <b>Homes with PV:</b> {pv_count}<br>
+        <div style="width: 240px; padding: 10px;">
+            <h4 style="margin-top: 0; color: #515D9A; border-bottom: 2px solid #515D9A; padding-bottom: 5px; margin-bottom: 10px;">{state['name']} Summary</h4>
+            <div style="display: flex; margin-bottom: 5px;">
+                <div style="width: 30px; text-align: center;"><i class="fa fa-home" style="color: #515D9A;"></i></div>
+                <div><b>Total Homes:</b> {len(filtered_households)}</div>
+            </div>
+            <div style="display: flex; margin-bottom: 5px;">
+                <div style="width: 30px; text-align: center;"><i class="fa fa-plug" style="color: #515D9A;"></i></div>
+                <div><b>EV Chargers:</b> {ev_count} ({ev_count/len(filtered_households)*100:.1f}%)</div>
+            </div>
+            <div style="display: flex; margin-bottom: 5px;">
+                <div style="width: 30px; text-align: center;"><i class="fa fa-snowflake-o" style="color: #515D9A;"></i></div>
+                <div><b>AC Units:</b> {ac_count} ({ac_count/len(filtered_households)*100:.1f}%)</div>
+            </div>
+            <div style="display: flex;">
+                <div style="width: 30px; text-align: center;"><i class="fa fa-sun-o" style="color: #515D9A;"></i></div>
+                <div><b>Solar Panels:</b> {pv_count} ({pv_count/len(filtered_households)*100:.1f}%)</div>
+            </div>
         </div>
         """
+        
+        # Add a state information panel to the map
+        info_panel_html = f"""
+        <div id="state-info-panel" style="
+            position: absolute; 
+            top: 10px; 
+            right: 10px; 
+            width: 260px;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            padding: 15px;
+            z-index: 1000;
+            font-family: Arial, sans-serif;
+        ">
+            <h3 style="margin-top: 0; color: #515D9A; border-bottom: 2px solid #515D9A; padding-bottom: 5px;">{state['name']}</h3>
+            <div style="margin-bottom: 15px;">
+                <div style="font-weight: bold; margin-bottom: 5px;">Device Distribution:</div>
+                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                    <i class="fa fa-plug" style="color: blue; margin-right: 10px; width: 15px;"></i>
+                    <div style="flex-grow: 1;">EV Chargers</div>
+                    <div style="font-weight: bold;">{ev_count}/{len(filtered_households)}</div>
+                </div>
+                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                    <i class="fa fa-snowflake-o" style="color: orange; margin-right: 10px; width: 15px;"></i>
+                    <div style="flex-grow: 1;">AC Units</div>
+                    <div style="font-weight: bold;">{ac_count}/{len(filtered_households)}</div>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <i class="fa fa-sun-o" style="color: green; margin-right: 10px; width: 15px;"></i>
+                    <div style="flex-grow: 1;">Solar Panels</div>
+                    <div style="font-weight: bold;">{pv_count}/{len(filtered_households)}</div>
+                </div>
+            </div>
+            <div style="font-size: 12px; font-style: italic; color: #666;">
+                Click on markers to view device details for each home
+            </div>
+        </div>
+        """
+        m.get_root().html.add_child(folium.Element(info_panel_html))
         
         folium.Marker(
             [state['lat'], state['lon']],
@@ -1509,22 +1663,67 @@ elif page == "Interactive Map":
             
             # Create popup content
             popup_content = f"""
-            <div style="min-width: 180px;">
-                <h4>Home {house['id']}</h4>
-                <b>Devices:</b><br>
-                {'<i class="fa fa-plug"></i> EV Charger<br>' if house['has_ev'] else ''}
-                {'<i class="fa fa-snowflake-o"></i> AC Unit<br>' if house['has_ac'] else ''}
-                {'<i class="fa fa-sun-o"></i> Solar Panels<br>' if house['has_pv'] else ''}
-                <b>Daily Energy:</b> {house['energy_consumption']} kWh
+            <div style="min-width: 220px; padding: 10px;">
+                <h4 style="margin-top: 0; color: #515D9A; border-bottom: 2px solid #515D9A; padding-bottom: 5px;">Home {house['id']}</h4>
+                
+                <div style="margin-top: 10px; margin-bottom: 10px;">
+                    <div style="font-weight: bold; margin-bottom: 5px;">Installed Devices:</div>
+                    <div style="display: flex; margin-bottom: 5px; align-items: center;">
+                        <div style="width: 20px; text-align: center; margin-right: 5px;">
+                            <i class="fa {'fa-check-circle' if house['has_ev'] else 'fa-times-circle'}" 
+                               style="color: {'#3366cc' if house['has_ev'] else '#cccccc'}; font-size: 16px;"></i>
+                        </div>
+                        <div>EV Charger</div>
+                    </div>
+                    <div style="display: flex; margin-bottom: 5px; align-items: center;">
+                        <div style="width: 20px; text-align: center; margin-right: 5px;">
+                            <i class="fa {'fa-check-circle' if house['has_ac'] else 'fa-times-circle'}" 
+                               style="color: {'#ff9900' if house['has_ac'] else '#cccccc'}; font-size: 16px;"></i>
+                        </div>
+                        <div>AC Unit</div>
+                    </div>
+                    <div style="display: flex; align-items: center;">
+                        <div style="width: 20px; text-align: center; margin-right: 5px;">
+                            <i class="fa {'fa-check-circle' if house['has_pv'] else 'fa-times-circle'}" 
+                               style="color: {'#66cc66' if house['has_pv'] else '#cccccc'}; font-size: 16px;"></i>
+                        </div>
+                        <div>Solar Panels</div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 15px; display: flex; align-items: center;">
+                    <div style="width: 20px; text-align: center; margin-right: 5px;">
+                        <i class="fa fa-bolt" style="color: #515D9A;"></i>
+                    </div>
+                    <div><b>Daily Energy:</b> {house['energy_consumption']} kWh</div>
+                </div>
             </div>
             """
+            
+            # Determine tooltip text based on devices
+            if house['has_ev'] and house['has_ac'] and house['has_pv']:
+                tooltip_text = f"Home with EV, AC & Solar"
+            elif house['has_ev'] and house['has_ac']:
+                tooltip_text = f"Home with EV & AC"
+            elif house['has_ev'] and house['has_pv']:
+                tooltip_text = f"Home with EV & Solar"
+            elif house['has_ac'] and house['has_pv']:
+                tooltip_text = f"Home with AC & Solar"
+            elif house['has_ev']:
+                tooltip_text = f"Home with EV Charger"
+            elif house['has_ac']:
+                tooltip_text = f"Home with AC Unit"
+            elif house['has_pv']:
+                tooltip_text = f"Home with Solar Panels"
+            else:
+                tooltip_text = f"Home {house['id']}"
             
             # Add marker
             folium.Marker(
                 location=[house['lat'], house['lon']],
                 popup=folium.Popup(popup_content, max_width=300),
                 icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa'),
-                tooltip=f"Home {house['id']}"
+                tooltip=tooltip_text
             ).add_to(marker_cluster)
     
     # Add a custom layer control
@@ -1591,12 +1790,4 @@ elif page == "Interactive Map":
         This interactive map shows the geographic distribution of homes with different smart devices.
         Click on a state to zoom in and explore homes with EV chargers, AC units, and solar panels.
     </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("""
-    <style>
-        .folium-map {
-            cursor: pointer;
-        }
-    </style>
     """, unsafe_allow_html=True)
