@@ -1510,7 +1510,8 @@ elif page == "Interactive Map":
             // Create a function for navigation that works for both direct and popup clicks
             function navigateToState(stateCode) {
                 console.log("Navigating to state: " + stateCode);
-                window.location.href = "?state=" + stateCode;
+                // Use window.location.search instead of href to avoid opening a new page
+                window.location.search = "state=" + stateCode;
             }
             
             // Add a direct click handler
@@ -1620,7 +1621,7 @@ elif page == "Interactive Map":
                 <b>Homes with EV:</b> {state_info['ev_homes']} ({state_info['ev_homes']/state_info['total_homes']*100:.1f}%)<br>
                 <b>Homes with AC:</b> {state_info['ac_homes']} ({state_info['ac_homes']/state_info['total_homes']*100:.1f}%)<br>
                 <b>Homes with PV:</b> {state_info['pv_homes']} ({state_info['pv_homes']/state_info['total_homes']*100:.1f}%)<br>
-                <a href="?state={state_code}" target="_self">Click to view details</a>
+                <a href="javascript:void(0);" onclick="window.location.search='state={state_code}'" style="color: #515D9A; font-weight: bold;">Click to view details</a>
             </div>
             """
             
@@ -1648,7 +1649,7 @@ elif page == "Interactive Map":
                     border-radius:6px; padding: 8px; box-shadow: 0 3px 12px rgba(0,0,0,0.4);
                     text-align:center; transition: all 0.2s ease; cursor:pointer;
                     border: 3px solid #515D9A;">
-            <a href="?" id="back-link" style="color:#515D9A; text-decoration:none; font-weight:bold; display:flex; align-items:center; justify-content:center; width: 100%; height: 100%;">
+            <a href="javascript:void(0);" id="back-link" style="color:#515D9A; text-decoration:none; font-weight:bold; display:flex; align-items:center; justify-content:center; width: 100%; height: 100%;">
                 <i class="fa fa-arrow-left" style="margin-right: 8px; font-size: 18px;"></i> Back to Map
             </a>
         </div>
@@ -1660,11 +1661,16 @@ elif page == "Interactive Map":
                 var backButton = document.getElementById('back-button');
                 var backLink = document.getElementById('back-link');
                 
+                function navigateToOverview() {
+                    // Use window.location.search instead of href to avoid opening a new page
+                    window.location.search = '';
+                }
+                
                 if (backButton) {
                     // Direct click on button area
                     backButton.addEventListener('click', function(e) {
                         e.preventDefault();
-                        window.location.href = "?";
+                        navigateToOverview();
                     });
                     
                     // Hover effects
@@ -1694,7 +1700,7 @@ elif page == "Interactive Map":
                     // Link click event
                     backLink.addEventListener('click', function(e) {
                         e.preventDefault();
-                        window.location.href = "?";
+                        navigateToOverview();
                     });
                 }
                 
@@ -1944,7 +1950,7 @@ elif page == "Interactive Map":
     if selected_state:
         st.markdown("""
         <div style="text-align: center; margin-top: 20px;">
-            <a href="?" style="display: inline-block; padding: 10px 20px; background-color: #515D9A; 
+            <a href="javascript:void(0);" onclick="window.location.search=''" style="display: inline-block; padding: 10px 20px; background-color: #515D9A; 
                    color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
                 ← Return to US Map Overview
             </a>
