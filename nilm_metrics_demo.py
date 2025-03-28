@@ -1946,16 +1946,6 @@ elif page == "Interactive Map":
     # Display the map
     folium_static(m, width=1000, height=600)
     
-    # Add a fallback back button at the bottom for detailed state view
-    if selected_state:
-        st.markdown("""
-        <div style="text-align: center; margin-top: 20px;">
-            <a href="javascript:void(0);" onclick="window.location.search=''" style="display: inline-block; padding: 10px 20px; background-color: #515D9A; 
-                   color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                ← Return to US Map Overview
-            </a>
-        </div>
-        """, unsafe_allow_html=True)
     
     # Display data table for the filtered households if a state is selected
     if selected_state:
