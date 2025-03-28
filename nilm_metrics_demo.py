@@ -1423,7 +1423,7 @@ elif page == "Interactive Map":
             back_button = st.button("← Back to Map Overview", type="primary", use_container_width=True)
             if back_button:
                 st.query_params.clear()
-                st.experimental_rerun()
+                st.rerun()
 
         # Add a note about the map navigation in the second column
         with back_cols[1]:
@@ -1643,45 +1643,79 @@ elif page == "Interactive Map":
         # Add a back button to the overview map with improved styling
         back_button_html = '''
         <div id="back-button" style="position: absolute; 
-                    top: 10px; left: 10px; width: 130px; height: 35px; 
-                    z-index:99999; font-size:14px; background-color:#FFFFFF; 
-                    border-radius:5px; padding: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-                    text-align:center; transition: all 0.2s ease; cursor: pointer;
-                    border: 2px solid #515D9A;">
-            <a href="?" style="color:#515D9A; text-decoration:none; font-weight:bold; display:flex; align-items:center; justify-content:center; width: 100%; height: 100%;">
-                <i class="fa fa-arrow-left" style="margin-right: 5px;"></i> Back to Map
+                    top: 10px; left: 10px; width: 140px; height: 40px; 
+                    z-index:9999999; font-size:15px; background-color:#FFFFFF; 
+                    border-radius:6px; padding: 8px; box-shadow: 0 3px 12px rgba(0,0,0,0.4);
+                    text-align:center; transition: all 0.2s ease; cursor:pointer;
+                    border: 3px solid #515D9A;">
+            <a href="?" id="back-link" style="color:#515D9A; text-decoration:none; font-weight:bold; display:flex; align-items:center; justify-content:center; width: 100%; height: 100%;">
+                <i class="fa fa-arrow-left" style="margin-right: 8px; font-size: 18px;"></i> Back to Map
             </a>
         </div>
         
         <script>
-        // Make sure the back button works by adding a direct click handler
+        // Make sure the back button works by adding multiple event handlers
         setTimeout(function() {
-            var backButton = document.getElementById('back-button');
-            if (backButton) {
-                backButton.addEventListener('click', function() {
-                    window.location.href = "?";
-                });
+            try {
+                var backButton = document.getElementById('back-button');
+                var backLink = document.getElementById('back-link');
                 
-                // Add hover effect for better UX
-                backButton.addEventListener('mouseover', function() {
-                    this.style.backgroundColor = "#f0f5ff";
-                    this.style.boxShadow = "0 4px 12px rgba(0,0,0,0.4)";
-                });
-                backButton.addEventListener('mouseout', function() {
-                    this.style.backgroundColor = "#FFFFFF";
-                    this.style.boxShadow = "0 2px 10px rgba(0,0,0,0.3)";
-                });
+                if (backButton) {
+                    // Direct click on button area
+                    backButton.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        window.location.href = "?";
+                    });
+                    
+                    // Hover effects
+                    backButton.addEventListener('mouseover', function() {
+                        this.style.backgroundColor = "#f0f5ff";
+                        this.style.boxShadow = "0 4px 15px rgba(0,0,0,0.4)";
+                        this.style.transform = "translateY(-2px)";
+                    });
+                    
+                    backButton.addEventListener('mouseout', function() {
+                        this.style.backgroundColor = "#FFFFFF";
+                        this.style.boxShadow = "0 3px 12px rgba(0,0,0,0.4)";
+                        this.style.transform = "translateY(0)";
+                    });
+                    
+                    // Active effect
+                    backButton.addEventListener('mousedown', function() {
+                        this.style.transform = "scale(0.97)";
+                    });
+                    
+                    backButton.addEventListener('mouseup', function() {
+                        this.style.transform = "scale(1)";
+                    });
+                }
                 
-                // Add active effect for better UX
-                backButton.addEventListener('mousedown', function() {
-                    this.style.transform = "scale(0.97)";
-                });
-                backButton.addEventListener('mouseup', function() {
-                    this.style.transform = "scale(1)";
-                });
+                if (backLink) {
+                    // Link click event
+                    backLink.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        window.location.href = "?";
+                    });
+                }
                 
-                // Additional positioning to ensure visibility
-                document.querySelector('.leaflet-top.leaflet-left').style.top = "50px";
+                // Ensure map controls don't overlap with button
+                var leftControls = document.querySelector('.leaflet-top.leaflet-left');
+                if (leftControls) {
+                    leftControls.style.top = "60px";
+                }
+                
+                // Add a pulsing effect to draw attention to the button
+                setTimeout(function() {
+                    if (backButton) {
+                        backButton.style.transform = "scale(1.05)";
+                        setTimeout(function() {
+                            backButton.style.transform = "scale(1)";
+                        }, 300);
+                    }
+                }, 1000);
+                
+            } catch(e) {
+                console.error("Error setting up back button:", e);
             }
         }, 300);
         </script>
@@ -1905,6 +1939,17 @@ elif page == "Interactive Map":
     
     # Display the map
     folium_static(m, width=1000, height=600)
+    
+    # Add a fallback back button at the bottom for detailed state view
+    if selected_state:
+        st.markdown("""
+        <div style="text-align: center; margin-top: 20px;">
+            <a href="?" style="display: inline-block; padding: 10px 20px; background-color: #515D9A; 
+                   color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                ← Return to US Map Overview
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
     
     # Display data table for the filtered households if a state is selected
     if selected_state:
