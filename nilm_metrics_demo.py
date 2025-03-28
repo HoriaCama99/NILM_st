@@ -909,6 +909,22 @@ elif page == "Performance Metrics":
             font=dict(color=dark_purple, size=10)
         )
         
+        # Add disclaimer about V6 FPR bias
+        fig.add_annotation(
+            x=0.98,
+            y=0.03,
+            xref="paper",
+            yref="paper",
+            text="Disclaimer: V6 model FPR is biased towards false negatives",
+            showarrow=False,
+            bgcolor="rgba(255, 255, 255, 0.8)",
+            bordercolor=red,
+            borderwidth=1,
+            borderpad=4,
+            font=dict(color=dark_purple, size=10),
+            align="right"
+        )
+        
         st.plotly_chart(fig, use_container_width=True)
 
     with metric_tabs[1]:  # FPR tab
