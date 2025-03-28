@@ -15,6 +15,7 @@ from folium.plugins import MarkerCluster
 import plotly.subplots as sp
 from PIL import Image
 import datetime
+from streamlit.runtime.scriptrunner import RerunData, RerunException
 
 # Hide the default Streamlit navigation menu
 st.set_page_config(
@@ -1391,56 +1392,38 @@ elif page == "Interactive Map":
         )
         
         # Add GeoJSON states layer with click functionality
-        folium.GeoJson(
-            us_states_geojson,
-            name="US States",
-            style_function=lambda feature: {
+        def style_function(feature):
+            return {
                 'fillColor': primary_purple,
-                'color': 'white',  # State boundary color
-                'weight': 2,       # Thicker state boundaries
+                'color': 'white',
+                'weight': 1,
                 'fillOpacity': 0.5,
-            },
-            highlight_function=lambda feature: {
+            }
+
+        def highlight_function(feature):
+            return {
                 'fillColor': light_purple,
                 'color': 'white',
                 'weight': 3,
                 'fillOpacity': 0.7,
-            },
+            }
+
+        # Add click handler to zoom to state
+        def on_each_feature(feature, layer):
+            state_code = feature['properties']['code']
+            layer.on_click(lambda x: st.query_params.set("state", state_code))
+
+        folium.GeoJson(
+            us_states_geojson,
+            name="US States",
+            style_function=style_function,
+            highlight_function=highlight_function,
             tooltip=folium.GeoJsonTooltip(
                 fields=['name'],
                 aliases=['State:'],
                 style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px;")
             ),
-            # Add click handler to zoom to state
-            popup=folium.GeoJsonPopup(
-                fields=['code'],
-                aliases=['Click to zoom:'],
-                style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px;")
-            )
-        ).add_to(m)
-        
-        # Add JavaScript click handler to update URL and reload
-        click_handler = """
-        <script>
-            function onEachFeature(feature, layer) {
-                layer.on('click', function(e) {
-                    const stateCode = feature.properties.code;
-                    window.location.href = `?state=${stateCode}`;
-                });
-            }
-        </script>
-        """
-        m.get_root().html.add_child(folium.Element(click_handler))
-        
-        # Add state boundary layer for better visibility
-        folium.GeoJson(
-            us_states_geojson,
-            name="State Boundaries",
-            style_function=lambda feature: {
-                'color': 'white',
-                'weight': 2,
-                'fillOpacity': 0,  # No fill, just boundaries
-            }
+            on_each_feature=on_each_feature
         ).add_to(m)
         
         # Add state markers with statistics
@@ -1453,7 +1436,6 @@ elif page == "Interactive Map":
                 <b>Homes with EV:</b> {state_info['ev_homes']} ({state_info['ev_homes']/state_info['total_homes']*100:.1f}%)<br>
                 <b>Homes with AC:</b> {state_info['ac_homes']} ({state_info['ac_homes']/state_info['total_homes']*100:.1f}%)<br>
                 <b>Homes with PV:</b> {state_info['pv_homes']} ({state_info['pv_homes']/state_info['total_homes']*100:.1f}%)<br>
-                <a href="?state={state_code}" target="_self">Click to view details</a>
             </div>
             """
             
@@ -1609,4 +1591,12 @@ elif page == "Interactive Map":
         This interactive map shows the geographic distribution of homes with different smart devices.
         Click on a state to zoom in and explore homes with EV chargers, AC units, and solar panels.
     </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <style>
+        .folium-map {
+            cursor: pointer;
+        }
+    </style>
     """, unsafe_allow_html=True)
