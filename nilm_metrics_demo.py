@@ -15,6 +15,7 @@ from folium.plugins import MarkerCluster
 import plotly.subplots as sp
 from PIL import Image
 import datetime
+import requests
 
 # Hide the default Streamlit navigation menu
 st.set_page_config(
@@ -1271,65 +1272,97 @@ elif page == "Interactive Map":
     # Load GeoJSON data for US states
     @st.cache_data
     def load_us_geojson():
-        # Use a more detailed GeoJSON for US states
-        # This will be replaced by a proper state boundaries GeoJSON
-        us_states = {
-            "type": "FeatureCollection",
-            "features": [
-                {
-                    "type": "Feature",
-                    "properties": {"name": "California", "code": "CA", "density": 241.7},
-                    "geometry": {"type": "Polygon", "coordinates": [[[-124.3, 32.5], [-124.3, 42.0], [-114.1, 42.0], [-114.1, 32.5], [-124.3, 32.5]]]}
-                },
-                {
-                    "type": "Feature",
-                    "properties": {"name": "Texas", "code": "TX", "density": 103.4},
-                    "geometry": {"type": "Polygon", "coordinates": [[[-106.6, 25.8], [-106.6, 36.5], [-93.5, 36.5], [-93.5, 25.8], [-106.6, 25.8]]]}
-                },
-                {
-                    "type": "Feature",
-                    "properties": {"name": "New York", "code": "NY", "density": 417.2},
-                    "geometry": {"type": "Polygon", "coordinates": [[[-79.8, 40.5], [-79.8, 45.0], [-71.8, 45.0], [-71.8, 40.5], [-79.8, 40.5]]]}
-                },
-                {
-                    "type": "Feature",
-                    "properties": {"name": "Florida", "code": "FL", "density": 378.5},
-                    "geometry": {"type": "Polygon", "coordinates": [[[-87.6, 24.5], [-87.6, 31.0], [-80.0, 31.0], [-80.0, 24.5], [-87.6, 24.5]]]}
-                },
-                {
-                    "type": "Feature",
-                    "properties": {"name": "Illinois", "code": "IL", "density": 231.1},
-                    "geometry": {"type": "Polygon", "coordinates": [[[-91.5, 37.0], [-91.5, 42.5], [-87.5, 42.5], [-87.5, 37.0], [-91.5, 37.0]]]}
-                },
-                {
-                    "type": "Feature",
-                    "properties": {"name": "Pennsylvania", "code": "PA", "density": 284.3},
-                    "geometry": {"type": "Polygon", "coordinates": [[[-80.5, 39.7], [-80.5, 42.3], [-74.7, 42.3], [-74.7, 39.7], [-80.5, 39.7]]]}
-                },
-                {
-                    "type": "Feature",
-                    "properties": {"name": "Ohio", "code": "OH", "density": 282.5},
-                    "geometry": {"type": "Polygon", "coordinates": [[[-84.8, 38.4], [-84.8, 42.0], [-80.5, 42.0], [-80.5, 38.4], [-84.8, 38.4]]]}
-                },
-                {
-                    "type": "Feature",
-                    "properties": {"name": "Massachusetts", "code": "MA", "density": 863.8},
-                    "geometry": {"type": "Polygon", "coordinates": [[[-73.5, 41.2], [-73.5, 42.9], [-69.9, 42.9], [-69.9, 41.2], [-73.5, 41.2]]]}
-                },
-                {
-                    "type": "Feature",
-                    "properties": {"name": "Washington", "code": "WA", "density": 107.9},
-                    "geometry": {"type": "Polygon", "coordinates": [[[-124.8, 45.5], [-124.8, 49.0], [-116.9, 49.0], [-116.9, 45.5], [-124.8, 45.5]]]}
-                }
-            ]
-        }
+        # Use actual GeoJSON data from an external source for more accurate state boundaries
+        import requests
         
-        # In a real implementation, you would fetch actual GeoJSON data:
-        # import requests
-        # response = requests.get("https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json")
-        # us_states = response.json()
-        
-        return us_states
+        try:
+            # Try to fetch real US state boundary data
+            response = requests.get("https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json")
+            us_states = response.json()
+            
+            # Filter to only include our selected states
+            state_codes = ['CA', 'TX', 'NY', 'FL', 'IL', 'PA', 'OH', 'MA', 'WA']
+            us_states['features'] = [f for f in us_states['features'] 
+                                    if f['id'] in state_codes]
+            
+            # Add our custom density data to real boundaries
+            state_density = {
+                'CA': 241.7,
+                'TX': 103.4,
+                'NY': 417.2,
+                'FL': 378.5,
+                'IL': 231.1,
+                'PA': 284.3,
+                'OH': 282.5,
+                'MA': 863.8,
+                'WA': 107.9
+            }
+            
+            # Update properties to include our code format and density data
+            for feature in us_states['features']:
+                state_id = feature['id']
+                feature['properties']['code'] = state_id
+                feature['properties']['density'] = state_density.get(state_id, 0)
+            
+            return us_states
+            
+        except Exception as e:
+            # Fallback to simplified geometry if network fetch fails
+            st.warning(f"Couldn't fetch US state boundaries, using simplified fallback data.")
+            
+            # Use a simplified version as backup
+            us_states = {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "California", "code": "CA", "density": 241.7},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-124.3, 32.5], [-124.3, 42.0], [-114.1, 42.0], [-114.1, 32.5], [-124.3, 32.5]]]}
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "Texas", "code": "TX", "density": 103.4},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-106.6, 25.8], [-106.6, 36.5], [-93.5, 36.5], [-93.5, 25.8], [-106.6, 25.8]]]}
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "New York", "code": "NY", "density": 417.2},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-79.8, 40.5], [-79.8, 45.0], [-71.8, 45.0], [-71.8, 40.5], [-79.8, 40.5]]]}
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "Florida", "code": "FL", "density": 378.5},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-87.6, 24.5], [-87.6, 31.0], [-80.0, 31.0], [-80.0, 24.5], [-87.6, 24.5]]]}
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "Illinois", "code": "IL", "density": 231.1},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-91.5, 37.0], [-91.5, 42.5], [-87.5, 42.5], [-87.5, 37.0], [-91.5, 37.0]]]}
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "Pennsylvania", "code": "PA", "density": 284.3},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-80.5, 39.7], [-80.5, 42.3], [-74.7, 42.3], [-74.7, 39.7], [-80.5, 39.7]]]}
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "Ohio", "code": "OH", "density": 282.5},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-84.8, 38.4], [-84.8, 42.0], [-80.5, 42.0], [-80.5, 38.4], [-84.8, 38.4]]]}
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "Massachusetts", "code": "MA", "density": 863.8},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-73.5, 41.2], [-73.5, 42.9], [-69.9, 42.9], [-69.9, 41.2], [-73.5, 41.2]]]}
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "Washington", "code": "WA", "density": 107.9},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-124.8, 45.5], [-124.8, 49.0], [-116.9, 49.0], [-116.9, 45.5], [-124.8, 45.5]]]}
+                    }
+                ]
+            }
+            
+            return us_states
     
     # Load the data
     states_data, households = generate_geo_data()
@@ -1345,16 +1378,31 @@ elif page == "Interactive Map":
     params = st.query_params
     url_state = params.get("state", [""])[0]
     
+    # Set the default selected state to empty string for the map overview
+    selected_state = ""
+
+    # Check if we have a valid state from URL parameters
     if url_state in states_data:
         selected_state = url_state
+        # Hide the state selection dropdown when a state is selected via URL
+        st.markdown("""
+        <style>
+        /* Hide the state selection dropdown when viewing a state detail */
+        div[data-testid="stSelectbox"] {display: none !important;}
+        </style>
+        """, unsafe_allow_html=True)
     else:
-        # If no valid state in URL, use the dropdown
-        selected_state = st.selectbox(
+        # If no valid state in URL, use the dropdown but keep it hidden on the map page
+        selected_state_dropdown = st.selectbox(
             "Select State to View",
             options=list(states_data.keys()),
             format_func=lambda x: states_data[x]['name'],
             index=0
         )
+        
+        # Only use the dropdown value if we're not in map overview mode
+        if selected_state_dropdown:
+            selected_state = selected_state_dropdown
     
     # Filter households by selected state and device types
     filtered_households = [
@@ -1366,22 +1414,31 @@ elif page == "Interactive Map":
     ]
     
     # Display stats for selected state
-    state = states_data[selected_state]
-    st.markdown(f"### {state['name']} Statistics")
-    
-    # Create metrics for the selected state
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Homes", f"{state['total_homes']:,}")
-    with col2:
-        st.metric("Homes with EV Chargers", f"{state['ev_homes']:,}", 
-                 f"{state['ev_homes']/state['total_homes']*100:.1f}%")
-    with col3:
-        st.metric("Homes with AC Units", f"{state['ac_homes']:,}", 
-                 f"{state['ac_homes']/state['total_homes']*100:.1f}%")
-    with col4:
-        st.metric("Homes with Solar Panels", f"{state['pv_homes']:,}", 
-                 f"{state['pv_homes']/state['total_homes']*100:.1f}%")
+    if selected_state:
+        state = states_data[selected_state]
+        st.markdown(f"### {state['name']} Statistics")
+        
+        # Create metrics for the selected state
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Homes", f"{state['total_homes']:,}")
+        with col2:
+            st.metric("Homes with EV Chargers", f"{state['ev_homes']:,}", 
+                    f"{state['ev_homes']/state['total_homes']*100:.1f}%")
+        with col3:
+            st.metric("Homes with AC Units", f"{state['ac_homes']:,}", 
+                    f"{state['ac_homes']/state['total_homes']*100:.1f}%")
+        with col4:
+            st.metric("Homes with Solar Panels", f"{state['pv_homes']:,}", 
+                    f"{state['pv_homes']/state['total_homes']*100:.1f}%")
+    else:
+        # If we're on the overview map, show a message prompting to select a state
+        st.markdown("""
+        <div style="text-align: center; padding: 20px; background-color: rgba(81, 93, 154, 0.05); border-radius: 5px; margin-bottom: 20px;">
+            <h3 style="margin-top: 0; color: #515D9A;">Select a State on the Map</h3>
+            <p>Click directly on any state in the map below to view detailed statistics and device distribution.</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     # Create map
     st.markdown("### Interactive Map")
@@ -1429,6 +1486,16 @@ elif page == "Interactive Map":
         # Custom JavaScript for handling clicks on states
         click_script = """
         function (feature, layer) {
+            // Make sure this layer is clickable
+            layer.options.interactive = true;
+            
+            // Create a function for navigation that works for both direct and popup clicks
+            function navigateToState(stateCode) {
+                console.log("Navigating to state: " + stateCode);
+                window.location.href = "?state=" + stateCode;
+            }
+            
+            // Add a direct click handler
             layer.on({
                 mouseover: function (e) {
                     var layer = e.target;
@@ -1463,26 +1530,44 @@ elif page == "Interactive Map":
                     });
                     
                     // Get the state code
-                    var stateCode = feature.properties.code;
+                    var stateCode = feature.properties.code || feature.id;
+                    console.log("Clicked on state: " + stateCode);
                     
                     // Add a small delay for visual feedback before navigating
                     setTimeout(function() {
-                        window.location.href = "?state=" + stateCode;
+                        navigateToState(stateCode);
                     }, 300);
                 }
+            });
+            
+            // Also ensure any popup clicks navigate correctly
+            layer.on('popupopen', function() {
+                setTimeout(function() {
+                    var popups = document.getElementsByClassName('leaflet-popup-content');
+                    if (popups.length > 0) {
+                        var stateCode = feature.properties.code || feature.id;
+                        popups[0].addEventListener('click', function() {
+                            navigateToState(stateCode);
+                        });
+                    }
+                }, 100);
             });
         }
         """
         
         # Add the GeoJSON layer with click handler
+        geojson_tooltip_fields = ['name']
+        if 'density' in us_states_geojson['features'][0]['properties']:
+            geojson_tooltip_fields.append('density')
+            
         folium.GeoJson(
             us_states_geojson,
             name="US States",
             style_function=style_function,
             highlight_function=highlight_function,
             tooltip=folium.GeoJsonTooltip(
-                fields=['name', 'density'],
-                aliases=['State:', 'Population Density:'],
+                fields=geojson_tooltip_fields,
+                aliases=['State:'] + (['Population Density:'] if len(geojson_tooltip_fields) > 1 else []),
                 labels=True,
                 sticky=True,
                 style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.2);")
@@ -1553,11 +1638,25 @@ elif page == "Interactive Map":
         
         # Add state boundaries to the detail view
         # Create a GeoJSON layer just for this state (if we had full US GeoJSON)
-        if selected_state in [feature['properties']['code'] for feature in us_states_geojson['features']]:
-            # Find the state feature
-            state_feature = next(feature for feature in us_states_geojson['features'] 
-                                if feature['properties']['code'] == selected_state)
+        state_feature = None
+        
+        # First try to find the state by code property
+        try:
+            state_feature = next((feature for feature in us_states_geojson['features'] 
+                              if feature['properties'].get('code') == selected_state), None)
+        except:
+            pass
             
+        # If not found, try to find by id (which is used in the external GeoJSON)
+        if not state_feature:
+            try:
+                state_feature = next((feature for feature in us_states_geojson['features'] 
+                                  if feature.get('id') == selected_state), None)
+            except:
+                pass
+        
+        # If we found the state feature, add it to the map
+        if state_feature:
             # Add just this state's boundary
             folium.GeoJson(
                 {"type": "FeatureCollection", "features": [state_feature]},
