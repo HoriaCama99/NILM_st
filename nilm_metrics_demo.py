@@ -1392,16 +1392,17 @@ elif page == "Interactive Map":
         </style>
         """, unsafe_allow_html=True)
     else:
-        # Only show the dropdown if we're not in map overview mode
+        # If no valid state in URL, use the dropdown but keep it hidden on the map page
         selected_state_dropdown = st.selectbox(
             "Select State to View",
-            options=[""] + list(states_data.keys()),
-            format_func=lambda x: "Overview Map" if x == "" else states_data.get(x, {}).get('name', x),
+            options=list(states_data.keys()),
+            format_func=lambda x: states_data[x]['name'],
             index=0
         )
         
-        # Use the dropdown value
-        selected_state = selected_state_dropdown
+        # Only use the dropdown value if we're not in map overview mode
+        if selected_state_dropdown:
+            selected_state = selected_state_dropdown
     
     # Filter households by selected state and device types
     filtered_households = [
@@ -1414,6 +1415,24 @@ elif page == "Interactive Map":
     
     # Display stats for selected state
     if selected_state:
+        # Create a row with columns for the back button and a note
+        back_cols = st.columns([1, 3])
+        
+        # Add a Streamlit-based back button at the top in the first column
+        with back_cols[0]:
+            back_button = st.button("← Back to Map Overview", type="primary", use_container_width=True)
+            if back_button:
+                st.query_params.clear()
+                st.experimental_rerun()
+
+        # Add a note about the map navigation in the second column
+        with back_cols[1]:
+            st.markdown("""
+            <div style="margin-top: 5px; color: #666; font-style: italic;">
+                <small>Note: You can also use the blue "Back to Map" button in the top-left corner of the map below.</small>
+            </div>
+            """, unsafe_allow_html=True)
+            
         state = states_data[selected_state]
         st.markdown(f"### {state['name']} Statistics")
         
@@ -1482,25 +1501,21 @@ elif page == "Interactive Map":
             'fillOpacity': 0.7,
         }
         
-        # Custom JavaScript for handling clicks on states - completely rewritten for reliability
+        # Custom JavaScript for handling clicks on states
         click_script = """
         function (feature, layer) {
-            // Force the layer to be interactive
+            // Make sure this layer is clickable
             layer.options.interactive = true;
             
-            // Determine the state code from properties or id
-            var stateCode = feature.properties.code || feature.id;
-            if (!stateCode) {
-                console.error("No state code found in feature: ", feature);
-                return;
+            // Create a function for navigation that works for both direct and popup clicks
+            function navigateToState(stateCode) {
+                console.log("Navigating to state: " + stateCode);
+                window.location.href = "?state=" + stateCode;
             }
             
-            console.log("Initializing layer for state: " + stateCode);
-            
-            // Add event handlers
+            // Add a direct click handler
             layer.on({
                 mouseover: function (e) {
-                    console.log("Mouseover state: " + stateCode);
                     var layer = e.target;
                     layer.setStyle({
                         fillOpacity: 0.7,
@@ -1523,11 +1538,7 @@ elif page == "Interactive Map":
                     });
                 },
                 click: function (e) {
-                    e.originalEvent.stopPropagation();
-                    
-                    console.log("Click detected on state: " + stateCode);
-                    
-                    // Visual feedback
+                    // Visual feedback on click
                     var layer = e.target;
                     layer.setStyle({
                         fillOpacity: 0.9,
@@ -1536,28 +1547,37 @@ elif page == "Interactive Map":
                         color: '#FFFFFF'
                     });
                     
-                    // Navigate after a brief delay for visual feedback
+                    // Get the state code
+                    var stateCode = feature.properties.code || feature.id;
+                    console.log("Clicked on state: " + stateCode);
+                    
+                    // Add a small delay for visual feedback before navigating
                     setTimeout(function() {
-                        window.location.href = "?state=" + stateCode;
+                        navigateToState(stateCode);
                     }, 300);
                 }
             });
             
-            // Create a custom popup with a clickable link
-            var popupContent = '<div style="text-align:center; cursor:pointer;" ' + 
-                               'onclick="window.location.href=\'?state=' + stateCode + '\';">' + 
-                               '<strong>' + (feature.properties.name || '') + '</strong><br>' + 
-                               'Click to view devices</div>';
-            layer.bindPopup(popupContent);
+            // Also ensure any popup clicks navigate correctly
+            layer.on('popupopen', function() {
+                setTimeout(function() {
+                    var popups = document.getElementsByClassName('leaflet-popup-content');
+                    if (popups.length > 0) {
+                        var stateCode = feature.properties.code || feature.id;
+                        popups[0].addEventListener('click', function() {
+                            navigateToState(stateCode);
+                        });
+                    }
+                }, 100);
+            });
         }
         """
         
         # Add the GeoJSON layer with click handler
         geojson_tooltip_fields = ['name']
-        if len(us_states_geojson['features']) > 0 and 'density' in us_states_geojson['features'][0]['properties']:
+        if 'density' in us_states_geojson['features'][0]['properties']:
             geojson_tooltip_fields.append('density')
             
-        # We'll use our custom popup, so don't add the GeoJsonPopup
         folium.GeoJson(
             us_states_geojson,
             name="US States",
@@ -1569,6 +1589,11 @@ elif page == "Interactive Map":
                 labels=True,
                 sticky=True,
                 style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.2);")
+            ),
+            popup=folium.GeoJsonPopup(
+                fields=['name'],
+                aliases=['Click to view devices in:'],
+                style=("background-color: white; color: #333333; font-family: arial; font-size: 14px; padding: 10px; border-radius: 5px; font-weight: bold;")
             ),
             script=click_script
         ).add_to(m)
@@ -1615,29 +1640,50 @@ elif page == "Interactive Map":
             tiles="CartoDB positron"
         )
         
-        # Add a back button to the overview map with improved styling and more emphasized
+        # Add a back button to the overview map with improved styling
         back_button_html = '''
-        <div style="position: absolute; 
-                    top: 10px; left: 10px; width: 130px; height: 36px; 
-                    z-index:9999; font-size:15px; background-color:#515D9A; 
-                    border-radius:5px; padding: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.3);
-                    text-align:center; transition: background-color 0.3s; cursor: pointer;"
-             onclick="window.location.href='?'">
-            <a style="color:#FFFFFF; text-decoration:none; font-weight:bold; display:block; line-height: 26px;">
-                <i class="fa fa-arrow-left"></i> Back to Map
+        <div id="back-button" style="position: absolute; 
+                    top: 10px; left: 10px; width: 130px; height: 35px; 
+                    z-index:99999; font-size:14px; background-color:#FFFFFF; 
+                    border-radius:5px; padding: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                    text-align:center; transition: all 0.2s ease; cursor: pointer;
+                    border: 2px solid #515D9A;">
+            <a href="?" style="color:#515D9A; text-decoration:none; font-weight:bold; display:flex; align-items:center; justify-content:center; width: 100%; height: 100%;">
+                <i class="fa fa-arrow-left" style="margin-right: 5px;"></i> Back to Map
             </a>
         </div>
+        
         <script>
-        // Ensure the back button is visible
+        // Make sure the back button works by adding a direct click handler
         setTimeout(function() {
-            var backBtn = document.querySelector('[onclick="window.location.href=\'?\'"]');
-            if (backBtn) {
-                backBtn.style.display = 'block';
-                console.log("Back button is visible");
-            } else {
-                console.log("Back button not found");
+            var backButton = document.getElementById('back-button');
+            if (backButton) {
+                backButton.addEventListener('click', function() {
+                    window.location.href = "?";
+                });
+                
+                // Add hover effect for better UX
+                backButton.addEventListener('mouseover', function() {
+                    this.style.backgroundColor = "#f0f5ff";
+                    this.style.boxShadow = "0 4px 12px rgba(0,0,0,0.4)";
+                });
+                backButton.addEventListener('mouseout', function() {
+                    this.style.backgroundColor = "#FFFFFF";
+                    this.style.boxShadow = "0 2px 10px rgba(0,0,0,0.3)";
+                });
+                
+                // Add active effect for better UX
+                backButton.addEventListener('mousedown', function() {
+                    this.style.transform = "scale(0.97)";
+                });
+                backButton.addEventListener('mouseup', function() {
+                    this.style.transform = "scale(1)";
+                });
+                
+                // Additional positioning to ensure visibility
+                document.querySelector('.leaflet-top.leaflet-left').style.top = "50px";
             }
-        }, 500);
+        }, 300);
         </script>
         '''
         m.get_root().html.add_child(folium.Element(back_button_html))
