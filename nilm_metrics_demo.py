@@ -1397,7 +1397,7 @@ elif page == "Interactive Map":
             style_function=lambda feature: {
                 'fillColor': primary_purple,
                 'color': 'white',
-                'weight': 1,
+                'weight': 2,
                 'fillOpacity': 0.5,
             },
             highlight_function=lambda feature: {
@@ -1418,7 +1418,6 @@ elif page == "Interactive Map":
                 style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px;")
             )
         ).add_to(m)
-        
         
         # Add state markers with statistics
         for state_code, state_info in states_data.items():
@@ -1442,6 +1441,22 @@ elif page == "Interactive Map":
                 tooltip=f"Click for {state_info['name']} statistics"
             ).add_to(m)
         
+        # Add click handler JavaScript
+        click_js = """
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var map = document.querySelector('#map');
+            map.addEventListener('click', function(e) {
+                var stateCode = e.target.getAttribute('data-state-code');
+                if (stateCode) {
+                    window.location.href = '?state=' + stateCode;
+                }
+            });
+        });
+        </script>
+        """
+        m.get_root().html.add_child(folium.Element(click_js))
+        
     else:
         # Detailed map for selected state
         m = folium.Map(
@@ -1449,6 +1464,24 @@ elif page == "Interactive Map":
             zoom_start=state['zoom'],
             tiles="CartoDB positron"
         )
+        
+        # Add state boundary
+        folium.GeoJson(
+            us_states_geojson,
+            name="State Boundary",
+            style_function=lambda feature: {
+                'fillColor': 'transparent',
+                'color': primary_purple,
+                'weight': 3,
+                'fillOpacity': 0.1,
+            },
+            highlight_function=lambda feature: {
+                'fillColor': 'transparent',
+                'color': light_purple,
+                'weight': 4,
+                'fillOpacity': 0.2,
+            }
+        ).add_to(m)
         
         # Add a back button to the overview map
         back_button_html = '''
