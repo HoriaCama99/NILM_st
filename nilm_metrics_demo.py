@@ -1412,11 +1412,7 @@ elif page == "Interactive Map":
                 style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px;")
             ),
             # Add click handler to zoom to state
-            popup=folium.GeoJsonPopup(
-                fields=['code'],
-                aliases=['Click to zoom:'],
-                style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px;")
-            )
+            popup=None  # Remove popup to avoid square shapes
         ).add_to(m)
         
         # Add click handler JavaScript
@@ -1424,15 +1420,15 @@ elif page == "Interactive Map":
         <script>
         document.addEventListener('DOMContentLoaded', function() {
             var map = document.querySelector('#map');
-            var statesLayer = map.querySelector('.leaflet-interactive');
-            if (statesLayer) {
-                statesLayer.addEventListener('click', function(e) {
-                    var stateCode = e.target.feature.properties.code;
+            map.addEventListener('click', function(e) {
+                var layer = e.target.closest('.leaflet-interactive');
+                if (layer) {
+                    var stateCode = layer.feature.properties.code;
                     if (stateCode) {
                         window.location.href = '?state=' + stateCode;
                     }
-                });
-            }
+                }
+            });
         });
         </script>
         """
