@@ -1410,7 +1410,7 @@ elif page == "Interactive Map":
     m = folium.Map(location=map_center, zoom_start=map_zoom, tiles="CartoDB positron", control_scale=True)
 
     # --- Define JS Navigation Function Globally --- 
-    # This function will be called by the onclick attribute in the GeoJSON tooltip
+    # This function will be called by the onclick event added by the 'script' parameter
     navigation_js = """
         <script>
             function navigateToState(stateCode) {
@@ -1418,7 +1418,7 @@ elif page == "Interactive Map":
                     console.error('JS Error: navigateToState called without stateCode.');
                     return;
                 }
-                console.log('JS: Navigating to state (setting query param): ' + stateCode);
+                console.log('JS: navigateToState called for: ' + stateCode);
                 // Set the query parameter. Streamlit will detect this on rerun.
                 window.location.search = 'state=' + stateCode;
             }
@@ -1432,28 +1432,59 @@ elif page == "Interactive Map":
         style_function = lambda x: {'fillColor': primary_purple, 'color': 'white', 'weight': 1, 'fillOpacity': 0.6}
         highlight_function = lambda x: {'fillColor': light_purple, 'weight': 3, 'fillOpacity': 0.8}
 
-        # Add GeoJSON layer - Tooltip handles the click via embedded JS onclick
+        # --- Define JS Click Script (to be attached per feature) ---
+        click_script = """
+            function(feature, layer) {
+                layer.options.interactive = true; // Ensure layer reacts to events
+                const stateCode = feature.properties.code || feature.id;
+                const stateName = feature.properties.name || stateCode;
+
+                if (!stateCode) { return; } // Skip if no code/id
+
+                // Attach event listeners
+                layer.on({
+                    mouseover: function(e) {
+                        const layer = e.target;
+                        layer.setStyle({ fillOpacity: 0.8, weight: 2 }); // Use highlight style
+                        if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                            layer.bringToFront();
+                        }
+                    },
+                    mouseout: function(e) {
+                        // Reset to default style - GeoJson layer usually handles this
+                        // Or explicitly reset: e.target.setStyle({ fillOpacity: 0.6, weight: 1 });
+                        const layer = e.target;
+                        layer.setStyle({ fillOpacity: 0.6, weight: 1 }); // Explicit reset matching style_function
+                    },
+                    click: function(e) {
+                        console.log(`JS: Click detected on state ${stateCode}`);
+                        // Call the globally defined navigation function
+                        if (typeof navigateToState === 'function') {
+                            navigateToState(stateCode);
+                        } else {
+                            console.error('JS Error: navigateToState function not found. Attempting fallback.');
+                            window.location.search = `state=${stateCode}`; // Fallback
+                        }
+                    }
+                });
+            }
+        """
+
+        # Add GeoJSON layer - Use 'script' parameter to attach JS
         folium.GeoJson(
             us_states_geojson,
             name="States",
             style_function=style_function,
             highlight_function=highlight_function,
             tooltip=folium.features.GeoJsonTooltip(
-                fields=['name', 'code'], 
-                aliases=['State:', ''], 
-                toLocaleString=True, sticky=True,
-                style="background-color: rgba(255,255,255,0.9); color: #333; font-family: sans-serif; font-size: 12px; padding: 5px; border: 1px solid #ccc; border-radius: 3px; box-shadow: 0 0 5px rgba(0,0,0,0.3); cursor: pointer;",
-                fields_escaped=False, 
-                aliases_list= lambda feature: f"""
-                    <div onclick=\"navigateToState('{feature['properties']['code']}')\" 
-                         style=\"cursor: pointer; display: inline-block; padding: 2px 5px;\" 
-                         title=\"Click to select {feature['properties'].get('name', feature['properties']['code'])}\">
-                         <strong>{feature['properties'].get('name', feature['properties']['code'])}</strong>
-                         <br>(Click to select)
-                    </div>
-                """
+                fields=['name'], # Just show name on hover
+                aliases=['State:'], 
+                sticky=True,
+                style="background-color: rgba(255,255,255,0.9); color: #333; font-family: sans-serif; font-size: 12px; padding: 5px; border: 1px solid #ccc; border-radius: 3px; box-shadow: 0 0 5px rgba(0,0,0,0.3);" 
             ),
-            popup=None 
+            popup=None, # No popup needed
+            script=click_script, # Attach the per-feature JS here
+            embed=False # Let streamlit-folium handle embedding
         ).add_to(m)
 
     else: 
