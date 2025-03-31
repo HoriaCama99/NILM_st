@@ -1312,41 +1312,62 @@ elif page == "Interactive Map":
     params = st.query_params
     # state_code_from_click is the state code just clicked (from URL param)
     state_code_from_click = params.get("state", [None])[0]
+    # st.write(f"Debug: Param 'state' from URL = {state_code_from_click}") # Debug
     
     # displayed_state_code is the state currently being shown/selected in dropdown
     # Initialize from clicked state if valid, else None
     if 'displayed_state_code' not in st.session_state:
         st.session_state.displayed_state_code = state_code_from_click if state_code_from_click in all_state_codes else None
-    # If a click happened, update session state to match
-    elif state_code_from_click and state_code_from_click != st.session_state.displayed_state_code:
-         if state_code_from_click in all_state_codes:
-             st.session_state.displayed_state_code = state_code_from_click
-         # Clear the query param after processing the click to avoid re-triggering
-         st.query_params.clear() 
-             
+        # If initialized from click, clear param ONLY AFTER first load potentially?
+        # Maybe clear only if different from session state? Seems complex.
+        # Let's avoid clearing here for now.
+        # if st.session_state.displayed_state_code: st.query_params.clear() 
+        
+    # If a click happened (query param set) and it's different from current session state, update session state
+    elif state_code_from_click and state_code_from_click in all_state_codes and state_code_from_click != st.session_state.displayed_state_code:
+         st.session_state.displayed_state_code = state_code_from_click
+         # DO NOT clear query params here - let the state update drive the rerun
+         # st.query_params.clear() 
+         # Rerun might be implicitly needed if Streamlit doesn't pick up session state change quickly enough for map
+         # st.rerun() # Let's see if it works without explicit rerun first
+
     # Determine if we are showing the overview or a specific state's details
-    show_overview = st.session_state.displayed_state_code is None
+    # Use the value directly from session state
+    final_display_code = st.session_state.get('displayed_state_code', None)
+    show_overview = final_display_code is None
+    # st.write(f"Debug: Final display code = {final_display_code}, Show overview = {show_overview}") # Debug
 
     # --- UI Elements: Back Button, State Selector, Stats --- 
-    state_selector_value = None
+    # state_selector_value = None # No longer needed here
     if not show_overview:
-        current_display_code = st.session_state.displayed_state_code
-        state_info = states_data.get(current_display_code)
+        # current_display_code = st.session_state.displayed_state_code # Use final_display_code
+        state_info = states_data.get(final_display_code)
         
         # --- Back Button and State Selector Row --- 
         control_cols = st.columns([1, 3]) 
         with control_cols[0]:
             if st.button("← Back to US Overview", key="back_button_main", type="primary", use_container_width=True):
                 st.session_state.displayed_state_code = None # Reset state
-                st.query_params.clear() # Clear URL param just in case
+                st.query_params.clear() # Clear URL param when going back
                 st.rerun()
         
         with control_cols[1]:
             # State Selector Dropdown (only shown when a state is selected)
             try:
-                default_index = all_state_codes.index(current_display_code)
-            except ValueError:
-                default_index = 0 # Fallback if code not found
+                # Ensure current_display_code is valid before finding index
+                if final_display_code in all_state_codes:
+                     default_index = all_state_codes.index(final_display_code)
+                else:
+                     # This case should ideally not happen if state is validated before setting session state
+                     st.warning(f"State code '{final_display_code}' not found in available codes. Resetting to overview.")
+                     st.session_state.displayed_state_code = None
+                     st.query_params.clear()
+                     st.rerun() # Rerun to go back to overview
+                     
+            except ValueError: # Should be caught by the check above, but as safety
+                default_index = 0 # Fallback
+                st.warning(f"Error finding index for state '{final_display_code}'.")
+
                 
             state_selector_value = st.selectbox(
                 "Select State to View Details:",
@@ -1358,14 +1379,17 @@ elif page == "Interactive Map":
             # Update session state if dropdown changes
             if state_selector_value != st.session_state.displayed_state_code:
                 st.session_state.displayed_state_code = state_selector_value
-                # No rerun needed here, Streamlit handles widget state changes
-                current_display_code = state_selector_value # Update for current render pass
-                state_info = states_data.get(current_display_code)
+                # Rerun needed after dropdown change to update map etc.
+                st.rerun() 
                 
         # --- Display State Statistics --- 
-        if state_info:
-            state_stats = state_info.get('stats', {'total': 0, 'ev': 0, 'ac': 0, 'pv': 0})
-            st.markdown(f"### {state_info.get('name', current_display_code)} Statistics") 
+        # Use the *potentially updated* state code after selectbox interaction for stats
+        current_display_code_for_stats = st.session_state.displayed_state_code 
+        state_info_for_stats = states_data.get(current_display_code_for_stats) 
+
+        if state_info_for_stats:
+            state_stats = state_info_for_stats.get('stats', {'total': 0, 'ev': 0, 'ac': 0, 'pv': 0})
+            st.markdown(f"### {state_info_for_stats.get('name', current_display_code_for_stats)} Statistics") 
             m_col1, m_col2, m_col3, m_col4 = st.columns(4)
             total_homes = state_stats.get('total', 0)
             m_col1.metric("Total Homes", f"{total_homes:,}")
@@ -1377,8 +1401,7 @@ elif page == "Interactive Map":
                  m_col2.metric("EV Homes", "0", "0.0%")
                  m_col3.metric("AC Homes", "0", "0.0%")
                  m_col4.metric("PV Homes", "0", "0.0%")
-        else:
-             st.warning(f"Could not retrieve statistics for state code: {current_display_code}")
+        # No warning needed if state_info is None, handled by overview logic
 
     else:
         # Prompt on overview map
@@ -1386,14 +1409,9 @@ elif page == "Interactive Map":
 
 
     # --- Filter Households for Detail Map --- 
-    # Use the finally determined state code for filtering
-    final_display_code = st.session_state.displayed_state_code
-    filtered_households = []
-    if final_display_code:
-        filtered_households = [
-            h for h in households if h['state'] == final_display_code and 
-            ((show_ev and h['has_ev']) or (show_ac and h['has_ac']) or (show_pv and h['has_pv']))
-        ]
+    # Use the final determined state code for filtering
+    # final_display_code is already determined above based on session state
+    # show_overview is also determined above
 
     # --- Create Folium Map --- 
     st.markdown("### Interactive Map")
@@ -1503,11 +1521,11 @@ elif page == "Interactive Map":
                         interactive=False).add_to(m)
 
         # Add household markers
-        if filtered_households:
+        if households:
             marker_cluster = MarkerCluster(name="Homes").add_to(m)
             vis_ev, vis_ac, vis_pv = 0, 0, 0 # Reset counts for this state
 
-            for house in filtered_households:
+            for house in households:
                 # (Keep household marker logic as before)
                 icon_color, icon_name = "gray", "home"; tooltip_parts = []; dev_icons = ""
                 if house['has_ev'] and show_ev: icon_color, icon_name = "blue", "plug"; tooltip_parts.append("EV"); vis_ev += 1; dev_icons += '<i class="fa fa-check-circle" style="color:#3366cc;"></i> EV '
@@ -1526,7 +1544,7 @@ elif page == "Interactive Map":
                 
             # Add Info Panel with visible counts for the *filtered* households
             if state_info:
-                 info_panel_html = f"""<div style='position: absolute; top: 10px; right: 10px; width: auto; background-color: rgba(255,255,255,0.9); border-radius: 5px; box-shadow: 0 0 8px rgba(0,0,0,0.2); padding: 10px; z-index: 1000; font-size: 13px;'><h4 style='margin:0 0 8px 0; color:#515D9A;'>{state_info.get('name', final_display_code)} (Visible Homes)</h4>Count: {len(filtered_households)}<br>EV: {vis_ev}<br>AC: {vis_ac}<br>Solar: {vis_pv}</div>"""
+                 info_panel_html = f"""<div style='position: absolute; top: 10px; right: 10px; width: auto; background-color: rgba(255,255,255,0.9); border-radius: 5px; box-shadow: 0 0 8px rgba(0,0,0,0.2); padding: 10px; z-index: 1000; font-size: 13px;'><h4 style='margin:0 0 8px 0; color:#515D9A;'>{state_info.get('name', final_display_code)} (Visible Homes)</h4>Count: {len(households)}<br>EV: {vis_ev}<br>AC: {vis_ac}<br>Solar: {vis_pv}</div>"""
                  m.get_root().html.add_child(Element(info_panel_html))
         else:
             # Show message if no households match filters
@@ -1543,8 +1561,8 @@ elif page == "Interactive Map":
     # --- Data Table (only on detail view) --- 
     if not show_overview:
         st.markdown("### Filtered Homes Data")
-        if filtered_households:
-            df_houses = pd.DataFrame(filtered_households)[['id', 'has_ev', 'has_ac', 'has_pv', 'energy_consumption']] 
+        if households:
+            df_houses = pd.DataFrame(households)[['id', 'has_ev', 'has_ac', 'has_pv', 'energy_consumption']] 
             df_houses = df_houses.rename(columns={'id': 'Home ID', 'has_ev': 'EV', 'has_ac': 'AC', 'has_pv': 'PV', 'energy_consumption': 'Consumption (kWh/day)'})
             df_houses[['EV', 'AC', 'PV']] = df_houses[['EV', 'AC', 'PV']].replace({True: '✓', False: ''})
             st.dataframe(df_houses, use_container_width=True, hide_index=True)
