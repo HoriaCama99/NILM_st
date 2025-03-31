@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 import random
 from datetime import datetime, timedelta
 import folium
-from streamlit_folium import st_folium
+from streamlit_folium import folium_static
 import json
 import geopandas as gpd
 from folium.plugins import MarkerCluster
@@ -1416,9 +1416,10 @@ elif page == "Interactive Map":
 
         # Add a note about the map navigation in the second column
         with back_cols[1]:
+            # Update note to reflect reliance on shape click
             st.markdown("""
             <div style="margin-top: 5px; color: #666; font-style: italic;">
-                <small>Note: You can also use the blue "Back to Map" button in the top-left corner of the map below.</small>
+                <small>Use the button above or the embedded one (state view) to return.</small>
             </div>
             """, unsafe_allow_html=True)
             
@@ -1564,73 +1565,55 @@ elif page == "Interactive Map":
         }
         """
         
-        # Add the GeoJSON layer with click handler
-        geojson_tooltip_fields = ['name']
-        if 'density' in us_states_geojson['features'][0]['properties']:
-            geojson_tooltip_fields.append('density')
-            
-        # --- Apply the click_script to each feature --- 
-        # Revert to using the 'script' parameter directly on GeoJson 
+        # --- Try attaching script using the simpler 'script' parameter --- 
         gjson = folium.GeoJson(
             us_states_geojson,
             name="US States",
             style_function=style_function,
             highlight_function=highlight_function, # Apply highlight on hover
             tooltip=folium.GeoJsonTooltip(
-                fields=geojson_tooltip_fields,
-                aliases=['State:'] + (['Population Density:'] if len(geojson_tooltip_fields) > 1 else []),
+                fields=['name'], # Show state name on hover
+                aliases=['State:'],
                 labels=True,
                 sticky=True,
-                style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.2);")
+                style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 5px; border-radius: 3px; box-shadow: 0 0 5px rgba(0,0,0,0.2);")
             ),
-            popup=folium.GeoJsonPopup(
-                fields=['name'], # Show state name in popup
-                aliases=['Click to view devices in:'],
-                labels=True,
-                style=("background-color: white; color: #333333; font-family: arial; font-size: 14px; padding: 10px; border-radius: 5px; font-weight: bold;")
-            ),
-            script=click_script # Pass the JS function string here
+            popup=None, # Remove the basic popup, rely on click on shape
+            script=click_script, # Pass the JS function string here
+            embed=False # Let streamlit_folium handle embedding
         )
         gjson.add_to(m) # Add the configured GeoJson layer to the map
         
-        # REMOVED the MacroElement code block that was here previously
+        # REMOVED the MacroElement/add_child script attachment approach
         
-        # Add state border lines for clarity (optional, can be removed if redundant)
-        folium.GeoJson(
-            us_states_geojson,
-            name="State Borders",
-            style_function=lambda x: {
-                'color': '#666666',
-                'weight': 2,
-                'fillOpacity': 0
-            },
-            tooltip=None
-        ).add_to(m)
+        # Remove state border lines if they are redundant with the main layer
+        # folium.GeoJson(
+        #     us_states_geojson,
+        #     name="State Borders",
+        #     style_function=lambda x: {
+        #         'color': '#666666',
+        #         'weight': 1, # Thinner
+        #         'fillOpacity': 0
+        #     },
+        #     tooltip=None,
+        #     interactive=False
+        # ).add_to(m)
         
-        # Add state markers with statistics
-        for state_code, state_info in states_data.items():
+        # --- Remove the separate state center markers --- 
+        # for state_code, state_info in states_data.items():
             # Create popup content with statistics
-            popup_content = f"""
-            <div style="width: 200px;">
-                <h4>{state_info['name']}</h4>
-                <b>Total Homes:</b> {state_info['total_homes']}<br>
-                <b>Homes with EV:</b> {state_info['ev_homes']} ({state_info['ev_homes']/state_info['total_homes']*100:.1f}%)<br>
-                <b>Homes with AC:</b> {state_info['ac_homes']} ({state_info['ac_homes']/state_info['total_homes']*100:.1f}%)<br>
-                <b>Homes with PV:</b> {state_info['pv_homes']} ({state_info['pv_homes']/state_info['total_homes']*100:.1f}%)<br>
-                <a href="javascript:void(0);" onclick="window.location.search='state={state_code}'" style="color: #515D9A; font-weight: bold;">Click to view details</a>
-            </div>
-            """
-            
+            # popup_content = f""" ... """
             # Add marker
-            folium.Marker(
-                location=[state_info['lat'], state_info['lon']],
-                popup=folium.Popup(popup_content, max_width=300),
-                icon=folium.Icon(icon="info-sign", prefix="fa", color="purple"),
-                tooltip=f"Click for {state_info['name']} statistics"
-            ).add_to(m)
+            # folium.Marker( ... ).add_to(m)
         
     else:
         # Detailed map for selected state
+        # Ensure state data is available here
+        if selected_state not in states_data:
+             st.error(f"Invalid state code '{selected_state}' selected.")
+             st.stop()
+        state = states_data[selected_state]
+             
         m = folium.Map(
             location=[state['lat'], state['lon']], 
             zoom_start=state['zoom'],
@@ -1906,7 +1889,7 @@ elif page == "Interactive Map":
     m.get_root().html.add_child(folium.Element(legend_html))
     
     # Display the map
-    st_folium(m, width=1000, height=600)
+    folium_static(m, width=1000, height=600)
     
     # Add a fallback back button at the bottom for detailed state view
     if selected_state:
