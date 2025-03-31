@@ -1901,7 +1901,7 @@ elif page == "Interactive Map":
     m.get_root().html.add_child(folium.Element(legend_html))
     
     # Display the map
-    st.folium(m, width=1000, height=600)
+    st_folium(m, width=1000, height=600)
     
     # Add a fallback back button at the bottom for detailed state view
     if selected_state:
