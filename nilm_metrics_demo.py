@@ -10,10 +10,12 @@ from datetime import datetime, timedelta
 import folium
 from streamlit_folium import folium_static
 import json
+import geopandas as gpd
 from folium.plugins import MarkerCluster
+import plotly.subplots as sp
 from PIL import Image
+import datetime
 import requests
-from branca.element import Element
 
 # Hide the default Streamlit navigation menu
 st.set_page_config(
@@ -244,17 +246,15 @@ st.markdown("""
 banner_path = "ECMX_linkedinheader_SN.png"  
 
 # Add page selection at the top (now with three options)
-page = st.sidebar.radio("Select Page", ["Sample Output", "Performance Metrics", "Interactive Map"], index=2)
+page = st.sidebar.radio("Select Page", ["Sample Output", "Performance Metrics", "Interactive Map"], index=1)
 
-# Display banner on all pages
+# Display banner on both pages
 try:
     # Display banner image
     banner_image = Image.open(banner_path)
     st.image(banner_image, use_container_width=True)
-except FileNotFoundError:
-    st.warning(f"Banner image not found at {banner_path}. Please check the path.")
 except Exception as e:
-    st.warning(f"Could not load banner image: {e}")
+    st.warning(f"Banner image not found at {banner_path}. Please update the path in the code.")
 
 if page == "Sample Output":
     # Sample Output page code goes here
@@ -1185,395 +1185,801 @@ elif page == "Performance Metrics":
     """, unsafe_allow_html=True)
 
 elif page == "Interactive Map":
+    # Interactive Map page
     st.title("NILM Deployment Map")
     st.subheader("Geographic Distribution of Homes with Smart Devices")
-
-    # --- Data Loading and Generation Functions --- 
-
+    
+    # Description
+    st.markdown("""
+    This map shows the geographic distribution of homes equipped with NILM-detected devices.
+    **Click on a state** to zoom in and see individual homes with EV chargers, AC units, and solar panels.
+    """)
+    
+    # Create function to generate mock data for US states
     @st.cache_data
-    def load_us_geojson():
-        """Loads US States GeoJSON, filtering to standard states and ensuring 'code' property."""
-        geojson_url = "https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json"
-        try:
-            response = requests.get(geojson_url)
-            response.raise_for_status()
-            geojson_data = response.json()
-
-            # --- No filtering by default - assume the source contains states --- 
-            # valid_state_codes = [...] # We might need a list if the geojson includes territories we want to exclude
-            processed_features = []
-            all_state_codes = [] # Keep track of codes found in GeoJSON
-            for feature in geojson_data.get('features', []):
-                 state_id = feature.get('id') # Use the ID from the GeoJSON
-                 if state_id and len(state_id) == 2: # Basic check for state codes
-                     if 'properties' not in feature: feature['properties'] = {}
-                     feature['properties']['code'] = state_id # Ensure 'code' exists, matching the ID
-                     if 'name' not in feature['properties']: feature['properties']['name'] = state_id # Fallback name
-                     processed_features.append(feature)
-                     all_state_codes.append(state_id)
-
-            if not processed_features:
-                raise ValueError("No valid state features found in GeoJSON data.")
-
-            geojson_data['features'] = processed_features
-            st.session_state['all_state_codes'] = sorted(list(set(all_state_codes))) # Store available codes
-            return geojson_data
-
-        except Exception as e: 
-            st.error(f"Failed to load/process state boundaries: {e}")
-            st.session_state['all_state_codes'] = [] # Ensure it exists even on failure
-            return None
-
-    @st.cache_data
-    def generate_mock_data(state_codes):
-        """Generates mock coordinates, stats, and households for given state codes."""
-        if not state_codes:
-            return {}, []
-            
-        # Placeholder coordinates/zoom - replace with real data for accuracy
-        # Using a simple dict lookup for known states, default for others
-        coord_defaults = {'lat': 39.8, 'lon': -98.6, 'zoom': 4}
-        known_coords = {
-            'CA': {'lat': 36.8, 'lon': -119.4, 'zoom': 6}, 'TX': {'lat': 31.9, 'lon': -99.9, 'zoom': 6},
-            'NY': {'lat': 42.2, 'lon': -74.9, 'zoom': 7}, 'FL': {'lat': 27.7, 'lon': -81.5, 'zoom': 6},
-            'IL': {'lat': 40.6, 'lon': -89.4, 'zoom': 7}, 'PA': {'lat': 41.2, 'lon': -77.2, 'zoom': 7},
-            'OH': {'lat': 40.4, 'lon': -82.9, 'zoom': 7}, 'MA': {'lat': 42.4, 'lon': -71.4, 'zoom': 8},
-            'WA': {'lat': 47.8, 'lon': -120.7, 'zoom': 7}
-            # Add more states here or load from a file for full coverage
+    def generate_geo_data():
+        # US states with coordinates (approximate centers)
+        states_data = {
+            'CA': {'name': 'California', 'lat': 36.7783, 'lon': -119.4179, 'zoom': 6},
+            'TX': {'name': 'Texas', 'lat': 31.9686, 'lon': -99.9018, 'zoom': 6},
+            'NY': {'name': 'New York', 'lat': 42.1657, 'lon': -74.9481, 'zoom': 7},
+            'FL': {'name': 'Florida', 'lat': 27.6648, 'lon': -81.5158, 'zoom': 6},
+            'IL': {'name': 'Illinois', 'lat': 40.6331, 'lon': -89.3985, 'zoom': 7},
+            'PA': {'name': 'Pennsylvania', 'lat': 41.2033, 'lon': -77.1945, 'zoom': 7},
+            'OH': {'name': 'Ohio', 'lat': 40.4173, 'lon': -82.9071, 'zoom': 7},
+            'MA': {'name': 'Massachusetts', 'lat': 42.4072, 'lon': -71.3824, 'zoom': 8},
+            'WA': {'name': 'Washington', 'lat': 47.7511, 'lon': -120.7401, 'zoom': 7}
         }
-
-        states_data_dict = {}
-        all_households = []
         
-        for code in state_codes:
-            coords = known_coords.get(code, coord_defaults)
-            # Use code as name if not otherwise specified (GeoJSON should provide better names)
-            states_data_dict[code] = {'name': code, 'lat': coords['lat'], 'lon': coords['lon'], 'zoom': coords['zoom']}
+        # Generate stats for each state
+        for state_code in states_data:
+            state = states_data[state_code]
+            state['total_homes'] = random.randint(150, 500)
+            state['ev_homes'] = random.randint(30, int(state['total_homes'] * 0.3))
+            state['ac_homes'] = random.randint(int(state['total_homes'] * 0.5), int(state['total_homes'] * 0.9))
+            state['pv_homes'] = random.randint(20, int(state['total_homes'] * 0.25))
+        
+        def generate_households(state_code, count=100):
+            """Generate mock household data within a state"""
+            state = states_data[state_code]
+            households = []
             
-            # Generate stats and households
-            total = random.randint(50, 250) # Reduced count per state for performance
-            ev_c = random.randint(5, int(total * 0.2))
-            ac_c = random.randint(int(total * 0.4), int(total * 0.8))
-            pv_c = random.randint(3, int(total * 0.15))
-            states_data_dict[code]['stats'] = {'total': total, 'ev': ev_c, 'ac': ac_c, 'pv': pv_c}
+            # Define the spread of points (in degrees)
+            lat_spread = 1.5
+            lon_spread = 1.5
             
-            # Generate households around the state center
-            lat_spread, lon_spread = 1.5, 1.5 # Adjust spread as needed
-            for i in range(total):
-                lat = coords['lat'] + (random.random() - 0.5) * lat_spread
-                lon = coords['lon'] + (random.random() - 0.5) * lon_spread
-                has_ev = random.random() < (ev_c / total)
-                has_ac = random.random() < (ac_c / total)
-                has_pv = random.random() < (pv_c / total)
-                if not (has_ev or has_ac or has_pv): # Ensure at least one
-                    dev = random.choice(['ev', 'ac', 'pv'])
-                    if dev == 'ev': has_ev = True
-                    elif dev == 'ac': has_ac = True
+            for i in range(count):
+                # Randomly place homes around the state center
+                lat = state['lat'] + (random.random() - 0.5) * lat_spread
+                lon = state['lon'] + (random.random() - 0.5) * lon_spread
+                
+                # Assign devices randomly but weighted by state percentages
+                has_ev = random.random() < (state['ev_homes'] / state['total_homes'])
+                has_ac = random.random() < (state['ac_homes'] / state['total_homes'])
+                has_pv = random.random() < (state['pv_homes'] / state['total_homes'])
+                
+                # Ensure at least one device is present
+                if not (has_ev or has_ac or has_pv):
+                    # Assign at least one device
+                    device_type = random.choice(['ev', 'ac', 'pv'])
+                    if device_type == 'ev': has_ev = True
+                    elif device_type == 'ac': has_ac = True
                     else: has_pv = True
                 
-                all_households.append({
-                    'id': f"{code}-{i+1}", 'lat': lat, 'lon': lon, 
-                    'has_ev': has_ev, 'has_ac': has_ac, 'has_pv': has_pv, 
-                    'energy_consumption': random.randint(20, 100), 'state': code
-                })
-                
-        # Try to update names from GeoJSON if possible (assuming geojson loaded first)
-        if 'us_states_geojson' in st.session_state and st.session_state.us_states_geojson:
-            geojson = st.session_state.us_states_geojson
-            for feature in geojson.get('features', []):
-                code = feature.get('properties', {}).get('code')
-                name = feature.get('properties', {}).get('name')
-                if code in states_data_dict and name:
-                    states_data_dict[code]['name'] = name
-                    
-        return states_data_dict, all_households
-
-    # --- Load Data --- 
-    # Load GeoJSON first to get the list of state codes
-    us_states_geojson = load_us_geojson()
-    st.session_state.us_states_geojson = us_states_geojson # Store for generate_mock_data
-
-    if not us_states_geojson or 'all_state_codes' not in st.session_state or not st.session_state.all_state_codes:
-        st.error("Map cannot be displayed: Failed to load or process state boundary data.")
-        st.stop()
-        
-    # Generate mock data based on codes found in GeoJSON
-    states_data, households = generate_mock_data(st.session_state.all_state_codes)
-    all_state_codes = st.session_state.all_state_codes # Use the sorted list from loader
-    state_names_map = {code: states_data[code]['name'] for code in all_state_codes if code in states_data}
-
-    # --- Sidebar Filters --- 
-    st.sidebar.markdown("### Map Filters")
-    show_ev = st.sidebar.checkbox("Show EV Chargers", value=True, key="map_cb_ev")
-    show_ac = st.sidebar.checkbox("Show AC Units", value=True, key="map_cb_ac")
-    show_pv = st.sidebar.checkbox("Show Solar Panels", value=True, key="map_cb_pv")
-
-    # --- State Selection Logic --- 
-    params = st.query_params
-    # state_code_from_click is the state code just clicked (from URL param)
-    state_code_from_click = params.get("state", [None])[0]
-    # st.write(f"Debug: Param 'state' from URL = {state_code_from_click}") # Debug
-    
-    # displayed_state_code is the state currently being shown/selected in dropdown
-    # Initialize from clicked state if valid, else None
-    if 'displayed_state_code' not in st.session_state:
-        st.session_state.displayed_state_code = state_code_from_click if state_code_from_click in all_state_codes else None
-        # If initialized from click, clear param ONLY AFTER first load potentially?
-        # Maybe clear only if different from session state? Seems complex.
-        # Let's avoid clearing here for now.
-        # if st.session_state.displayed_state_code: st.query_params.clear() 
-        
-    # If a click happened (query param set) and it's different from current session state, update session state
-    elif state_code_from_click and state_code_from_click in all_state_codes and state_code_from_click != st.session_state.displayed_state_code:
-         st.session_state.displayed_state_code = state_code_from_click
-         # DO NOT clear query params here - let the state update drive the rerun
-         # st.query_params.clear() 
-         # Rerun might be implicitly needed if Streamlit doesn't pick up session state change quickly enough for map
-         # st.rerun() # Let's see if it works without explicit rerun first
-
-    # Determine if we are showing the overview or a specific state's details
-    # Use the value directly from session state
-    final_display_code = st.session_state.get('displayed_state_code', None)
-    show_overview = final_display_code is None
-    # st.write(f"Debug: Final display code = {final_display_code}, Show overview = {show_overview}") # Debug
-
-    # --- UI Elements: Back Button, State Selector, Stats --- 
-    # state_selector_value = None # No longer needed here
-    if not show_overview:
-        # current_display_code = st.session_state.displayed_state_code # Use final_display_code
-        state_info = states_data.get(final_display_code)
-        
-        # --- Back Button and State Selector Row --- 
-        control_cols = st.columns([1, 3]) 
-        with control_cols[0]:
-            if st.button("← Back to US Overview", key="back_button_main", type="primary", use_container_width=True):
-                st.session_state.displayed_state_code = None # Reset state
-                st.query_params.clear() # Clear URL param when going back
-                st.rerun()
-        
-        with control_cols[1]:
-            # State Selector Dropdown (only shown when a state is selected)
-            try:
-                # Ensure current_display_code is valid before finding index
-                if final_display_code in all_state_codes:
-                     default_index = all_state_codes.index(final_display_code)
-                else:
-                     # This case should ideally not happen if state is validated before setting session state
-                     st.warning(f"State code '{final_display_code}' not found in available codes. Resetting to overview.")
-                     st.session_state.displayed_state_code = None
-                     st.query_params.clear()
-                     st.rerun() # Rerun to go back to overview
-                     
-            except ValueError: # Should be caught by the check above, but as safety
-                default_index = 0 # Fallback
-                st.warning(f"Error finding index for state '{final_display_code}'.")
-
-                
-            state_selector_value = st.selectbox(
-                "Select State to View Details:",
-                options=all_state_codes,
-                format_func=lambda code: state_names_map.get(code, code), # Show name, fallback to code
-                index=default_index,
-                key="state_selector"
-            )
-            # Update session state if dropdown changes
-            if state_selector_value != st.session_state.displayed_state_code:
-                st.session_state.displayed_state_code = state_selector_value
-                # Rerun needed after dropdown change to update map etc.
-                st.rerun() 
-                
-        # --- Display State Statistics --- 
-        # Use the *potentially updated* state code after selectbox interaction for stats
-        current_display_code_for_stats = st.session_state.displayed_state_code 
-        state_info_for_stats = states_data.get(current_display_code_for_stats) 
-
-        if state_info_for_stats:
-            state_stats = state_info_for_stats.get('stats', {'total': 0, 'ev': 0, 'ac': 0, 'pv': 0})
-            st.markdown(f"### {state_info_for_stats.get('name', current_display_code_for_stats)} Statistics") 
-            m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-            total_homes = state_stats.get('total', 0)
-            m_col1.metric("Total Homes", f"{total_homes:,}")
-            if total_homes > 0:
-                 m_col2.metric("EV Homes", f"{state_stats.get('ev', 0):,}", f"{state_stats.get('ev', 0)/total_homes*100:.1f}%")
-                 m_col3.metric("AC Homes", f"{state_stats.get('ac', 0):,}", f"{state_stats.get('ac', 0)/total_homes*100:.1f}%")
-                 m_col4.metric("PV Homes", f"{state_stats.get('pv', 0):,}", f"{state_stats.get('pv', 0)/total_homes*100:.1f}%")
-            else:
-                 m_col2.metric("EV Homes", "0", "0.0%")
-                 m_col3.metric("AC Homes", "0", "0.0%")
-                 m_col4.metric("PV Homes", "0", "0.0%")
-        # No warning needed if state_info is None, handled by overview logic
-
-    else:
-        # Prompt on overview map
-        st.markdown("""<div style='text-align: center; padding: 20px; background-color: rgba(81, 93, 154, 0.05); border-radius: 5px; margin-bottom: 20px;'><h3 style='margin-top: 0; color: #515D9A;'>Select a State on the Map</h3><p>Click directly on any state boundary to select it and view details.</p></div>""", unsafe_allow_html=True)
-
-
-    # --- Filter Households for Detail Map --- 
-    # Use the final determined state code for filtering
-    # final_display_code is already determined above based on session state
-    # show_overview is also determined above
-
-    # --- Create Folium Map --- 
-    st.markdown("### Interactive Map")
-    st.markdown("""<div style='background-color: rgba(81, 93, 154, 0.1); padding: 15px; border-radius: 5px; margin-bottom: 15px;'><h4 style='margin-top: 0;'>How to Use This Map</h4><p><strong>Overview:</strong> Click a state boundary to select it.</p><p><strong>State View:</strong> Shows selected state details and homes. Use the dropdown or click 'Back' to change view.</p></div><p><em><strong>Disclaimer:</strong> Map uses synthetic data.</em></p>""", unsafe_allow_html=True)
-
-    # Determine map center and zoom based on view
-    if final_display_code and final_display_code in states_data:
-         map_center = [states_data[final_display_code]['lat'], states_data[final_display_code]['lon']]
-         map_zoom = states_data[final_display_code]['zoom']
-    else:
-         map_center = [39.8, -98.6] # US center
-         map_zoom = 4 # Overview zoom
-         
-    m = folium.Map(location=map_center, zoom_start=map_zoom, tiles="CartoDB positron", control_scale=True)
-
-    # --- Define JS Navigation Function Globally --- 
-    # This function will be called by the onclick event added by the 'script' parameter
-    navigation_js = """
-        <script>
-            function navigateToState(stateCode) {
-                if (!stateCode) {
-                    console.error('JS Error: navigateToState called without stateCode.');
-                    return;
+                # Create household data
+                household = {
+                    'id': f"{state_code}-{i+1}",
+                    'lat': lat,
+                    'lon': lon,
+                    'has_ev': has_ev,
+                    'has_ac': has_ac,
+                    'has_pv': has_pv,
+                    'energy_consumption': random.randint(20, 100),  # kWh per day
+                    'state': state_code
                 }
-                console.log('JS: navigateToState called for: ' + stateCode);
-                // Set the query parameter. Streamlit will detect this on rerun.
-                window.location.search = 'state=' + stateCode;
+                households.append(household)
+            
+            return households
+        
+        # Generate households for each state
+        all_households = []
+        for state_code in states_data:
+            state_households = generate_households(state_code, states_data[state_code]['total_homes'])
+            all_households.extend(state_households)
+        
+        return states_data, all_households
+    
+    # Load GeoJSON data for US states
+    @st.cache_data
+    def load_us_geojson():
+        # Use actual GeoJSON data from an external source for more accurate state boundaries
+        import requests
+        
+        try:
+            # Try to fetch real US state boundary data
+            response = requests.get("https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json")
+            us_states = response.json()
+            
+            # Filter to only include our selected states
+            state_codes = ['CA', 'TX', 'NY', 'FL', 'IL', 'PA', 'OH', 'MA', 'WA']
+            us_states['features'] = [f for f in us_states['features'] 
+                                    if f['id'] in state_codes]
+            
+            # Add our custom density data to real boundaries
+            state_density = {
+                'CA': 241.7,
+                'TX': 103.4,
+                'NY': 417.2,
+                'FL': 378.5,
+                'IL': 231.1,
+                'PA': 284.3,
+                'OH': 282.5,
+                'MA': 863.8,
+                'WA': 107.9
             }
-        </script>
-    """
-    m.get_root().html.add_child(Element(navigation_js))
-
-    # --- Map Layers --- 
-    if show_overview: 
-        # --- Overview Map Configuration --- 
-        style_function = lambda x: {'fillColor': primary_purple, 'color': 'white', 'weight': 1, 'fillOpacity': 0.6}
-        highlight_function = lambda x: {'fillColor': light_purple, 'weight': 3, 'fillOpacity': 0.8}
-
-        # --- Define JS Click Script (to be attached per feature) ---
-        click_script = """
-            function(feature, layer) {
-                layer.options.interactive = true; // Ensure layer reacts to events
-                const stateCode = feature.properties.code || feature.id;
-                const stateName = feature.properties.name || stateCode;
-
-                if (!stateCode) { return; } // Skip if no code/id
-
-                // Attach event listeners
-                layer.on({
-                    mouseover: function(e) {
-                        const layer = e.target;
-                        layer.setStyle({ fillOpacity: 0.8, weight: 2 }); // Use highlight style
-                        if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
-                            layer.bringToFront();
-                        }
+            
+            # Update properties to include our code format and density data
+            for feature in us_states['features']:
+                state_id = feature['id']
+                feature['properties']['code'] = state_id
+                feature['properties']['density'] = state_density.get(state_id, 0)
+            
+            return us_states
+            
+        except Exception as e:
+            # Fallback to simplified geometry if network fetch fails
+            st.warning(f"Couldn't fetch US state boundaries, using simplified fallback data.")
+            
+            # Use a simplified version as backup
+            us_states = {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "California", "code": "CA", "density": 241.7},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-124.3, 32.5], [-124.3, 42.0], [-114.1, 42.0], [-114.1, 32.5], [-124.3, 32.5]]]}
                     },
-                    mouseout: function(e) {
-                        // Reset to default style - GeoJson layer usually handles this
-                        // Or explicitly reset: e.target.setStyle({ fillOpacity: 0.6, weight: 1 });
-                        const layer = e.target;
-                        layer.setStyle({ fillOpacity: 0.6, weight: 1 }); // Explicit reset matching style_function
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "Texas", "code": "TX", "density": 103.4},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-106.6, 25.8], [-106.6, 36.5], [-93.5, 36.5], [-93.5, 25.8], [-106.6, 25.8]]]}
                     },
-                    click: function(e) {
-                        console.log(`JS: Click detected on state ${stateCode}`);
-                        // Call the globally defined navigation function
-                        if (typeof navigateToState === 'function') {
-                            navigateToState(stateCode);
-                        } else {
-                            console.error('JS Error: navigateToState function not found. Attempting fallback.');
-                            window.location.search = `state=${stateCode}`; // Fallback
-                        }
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "New York", "code": "NY", "density": 417.2},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-79.8, 40.5], [-79.8, 45.0], [-71.8, 45.0], [-71.8, 40.5], [-79.8, 40.5]]]}
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "Florida", "code": "FL", "density": 378.5},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-87.6, 24.5], [-87.6, 31.0], [-80.0, 31.0], [-80.0, 24.5], [-87.6, 24.5]]]}
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "Illinois", "code": "IL", "density": 231.1},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-91.5, 37.0], [-91.5, 42.5], [-87.5, 42.5], [-87.5, 37.0], [-91.5, 37.0]]]}
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "Pennsylvania", "code": "PA", "density": 284.3},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-80.5, 39.7], [-80.5, 42.3], [-74.7, 42.3], [-74.7, 39.7], [-80.5, 39.7]]]}
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "Ohio", "code": "OH", "density": 282.5},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-84.8, 38.4], [-84.8, 42.0], [-80.5, 42.0], [-80.5, 38.4], [-84.8, 38.4]]]}
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "Massachusetts", "code": "MA", "density": 863.8},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-73.5, 41.2], [-73.5, 42.9], [-69.9, 42.9], [-69.9, 41.2], [-73.5, 41.2]]]}
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": {"name": "Washington", "code": "WA", "density": 107.9},
+                        "geometry": {"type": "Polygon", "coordinates": [[[-124.8, 45.5], [-124.8, 49.0], [-116.9, 49.0], [-116.9, 45.5], [-124.8, 45.5]]]}
                     }
-                });
+                ]
             }
-        """
+            
+            return us_states
+    
+    # Load the data
+    states_data, households = generate_geo_data()
+    us_states_geojson = load_us_geojson()
+    
+    # Create filter controls in sidebar
+    st.sidebar.markdown("### Map Filters")
+    show_ev = st.sidebar.checkbox("Show EV Chargers", value=True)
+    show_ac = st.sidebar.checkbox("Show AC Units", value=True)
+    show_pv = st.sidebar.checkbox("Show Solar Panels", value=True)
+    
+    # Get state from URL parameter if available
+    params = st.query_params
+    url_state = params.get("state", [""])[0]
+    
+    # Set the default selected state to empty string for the map overview
+    selected_state = ""
 
-        # Add GeoJSON layer - Use 'script' parameter to attach JS
+    # Check if we have a valid state from URL parameters
+    if url_state in states_data:
+        selected_state = url_state
+        # Hide the state selection dropdown when a state is selected via URL
+        st.markdown("""
+        <style>
+        /* Hide the state selection dropdown when viewing a state detail */
+        div[data-testid="stSelectbox"] {display: none !important;}
+        </style>
+        """, unsafe_allow_html=True)
+    else:
+        # If no valid state in URL, use the dropdown but keep it hidden on the map page
+        selected_state_dropdown = st.selectbox(
+            "Select State to View",
+            options=list(states_data.keys()),
+            format_func=lambda x: states_data[x]['name'],
+            index=0
+        )
+        
+        # Only use the dropdown value if we're not in map overview mode
+        if selected_state_dropdown:
+            selected_state = selected_state_dropdown
+    
+    # Filter households by selected state and device types
+    filtered_households = [
+        h for h in households if 
+        h['state'] == selected_state and
+        ((show_ev and h['has_ev']) or 
+         (show_ac and h['has_ac']) or 
+         (show_pv and h['has_pv']))
+    ]
+    
+    # Display stats for selected state
+    if selected_state:
+        # Create a row with columns for the back button and a note
+        back_cols = st.columns([1, 3])
+        
+        # Add a Streamlit-based back button at the top in the first column
+        with back_cols[0]:
+            back_button = st.button("← Back to Map Overview", type="primary", use_container_width=True)
+            if back_button:
+                st.query_params.clear()
+                st.rerun()
+
+        # Add a note about the map navigation in the second column
+        with back_cols[1]:
+            st.markdown("""
+            <div style="margin-top: 5px; color: #666; font-style: italic;">
+                <small>Note: You can also use the blue "Back to Map" button in the top-left corner of the map below.</small>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        state = states_data[selected_state]
+        st.markdown(f"### {state['name']} Statistics")
+        
+        # Create metrics for the selected state
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Homes", f"{state['total_homes']:,}")
+        with col2:
+            st.metric("Homes with EV Chargers", f"{state['ev_homes']:,}", 
+                    f"{state['ev_homes']/state['total_homes']*100:.1f}%")
+        with col3:
+            st.metric("Homes with AC Units", f"{state['ac_homes']:,}", 
+                    f"{state['ac_homes']/state['total_homes']*100:.1f}%")
+        with col4:
+            st.metric("Homes with Solar Panels", f"{state['pv_homes']:,}", 
+                    f"{state['pv_homes']/state['total_homes']*100:.1f}%")
+    else:
+        # If we're on the overview map, show a message prompting to select a state
+        st.markdown("""
+        <div style="text-align: center; padding: 20px; background-color: rgba(81, 93, 154, 0.05); border-radius: 5px; margin-bottom: 20px;">
+            <h3 style="margin-top: 0; color: #515D9A;">Select a State on the Map</h3>
+            <p>Click directly on any state in the map below to view detailed statistics and device distribution.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Create map
+    st.markdown("### Interactive Map")
+    
+    # Update the description to explain the interactivity clearly
+    st.markdown("""
+    <div style="background-color: rgba(81, 93, 154, 0.1); padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+        <h4 style="margin-top: 0;">How to Use This Map</h4>
+        <p><strong>🖱️ Click directly on any state</strong> to zoom in and view homes with smart devices.</p>
+        <p>Once zoomed in, you can see individual homes with:</p>
+        <ul>
+            <li>🔌 EV chargers</li>
+            <li>❄️ AC units</li>
+            <li>☀️ Solar panels</li>
+        </ul>
+        <p>Use the <strong>Back to Map</strong> button to return to the overview.</p>
+    </div>
+    <p><em><strong>DISCLAIMER:</strong> Currently, the map was generated using synthetic data, for testing purposes.</em></p>
+    """, unsafe_allow_html=True)
+    
+    # Create two types of maps: overview and detail
+    if selected_state == "":
+        # Overview map of all states
+        m = folium.Map(
+            location=[39.8283, -98.5795],  # Center of US
+            zoom_start=4,
+            tiles="CartoDB positron"
+        )
+        
+        # Add GeoJSON states layer with click functionality
+        style_function = lambda feature: {
+            'fillColor': primary_purple,
+            'color': 'white',
+            'weight': 1,
+            'fillOpacity': 0.5,
+        }
+        
+        highlight_function = lambda feature: {
+            'fillColor': light_purple,
+            'color': 'white',
+            'weight': 3,
+            'fillOpacity': 0.7,
+        }
+        
+        # Custom JavaScript for handling clicks on states
+        click_script = """
+        function (feature, layer) {
+            // Make sure this layer is clickable
+            layer.options.interactive = true;
+            
+            // Create a function for navigation that works for both direct and popup clicks
+            function navigateToState(stateCode) {
+                console.log("Navigating to state: " + stateCode);
+                // Use window.location.search instead of href to avoid opening a new page
+                window.location.search = "state=" + stateCode;
+            }
+            
+            // Add a direct click handler
+            layer.on({
+                mouseover: function (e) {
+                    var layer = e.target;
+                    layer.setStyle({
+                        fillOpacity: 0.7,
+                        fillColor: '#B8BCF3',
+                        weight: 3,
+                        color: 'white'
+                    });
+                    
+                    if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                        layer.bringToFront();
+                    }
+                },
+                mouseout: function (e) {
+                    var layer = e.target;
+                    layer.setStyle({
+                        fillOpacity: 0.5,
+                        fillColor: '#515D9A',
+                        weight: 1,
+                        color: 'white'
+                    });
+                },
+                click: function (e) {
+                    // Visual feedback on click
+                    var layer = e.target;
+                    layer.setStyle({
+                        fillOpacity: 0.9,
+                        fillColor: '#515D9A',
+                        weight: 4,
+                        color: '#FFFFFF'
+                    });
+                    
+                    // Get the state code
+                    var stateCode = feature.properties.code || feature.id;
+                    console.log("Clicked on state: " + stateCode);
+                    
+                    // Add a small delay for visual feedback before navigating
+                    setTimeout(function() {
+                        navigateToState(stateCode);
+                    }, 300);
+                }
+            });
+            
+            // Also ensure any popup clicks navigate correctly
+            layer.on('popupopen', function() {
+                setTimeout(function() {
+                    var popups = document.getElementsByClassName('leaflet-popup-content');
+                    if (popups.length > 0) {
+                        var stateCode = feature.properties.code || feature.id;
+                        popups[0].addEventListener('click', function() {
+                            navigateToState(stateCode);
+                        });
+                    }
+                }, 100);
+            });
+        }
+        """
+        
+        # Add the GeoJSON layer with click handler
+        geojson_tooltip_fields = ['name']
+        if 'density' in us_states_geojson['features'][0]['properties']:
+            geojson_tooltip_fields.append('density')
+            
         folium.GeoJson(
             us_states_geojson,
-            name="States",
+            name="US States",
             style_function=style_function,
             highlight_function=highlight_function,
-            tooltip=folium.features.GeoJsonTooltip(
-                fields=['name'], # Just show name on hover
-                aliases=['State:'], 
+            tooltip=folium.GeoJsonTooltip(
+                fields=geojson_tooltip_fields,
+                aliases=['State:'] + (['Population Density:'] if len(geojson_tooltip_fields) > 1 else []),
+                labels=True,
                 sticky=True,
-                style="background-color: rgba(255,255,255,0.9); color: #333; font-family: sans-serif; font-size: 12px; padding: 5px; border: 1px solid #ccc; border-radius: 3px; box-shadow: 0 0 5px rgba(0,0,0,0.3);" 
+                style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.2);")
             ),
-            popup=None, # No popup needed
-            script=click_script, # Attach the per-feature JS here
-            embed=False # Let streamlit-folium handle embedding
+            popup=folium.GeoJsonPopup(
+                fields=['name'],
+                aliases=['Click to view devices in:'],
+                style=("background-color: white; color: #333333; font-family: arial; font-size: 14px; padding: 10px; border-radius: 5px; font-weight: bold;")
+            ),
+            script=click_script
         ).add_to(m)
-
-    else: 
-        # --- Detail Map Configuration --- 
-        state_info = states_data.get(final_display_code) # Get data for the displayed state
         
-        # Add embedded back button HTML (optional, as we have the Streamlit one)
-        # back_button_html = """ ... """
-        # m.get_root().html.add_child(Element(back_button_html))
-
-        # Add state boundary highlight
-        state_feature = next((f for f in us_states_geojson['features'] if f.get('properties', {}).get('code') == final_display_code), None)
-        if state_feature:
-            folium.GeoJson(state_feature, name="Selected State Boundary", 
-                        style_function=lambda x: {'color': dark_purple, 'weight': 4, 'fillOpacity': 0.15, 'fillColor': light_purple}, 
-                        interactive=False).add_to(m)
-
-        # Add household markers
-        if households:
-            marker_cluster = MarkerCluster(name="Homes").add_to(m)
-            vis_ev, vis_ac, vis_pv = 0, 0, 0 # Reset counts for this state
-
-            for house in households:
-                # (Keep household marker logic as before)
-                icon_color, icon_name = "gray", "home"; tooltip_parts = []; dev_icons = ""
-                if house['has_ev'] and show_ev: icon_color, icon_name = "blue", "plug"; tooltip_parts.append("EV"); vis_ev += 1; dev_icons += '<i class="fa fa-check-circle" style="color:#3366cc;"></i> EV '
-                else: dev_icons += '<i class="fa fa-times-circle" style="color:#ccc;"></i> EV '
-                if house['has_ac'] and show_ac:
-                    if icon_color=="gray": icon_color, icon_name = "orange", "snowflake-o"
-                    tooltip_parts.append("AC"); vis_ac += 1; dev_icons += '<i class="fa fa-check-circle" style="color:#ff9900;"></i> AC '
-                else: dev_icons += '<i class="fa fa-times-circle" style="color:#ccc;"></i> AC '
-                if house['has_pv'] and show_pv:
-                    if icon_color=="gray": icon_color, icon_name = "green", "sun-o"
-                    tooltip_parts.append("Solar"); vis_pv += 1; dev_icons += '<i class="fa fa-check-circle" style="color:#66cc66;"></i> Solar'
-                else: dev_icons += '<i class="fa fa-times-circle" style="color:#ccc;"></i> Solar'
-                tooltip = f"Home {house['id']} ({' + '.join(tooltip_parts)})" if tooltip_parts else f"Home {house['id']}"
-                popup_html = f"""<div style='min-width:180px; font-size: 13px;'><h4 style='margin:0 0 8px 0; color:#515D9A;'>Home {house['id']}</h4>{dev_icons}<br><b>Consumption:</b> {house['energy_consumption']} kWh/day</div>"""
-                folium.Marker([house['lat'], house['lon']], tooltip=tooltip, popup=folium.Popup(popup_html, max_width=250), icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa')).add_to(marker_cluster)
-                
-            # Add Info Panel with visible counts for the *filtered* households
-            if state_info:
-                 info_panel_html = f"""<div style='position: absolute; top: 10px; right: 10px; width: auto; background-color: rgba(255,255,255,0.9); border-radius: 5px; box-shadow: 0 0 8px rgba(0,0,0,0.2); padding: 10px; z-index: 1000; font-size: 13px;'><h4 style='margin:0 0 8px 0; color:#515D9A;'>{state_info.get('name', final_display_code)} (Visible Homes)</h4>Count: {len(households)}<br>EV: {vis_ev}<br>AC: {vis_ac}<br>Solar: {vis_pv}</div>"""
-                 m.get_root().html.add_child(Element(info_panel_html))
-        else:
-            # Show message if no households match filters
-            folium.Marker(map_center, tooltip="No homes match filters for this state", icon=folium.Icon(color="gray", icon="info-sign")).add_to(m)
-
-    # --- Add Legend and Display Map --- 
-    legend_html = """<div style="position: fixed; bottom: 20px; right: 20px; z-index:1000; background-color:rgba(255,255,255,0.9); padding: 8px 10px; border-radius:5px; border: 1px solid #ccc; font-size:12px;"><b>Legend</b><br><i class="fa fa-map-marker" style="color:blue;"></i> EV Home<br><i class="fa fa-map-marker" style="color:orange;"></i> AC Home<br><i class="fa fa-map-marker" style="color:green;"></i> Solar Home<br><i class="fa fa-map-marker" style="color:gray;"></i> Other Home</div>""" # Removed state summary marker from legend
-    m.get_root().html.add_child(Element(legend_html))
-    folium.LayerControl().add_to(m) 
-
-    # Display map
-    folium_static(m, width=None, height=600)
-
-    # --- Data Table (only on detail view) --- 
-    if not show_overview:
-        st.markdown("### Filtered Homes Data")
-        if households:
-            df_houses = pd.DataFrame(households)[['id', 'has_ev', 'has_ac', 'has_pv', 'energy_consumption']] 
-            df_houses = df_houses.rename(columns={'id': 'Home ID', 'has_ev': 'EV', 'has_ac': 'AC', 'has_pv': 'PV', 'energy_consumption': 'Consumption (kWh/day)'})
-            df_houses[['EV', 'AC', 'PV']] = df_houses[['EV', 'AC', 'PV']].replace({True: '✓', False: ''})
-            st.dataframe(df_houses, use_container_width=True, hide_index=True)
+        # Add state border lines for clarity
+        folium.GeoJson(
+            us_states_geojson,
+            name="State Borders",
+            style_function=lambda x: {
+                'color': '#666666',
+                'weight': 2,
+                'fillOpacity': 0
+            },
+            tooltip=None
+        ).add_to(m)
+        
+        # Add state markers with statistics
+        for state_code, state_info in states_data.items():
+            # Create popup content with statistics
+            popup_content = f"""
+            <div style="width: 200px;">
+                <h4>{state_info['name']}</h4>
+                <b>Total Homes:</b> {state_info['total_homes']}<br>
+                <b>Homes with EV:</b> {state_info['ev_homes']} ({state_info['ev_homes']/state_info['total_homes']*100:.1f}%)<br>
+                <b>Homes with AC:</b> {state_info['ac_homes']} ({state_info['ac_homes']/state_info['total_homes']*100:.1f}%)<br>
+                <b>Homes with PV:</b> {state_info['pv_homes']} ({state_info['pv_homes']/state_info['total_homes']*100:.1f}%)<br>
+                <a href="javascript:void(0);" onclick="window.location.search='state={state_code}'" style="color: #515D9A; font-weight: bold;">Click to view details</a>
+            </div>
+            """
             
-            @st.cache_data
-            def convert_df_to_csv(df): return df.to_csv(index=False).encode('utf-8')
-            csv = convert_df_to_csv(df_houses)
-            st.download_button("Download Data as CSV", csv, f"{state_info.get('name', final_display_code)}_homes_data.csv", "text/csv", key=f"dl_{final_display_code}")
-        else:
-            st.info("No homes match the current filters for this state.")
-
+            # Add marker
+            folium.Marker(
+                location=[state_info['lat'], state_info['lon']],
+                popup=folium.Popup(popup_content, max_width=300),
+                icon=folium.Icon(icon="info-sign", prefix="fa", color="purple"),
+                tooltip=f"Click for {state_info['name']} statistics"
+            ).add_to(m)
+        
+    else:
+        # Detailed map for selected state
+        m = folium.Map(
+            location=[state['lat'], state['lon']], 
+            zoom_start=state['zoom'],
+            tiles="CartoDB positron"
+        )
+        
+        # Add a back button to the overview map with improved styling
+        back_button_html = '''
+        <div id="back-button" style="position: absolute; 
+                    top: 10px; left: 10px; width: 140px; height: 40px; 
+                    z-index:9999999; font-size:15px; background-color:#FFFFFF; 
+                    border-radius:6px; padding: 8px; box-shadow: 0 3px 12px rgba(0,0,0,0.4);
+                    text-align:center; transition: all 0.2s ease; cursor:pointer;
+                    border: 3px solid #515D9A;">
+            <a href="javascript:void(0);" id="back-link" style="color:#515D9A; text-decoration:none; font-weight:bold; display:flex; align-items:center; justify-content:center; width: 100%; height: 100%;">
+                <i class="fa fa-arrow-left" style="margin-right: 8px; font-size: 18px;"></i> Back to Map
+            </a>
+        </div>
+        
+        <script>
+        // Make sure the back button works by adding multiple event handlers
+        setTimeout(function() {
+            try {
+                var backButton = document.getElementById('back-button');
+                var backLink = document.getElementById('back-link');
+                
+                function navigateToOverview() {
+                    // Use window.location.search instead of href to avoid opening a new page
+                    window.location.search = '';
+                }
+                
+                if (backButton) {
+                    // Direct click on button area
+                    backButton.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        navigateToOverview();
+                    });
+                    
+                    // Hover effects
+                    backButton.addEventListener('mouseover', function() {
+                        this.style.backgroundColor = "#f0f5ff";
+                        this.style.boxShadow = "0 4px 15px rgba(0,0,0,0.4)";
+                        this.style.transform = "translateY(-2px)";
+                    });
+                    
+                    backButton.addEventListener('mouseout', function() {
+                        this.style.backgroundColor = "#FFFFFF";
+                        this.style.boxShadow = "0 3px 12px rgba(0,0,0,0.4)";
+                        this.style.transform = "translateY(0)";
+                    });
+                    
+                    // Active effect
+                    backButton.addEventListener('mousedown', function() {
+                        this.style.transform = "scale(0.97)";
+                    });
+                    
+                    backButton.addEventListener('mouseup', function() {
+                        this.style.transform = "scale(1)";
+                    });
+                }
+                
+                if (backLink) {
+                    // Link click event
+                    backLink.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        navigateToOverview();
+                    });
+                }
+                
+                // Ensure map controls don't overlap with button
+                var leftControls = document.querySelector('.leaflet-top.leaflet-left');
+                if (leftControls) {
+                    leftControls.style.top = "60px";
+                }
+                
+                // Add a pulsing effect to draw attention to the button
+                setTimeout(function() {
+                    if (backButton) {
+                        backButton.style.transform = "scale(1.05)";
+                        setTimeout(function() {
+                            backButton.style.transform = "scale(1)";
+                        }, 300);
+                    }
+                }, 1000);
+                
+            } catch(e) {
+                console.error("Error setting up back button:", e);
+            }
+        }, 300);
+        </script>
+        '''
+        m.get_root().html.add_child(folium.Element(back_button_html))
+        
+        # Add state boundaries to the detail view
+        # Create a GeoJSON layer just for this state (if we had full US GeoJSON)
+        state_feature = None
+        
+        # First try to find the state by code property
+        try:
+            state_feature = next((feature for feature in us_states_geojson['features'] 
+                              if feature['properties'].get('code') == selected_state), None)
+        except:
+            pass
+            
+        # If not found, try to find by id (which is used in the external GeoJSON)
+        if not state_feature:
+            try:
+                state_feature = next((feature for feature in us_states_geojson['features'] 
+                                  if feature.get('id') == selected_state), None)
+            except:
+                pass
+        
+        # If we found the state feature, add it to the map
+        if state_feature:
+            # Add just this state's boundary
+            folium.GeoJson(
+                {"type": "FeatureCollection", "features": [state_feature]},
+                name=f"{state['name']} Boundary",
+                style_function=lambda x: {
+                    'color': primary_purple,
+                    'weight': 3,
+                    'fillOpacity': 0.1,
+                    'fillColor': light_purple
+                }
+            ).add_to(m)
+        
+        # Create marker cluster for the households
+        marker_cluster = MarkerCluster().add_to(m)
+        
+        # Device count summary
+        ev_count = sum(1 for h in filtered_households if h['has_ev'])
+        ac_count = sum(1 for h in filtered_households if h['has_ac'])
+        pv_count = sum(1 for h in filtered_households if h['has_pv'])
+        
+        # Add state center marker with summary
+        summary_popup = f"""
+        <div style="width: 240px; padding: 10px;">
+            <h4 style="margin-top: 0; color: #515D9A; border-bottom: 2px solid #515D9A; padding-bottom: 5px; margin-bottom: 10px;">{state['name']} Summary</h4>
+            <div style="display: flex; margin-bottom: 5px;">
+                <div style="width: 30px; text-align: center;"><i class="fa fa-home" style="color: #515D9A;"></i></div>
+                <div><b>Total Homes:</b> {len(filtered_households)}</div>
+            </div>
+            <div style="display: flex; margin-bottom: 5px;">
+                <div style="width: 30px; text-align: center;"><i class="fa fa-plug" style="color: #515D9A;"></i></div>
+                <div><b>EV Chargers:</b> {ev_count} ({ev_count/len(filtered_households)*100:.1f}%)</div>
+            </div>
+            <div style="display: flex; margin-bottom: 5px;">
+                <div style="width: 30px; text-align: center;"><i class="fa fa-snowflake-o" style="color: #515D9A;"></i></div>
+                <div><b>AC Units:</b> {ac_count} ({ac_count/len(filtered_households)*100:.1f}%)</div>
+            </div>
+            <div style="display: flex;">
+                <div style="width: 30px; text-align: center;"><i class="fa fa-sun-o" style="color: #515D9A;"></i></div>
+                <div><b>Solar Panels:</b> {pv_count} ({pv_count/len(filtered_households)*100:.1f}%)</div>
+            </div>
+        </div>
+        """
+        
+        # Add a state information panel to the map
+        info_panel_html = f"""
+        <div id="state-info-panel" style="
+            position: absolute; 
+            top: 10px; 
+            right: 10px; 
+            width: 260px;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            padding: 15px;
+            z-index: 1000;
+            font-family: Arial, sans-serif;
+        ">
+            <h3 style="margin-top: 0; color: #515D9A; border-bottom: 2px solid #515D9A; padding-bottom: 5px;">{state['name']}</h3>
+            <div style="margin-bottom: 15px;">
+                <div style="font-weight: bold; margin-bottom: 5px;">Device Distribution:</div>
+                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                    <i class="fa fa-plug" style="color: blue; margin-right: 10px; width: 15px;"></i>
+                    <div style="flex-grow: 1;">EV Chargers</div>
+                    <div style="font-weight: bold;">{ev_count}/{len(filtered_households)}</div>
+                </div>
+                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                    <i class="fa fa-snowflake-o" style="color: orange; margin-right: 10px; width: 15px;"></i>
+                    <div style="flex-grow: 1;">AC Units</div>
+                    <div style="font-weight: bold;">{ac_count}/{len(filtered_households)}</div>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <i class="fa fa-sun-o" style="color: green; margin-right: 10px; width: 15px;"></i>
+                    <div style="flex-grow: 1;">Solar Panels</div>
+                    <div style="font-weight: bold;">{pv_count}/{len(filtered_households)}</div>
+                </div>
+            </div>
+            <div style="font-size: 12px; font-style: italic; color: #666;">
+                Click on markers to view device details for each home
+            </div>
+        </div>
+        """
+        m.get_root().html.add_child(folium.Element(info_panel_html))
+        
+        folium.Marker(
+            [state['lat'], state['lon']],
+            popup=folium.Popup(summary_popup, max_width=300),
+            icon=folium.Icon(color="purple", icon="info-sign", prefix="fa"),
+            tooltip=f"{state['name']} Summary"
+        ).add_to(m)
+        
+        # Add markers for each household
+        for house in filtered_households:
+            # Determine marker icon based on devices
+            if house['has_ev'] and show_ev:
+                icon_color = "blue"
+                icon_name = "plug"
+            elif house['has_pv'] and show_pv:
+                icon_color = "green"
+                icon_name = "sun"
+            else:
+                icon_color = "orange"
+                icon_name = "home"
+            
+            # Create popup content
+            popup_content = f"""
+            <div style="min-width: 220px; padding: 10px;">
+                <h4 style="margin-top: 0; color: #515D9A; border-bottom: 2px solid #515D9A; padding-bottom: 5px;">Home {house['id']}</h4>
+                
+                <div style="margin-top: 10px; margin-bottom: 10px;">
+                    <div style="font-weight: bold; margin-bottom: 5px;">Installed Devices:</div>
+                    <div style="display: flex; margin-bottom: 5px; align-items: center;">
+                        <div style="width: 20px; text-align: center; margin-right: 5px;">
+                            <i class="fa {'fa-check-circle' if house['has_ev'] else 'fa-times-circle'}" 
+                               style="color: {'#3366cc' if house['has_ev'] else '#cccccc'}; font-size: 16px;"></i>
+                        </div>
+                        <div>EV Charger</div>
+                    </div>
+                    <div style="display: flex; margin-bottom: 5px; align-items: center;">
+                        <div style="width: 20px; text-align: center; margin-right: 5px;">
+                            <i class="fa {'fa-check-circle' if house['has_ac'] else 'fa-times-circle'}" 
+                               style="color: {'#ff9900' if house['has_ac'] else '#cccccc'}; font-size: 16px;"></i>
+                        </div>
+                        <div>AC Unit</div>
+                    </div>
+                    <div style="display: flex; align-items: center;">
+                        <div style="width: 20px; text-align: center; margin-right: 5px;">
+                            <i class="fa {'fa-check-circle' if house['has_pv'] else 'fa-times-circle'}" 
+                               style="color: {'#66cc66' if house['has_pv'] else '#cccccc'}; font-size: 16px;"></i>
+                        </div>
+                        <div>Solar Panels</div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 15px; display: flex; align-items: center;">
+                    <div style="width: 20px; text-align: center; margin-right: 5px;">
+                        <i class="fa fa-bolt" style="color: #515D9A;"></i>
+                    </div>
+                    <div><b>Daily Energy:</b> {house['energy_consumption']} kWh</div>
+                </div>
+            </div>
+            """
+            
+            # Determine tooltip text based on devices
+            if house['has_ev'] and house['has_ac'] and house['has_pv']:
+                tooltip_text = f"Home with EV, AC & Solar"
+            elif house['has_ev'] and house['has_ac']:
+                tooltip_text = f"Home with EV & AC"
+            elif house['has_ev'] and house['has_pv']:
+                tooltip_text = f"Home with EV & Solar"
+            elif house['has_ac'] and house['has_pv']:
+                tooltip_text = f"Home with AC & Solar"
+            elif house['has_ev']:
+                tooltip_text = f"Home with EV Charger"
+            elif house['has_ac']:
+                tooltip_text = f"Home with AC Unit"
+            elif house['has_pv']:
+                tooltip_text = f"Home with Solar Panels"
+            else:
+                tooltip_text = f"Home {house['id']}"
+            
+            # Add marker
+            folium.Marker(
+                location=[house['lat'], house['lon']],
+                popup=folium.Popup(popup_content, max_width=300),
+                icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa'),
+                tooltip=tooltip_text
+            ).add_to(marker_cluster)
+    
+    # Add a custom layer control
+    folium.LayerControl().add_to(m)
+    
+    # Add a legend
+    legend_html = '''
+    <div style="position: fixed; 
+                bottom: 50px; right: 50px; width: 180px; height: auto;
+                border:2px solid grey; z-index:9999; background-color:white;
+                padding: 10px; font-size:14px; border-radius:6px; box-shadow: 0 0 10px rgba(0,0,0,0.2);">
+        <div style="margin-bottom: 5px;"><strong>Device Types</strong></div>
+        <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <i class="fa fa-circle" style="color:blue; margin-right: 5px;"></i> EV Charger
+        </div>
+        <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <i class="fa fa-circle" style="color:green; margin-right: 5px;"></i> Solar Panels
+        </div>
+        <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <i class="fa fa-circle" style="color:orange; margin-right: 5px;"></i> AC Unit
+        </div>
+        <div style="display: flex; align-items: center;">
+            <i class="fa fa-circle" style="color:purple; margin-right: 5px;"></i> State Summary
+        </div>
+    </div>
+    '''
+    m.get_root().html.add_child(folium.Element(legend_html))
+    
+    # Display the map
+    folium_static(m, width=1000, height=600)
+    
+    
+    # Display data table for the filtered households if a state is selected
+    if selected_state:
+        st.markdown("### Filtered Homes Data")
+        
+        # Convert filtered households to DataFrame for display
+        df_houses = pd.DataFrame([
+            {
+                'Home ID': h['id'],
+                'Has EV Charger': '✓' if h['has_ev'] else '',
+                'Has AC Unit': '✓' if h['has_ac'] else '',
+                'Has Solar Panels': '✓' if h['has_pv'] else '',
+                'Energy Consumption (kWh/day)': h['energy_consumption']
+            }
+            for h in filtered_households
+        ])
+        
+        # Show the data table
+        st.dataframe(df_houses)
+        
+        # Add download button for the data
+        csv = df_houses.to_csv(index=False)
+        st.download_button(
+            label="Download Data as CSV",
+            data=csv,
+            file_name=f"{state['name']}_homes_data.csv",
+            mime="text/csv",
+        )
+    
     # Footer
     st.markdown("---")
-    st.markdown(f"""<div style='text-align:center; color:{primary_purple};'>Explore device distribution by clicking states or using the selector.</div>""", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
+        This interactive map shows the geographic distribution of homes with different smart devices.
+        Click on a state to zoom in and explore homes with EV chargers, AC units, and solar panels.
+    </div>
+    """, unsafe_allow_html=True)
