@@ -1409,10 +1409,10 @@ elif page == "Interactive Map":
         
         # Add a Streamlit-based back button at the top in the first column
         with back_cols[0]:
-            back_button = st.button("← Back to Map Overview", type="primary", use_container_width=True)
-            if back_button:
-                st.query_params.clear()
-                st.rerun()
+            # Use the standard Streamlit button for reliability
+            if st.button("← Back to Map Overview", key="back_button_top", type="primary", use_container_width=True):
+                st.query_params.clear() # Clear the state param
+                st.rerun() # Rerun the script to go back to overview
 
         # Add a note about the map navigation in the second column
         with back_cols[1]:
@@ -1569,11 +1569,13 @@ elif page == "Interactive Map":
         if 'density' in us_states_geojson['features'][0]['properties']:
             geojson_tooltip_fields.append('density')
             
-        folium.GeoJson(
+        # --- Apply the click_script to each feature --- 
+        # Revert to using the 'script' parameter directly on GeoJson 
+        gjson = folium.GeoJson(
             us_states_geojson,
             name="US States",
             style_function=style_function,
-            highlight_function=highlight_function,
+            highlight_function=highlight_function, # Apply highlight on hover
             tooltip=folium.GeoJsonTooltip(
                 fields=geojson_tooltip_fields,
                 aliases=['State:'] + (['Population Density:'] if len(geojson_tooltip_fields) > 1 else []),
@@ -1582,15 +1584,18 @@ elif page == "Interactive Map":
                 style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.2);")
             ),
             popup=folium.GeoJsonPopup(
-                fields=['name'], # Show only state name in popup initially
-                aliases=['Click state to view devices in:'],
+                fields=['name'], # Show state name in popup
+                aliases=['Click to view devices in:'],
+                labels=True,
                 style=("background-color: white; color: #333333; font-family: arial; font-size: 14px; padding: 10px; border-radius: 5px; font-weight: bold;")
             ),
-            # Pass the JavaScript function string to the 'script' parameter
-            script=click_script 
-        ).add_to(m)
+            script=click_script # Pass the JS function string here
+        )
+        gjson.add_to(m) # Add the configured GeoJson layer to the map
         
-        # Add state border lines for clarity
+        # REMOVED the MacroElement code block that was here previously
+        
+        # Add state border lines for clarity (optional, can be removed if redundant)
         folium.GeoJson(
             us_states_geojson,
             name="State Borders",
@@ -1905,15 +1910,10 @@ elif page == "Interactive Map":
     
     # Add a fallback back button at the bottom for detailed state view
     if selected_state:
-        st.markdown("""
-        <div style="text-align: center; margin-top: 20px;">
-            <!-- Use JS to modify window.location.search -->
-            <a href="javascript:void(0);" onclick="window.location.search=''; return false;" style="display: inline-block; padding: 10px 20px; background-color: #515D9A; 
-                   color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                ← Return to US Map Overview
-            </a>
-        </div>
-        """, unsafe_allow_html=True)
+        # Use a standard Streamlit button here as well for consistency and reliability
+        if st.button("← Return to US Map Overview", key="back_button_bottom"):
+             st.query_params.clear()
+             st.rerun()
     
     # Display data table for the filtered households if a state is selected
     if selected_state:
