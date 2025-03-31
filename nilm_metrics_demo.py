@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 import random
 from datetime import datetime, timedelta
 import folium
-from streamlit_folium import folium_static
+from streamlit_folium import st_folium
 import json
 import geopandas as gpd
 from folium.plugins import MarkerCluster
