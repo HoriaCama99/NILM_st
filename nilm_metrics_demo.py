@@ -1384,34 +1384,23 @@ elif page == "Interactive Map":
     # Check if we have a valid state from URL parameters
     if url_state in states_data:
         selected_state = url_state
-        # Hide the state selection dropdown when a state is selected via URL
-        st.markdown("""
-        <style>
-        /* Hide the state selection dropdown when viewing a state detail */
-        div[data-testid="stSelectbox"] {display: none !important;}
-        </style>
-        """, unsafe_allow_html=True)
-    else:
-        # If no valid state in URL, use the dropdown but keep it hidden on the map page
-        selected_state_dropdown = st.selectbox(
-            "Select State to View",
-            options=list(states_data.keys()),
-            format_func=lambda x: states_data[x]['name'],
-            index=0
-        )
-        
-        # Only use the dropdown value if we're not in map overview mode
-        if selected_state_dropdown:
-            selected_state = selected_state_dropdown
+    # REMOVED the else block that contained the st.selectbox
     
     # Filter households by selected state and device types
-    filtered_households = [
-        h for h in households if 
-        h['state'] == selected_state and
-        ((show_ev and h['has_ev']) or 
-         (show_ac and h['has_ac']) or 
-         (show_pv and h['has_pv']))
-    ]
+    # Make sure filtering happens correctly whether a state is selected or not
+    # If no state selected, filtered_households should be empty for the detail view logic
+    if selected_state:
+        filtered_households = [
+            h for h in households if 
+            h['state'] == selected_state and
+            ((show_ev and h['has_ev']) or 
+             (show_ac and h['has_ac']) or 
+             (show_pv and h['has_pv']))
+        ]
+    else:
+        # If we are on the overview map, no specific households to filter yet
+        filtered_households = [] 
+
     
     # Display stats for selected state
     if selected_state:
@@ -1504,73 +1493,73 @@ elif page == "Interactive Map":
         # Custom JavaScript for handling clicks on states
         click_script = """
         function (feature, layer) {
-            // Make sure this layer is clickable
+            // Ensure this layer is interactive
             layer.options.interactive = true;
             
-            // Create a function for navigation that works for both direct and popup clicks
+            // Function to navigate by updating URL query parameter
             function navigateToState(stateCode) {
-                console.log("Navigating to state: " + stateCode);
-                // Use window.location.search instead of href to avoid opening a new page
-                window.location.search = "state=" + stateCode;
+                if (!stateCode) {
+                    console.error('navigateToState called with invalid stateCode:', stateCode);
+                    return;
+                }
+                console.log('JS: Navigating to state: ' + stateCode);
+                // Update the URL search query parameter. Streamlit listens for this.
+                window.location.search = 'state=' + stateCode;
             }
             
-            // Add a direct click handler
+            // Add event listeners for hover and click
             layer.on({
                 mouseover: function (e) {
                     var layer = e.target;
                     layer.setStyle({
                         fillOpacity: 0.7,
-                        fillColor: '#B8BCF3', // Use light_purple from theme
+                        fillColor: '#B8BCF3', // light_purple
                         weight: 3,
                         color: 'white'
                     });
-                    
+                    // Bring layer to front on hover (if not IE/Opera/Edge)
                     if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
                         layer.bringToFront();
                     }
                 },
                 mouseout: function (e) {
-                    // Restore original style on mouseout
-                    var layer = e.target;
-                    layer.setStyle({
+                    // Use the original style function to reset on mouseout
+                    // Assuming geojson object is accessible, otherwise hardcode default style
+                     var layer = e.target;
+                     layer.setStyle({
                         fillOpacity: 0.5,
-                        fillColor: '#515D9A',
+                        fillColor: '#515D9A', // primary_purple
                         weight: 1,
                         color: 'white'
                     });
                 },
                 click: function (e) {
-                    // Visual feedback on click
-                    var layer = e.target;
-                    layer.setStyle({
-                        fillOpacity: 0.9,
-                        fillColor: '#515D9A',
-                        weight: 4,
-                        color: '#FFFFFF'
-                    });
-                    
-                    // Get the state code
+                    // Get the state code from feature properties (use 'code' if available, else 'id')
                     var stateCode = feature.properties.code || feature.id;
-                    console.log("Clicked on state: " + stateCode);
+                    console.log('JS: Click detected on state: ' + stateCode);
                     
-                    // Add a small delay for visual feedback before navigating
+                    // Add visual feedback on click (optional)
+                    var layer = e.target;
+                    layer.setStyle({ fillColor: '#202842', fillOpacity: 0.8 }); // dark_purple feedback
+                    
+                    // Navigate after a short delay for visual feedback
                     setTimeout(function() {
                         navigateToState(stateCode);
-                    }, 300);
+                    }, 150); // 150ms delay
                 }
             });
-            
-            // Also ensure any popup clicks navigate correctly
-            layer.on('popupopen', function() {
-                setTimeout(function() {
-                    var popups = document.getElementsByClassName('leaflet-popup-content');
-                    if (popups.length > 0) {
-                        var stateCode = feature.properties.code || feature.id;
-                        popups[0].addEventListener('click', function() {
-                            navigateToState(stateCode);
-                        });
-                    }
-                }, 100);
+
+            // Make popups clickable for navigation as a fallback
+            layer.on('popupopen', function(e) {
+                var popup = e.popup;
+                var content = popup.getContent();
+                var stateCode = feature.properties.code || feature.id;
+                // Check if content is a string and wrap it to make it clickable
+                if (typeof content === 'string') {
+                   var newContent = `<div style="cursor: pointer;" onclick="window.location.search='state=${stateCode}'">${content}</div>`;
+                   popup.setContent(newContent);
+                }
+                console.log('JS: Popup opened for state: ' + stateCode);
             });
         }
         """
@@ -1593,11 +1582,12 @@ elif page == "Interactive Map":
                 style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.2);")
             ),
             popup=folium.GeoJsonPopup(
-                fields=['name'],
-                aliases=['Click to view devices in:'],
+                fields=['name'], # Show only state name in popup initially
+                aliases=['Click state to view devices in:'],
                 style=("background-color: white; color: #333333; font-family: arial; font-size: 14px; padding: 10px; border-radius: 5px; font-weight: bold;")
             ),
-            script=click_script
+            # Pass the JavaScript function string to the 'script' parameter
+            script=click_script 
         ).add_to(m)
         
         # Add state border lines for clarity
@@ -1650,81 +1640,47 @@ elif page == "Interactive Map":
                     border-radius:6px; padding: 8px; box-shadow: 0 3px 12px rgba(0,0,0,0.4);
                     text-align:center; transition: all 0.2s ease; cursor:pointer;
                     border: 3px solid #515D9A;">
-            <a href="javascript:void(0);" id="back-link" style="color:#515D9A; text-decoration:none; font-weight:bold; display:flex; align-items:center; justify-content:center; width: 100%; height: 100%;">
+            <!-- Make the whole div clickable -->
+            <a href="javascript:void(0);" onclick="window.location.search=''; return false;" style="color:#515D9A; text-decoration:none; font-weight:bold; display:flex; align-items:center; justify-content:center; width: 100%; height: 100%;">
                 <i class="fa fa-arrow-left" style="margin-right: 8px; font-size: 18px;"></i> Back to Map
             </a>
         </div>
         
         <script>
-        // Make sure the back button works by adding multiple event handlers
+        // Add hover and active states for the back button via JS for better control
         setTimeout(function() {
             try {
-                var backButton = document.getElementById('back-button');
-                var backLink = document.getElementById('back-link');
-                
-                function navigateToOverview() {
-                    // Use window.location.search instead of href to avoid opening a new page
-                    window.location.search = '';
-                }
-                
-                if (backButton) {
-                    // Direct click on button area
-                    backButton.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        navigateToOverview();
-                    });
-                    
-                    // Hover effects
-                    backButton.addEventListener('mouseover', function() {
+                var backButtonDiv = document.getElementById('back-button');
+                if (backButtonDiv) {
+                    backButtonDiv.addEventListener('mouseover', function() {
                         this.style.backgroundColor = "#f0f5ff";
                         this.style.boxShadow = "0 4px 15px rgba(0,0,0,0.4)";
                         this.style.transform = "translateY(-2px)";
                     });
-                    
-                    backButton.addEventListener('mouseout', function() {
+                    backButtonDiv.addEventListener('mouseout', function() {
                         this.style.backgroundColor = "#FFFFFF";
                         this.style.boxShadow = "0 3px 12px rgba(0,0,0,0.4)";
                         this.style.transform = "translateY(0)";
                     });
-                    
-                    // Active effect
-                    backButton.addEventListener('mousedown', function() {
+                    backButtonDiv.addEventListener('mousedown', function() {
                         this.style.transform = "scale(0.97)";
                     });
-                    
-                    backButton.addEventListener('mouseup', function() {
+                    backButtonDiv.addEventListener('mouseup', function() {
                         this.style.transform = "scale(1)";
                     });
-                }
-                
-                if (backLink) {
-                    // Link click event
-                    backLink.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        navigateToOverview();
-                    });
-                }
-                
-                // Ensure map controls don't overlap with button
-                var leftControls = document.querySelector('.leaflet-top.leaflet-left');
-                if (leftControls) {
-                    leftControls.style.top = "60px";
-                }
-                
-                // Add a pulsing effect to draw attention to the button
-                setTimeout(function() {
-                    if (backButton) {
-                        backButton.style.transform = "scale(1.05)";
-                        setTimeout(function() {
-                            backButton.style.transform = "scale(1)";
-                        }, 300);
+                    
+                    // Ensure Leaflet controls are moved down if they exist
+                    var leftControls = document.querySelector('.leaflet-top.leaflet-left');
+                    if (leftControls) {
+                        leftControls.style.top = "60px"; // Adjust as needed
                     }
-                }, 1000);
-                
+                } else {
+                    console.log('JS: Back button div not found');
+                }
             } catch(e) {
-                console.error("Error setting up back button:", e);
+                console.error("JS: Error setting up back button effects:", e);
             }
-        }, 300);
+        }, 300); // Delay to ensure map elements are loaded
         </script>
         '''
         m.get_root().html.add_child(folium.Element(back_button_html))
@@ -1951,7 +1907,8 @@ elif page == "Interactive Map":
     if selected_state:
         st.markdown("""
         <div style="text-align: center; margin-top: 20px;">
-            <a href="javascript:void(0);" onclick="window.location.search=''" style="display: inline-block; padding: 10px 20px; background-color: #515D9A; 
+            <!-- Use JS to modify window.location.search -->
+            <a href="javascript:void(0);" onclick="window.location.search=''; return false;" style="display: inline-block; padding: 10px 20px; background-color: #515D9A; 
                    color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
                 ← Return to US Map Overview
             </a>
