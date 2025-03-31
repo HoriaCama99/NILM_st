@@ -1507,67 +1507,78 @@ elif page == "Interactive Map":
             // Make sure this layer is clickable
             layer.options.interactive = true;
             
-            // Create a function for navigation that works for both direct and popup clicks
+            // Function to navigate to state detail view
             function navigateToState(stateCode) {
-                console.log("Navigating to state: " + stateCode);
-                // Use window.location.search instead of href to avoid opening a new page
-                window.location.search = "state=" + stateCode;
+                if (stateCode) {
+                    console.log("Navigating to state: " + stateCode);
+                    // Update the URL query parameter. Streamlit will detect this change and rerun.
+                    window.location.search = "?state=" + stateCode;
+                } else {
+                    console.error("State code is undefined or null.");
+                }
             }
             
-            // Add a direct click handler
+            // Add event listeners for interaction
             layer.on({
                 mouseover: function (e) {
                     var layer = e.target;
+                    // Apply highlight style on hover
                     layer.setStyle({
                         fillOpacity: 0.7,
-                        fillColor: '#B8BCF3',
+                        fillColor: '#B8BCF3', // light_purple
                         weight: 3,
                         color: 'white'
                     });
                     
+                    // Bring layer to front
                     if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
                         layer.bringToFront();
                     }
                 },
                 mouseout: function (e) {
+                    // Reset style on mouseout using the original style function logic if possible
+                    // For simplicity, we reset to the base style defined in Python
                     var layer = e.target;
                     layer.setStyle({
                         fillOpacity: 0.5,
-                        fillColor: '#515D9A',
+                        fillColor: '#515D9A', // primary_purple
                         weight: 1,
                         color: 'white'
                     });
                 },
                 click: function (e) {
-                    // Visual feedback on click
+                    // Get the state code from GeoJSON properties
+                    var stateCode = feature.properties.code || feature.id;
+                    console.log("Clicked on state: " + stateCode);
+
+                    // Visual feedback on click (optional, but nice)
                     var layer = e.target;
                     layer.setStyle({
-                        fillOpacity: 0.9,
-                        fillColor: '#515D9A',
+                        fillColor: '#202842', // dark_purple for click feedback
+                        fillOpacity: 0.8,
                         weight: 4,
                         color: '#FFFFFF'
                     });
                     
-                    // Get the state code
-                    var stateCode = feature.properties.code || feature.id;
-                    console.log("Clicked on state: " + stateCode);
-                    
-                    // Add a small delay for visual feedback before navigating
+                    // Navigate after a short delay to allow visual feedback
                     setTimeout(function() {
                         navigateToState(stateCode);
-                    }, 300);
+                    }, 150); // Reduced delay
                 }
             });
             
-            // Also ensure any popup clicks navigate correctly
+            // Ensure popup clicks also trigger navigation (if popups are used for this layer)
+            // This might be redundant if direct click is the primary interaction
             layer.on('popupopen', function() {
+                // Use a small delay to ensure the popup content is rendered
                 setTimeout(function() {
                     var popups = document.getElementsByClassName('leaflet-popup-content');
                     if (popups.length > 0) {
                         var stateCode = feature.properties.code || feature.id;
-                        popups[0].addEventListener('click', function() {
-                            navigateToState(stateCode);
-                        });
+                        // Find any link or button inside the popup if needed, or just make the content clickable
+                        // Example: Making the entire popup clickable
+                        popups[0].style.cursor = 'pointer';
+                        popups[0].onclick = function() { navigateToState(stateCode); };
                     }
                 }, 100);
             });
@@ -1575,31 +1586,36 @@ elif page == "Interactive Map":
         """
         
         # Add the GeoJSON layer with click handler
-        geojson_tooltip_fields = ['name']
-        if 'density' in us_states_geojson['features'][0]['properties']:
+        # Ensure 'code' property exists in your GeoJSON features
+        geojson_tooltip_fields = ['name'] 
+        if us_states_geojson and 'features' in us_states_geojson and us_states_geojson['features'] and 'density' in us_states_geojson['features'][0]['properties']:
             geojson_tooltip_fields.append('density')
-            
+
         folium.GeoJson(
             us_states_geojson,
             name="US States",
             style_function=style_function,
-            highlight_function=highlight_function,
+            highlight_function=highlight_function, # highlight_function handles hover, JS overrides parts of it
             tooltip=folium.GeoJsonTooltip(
                 fields=geojson_tooltip_fields,
-                aliases=['State:'] + (['Population Density:'] if len(geojson_tooltip_fields) > 1 else []),
+                aliases=['State:'] + (['Population Density:'] if 'density' in geojson_tooltip_fields else []),
                 labels=True,
                 sticky=True,
                 style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.2);")
             ),
             popup=folium.GeoJsonPopup(
                 fields=['name'],
-                aliases=['Click to view devices in:'],
-                style=("background-color: white; color: #333333; font-family: arial; font-size: 14px; padding: 10px; border-radius: 5px; font-weight: bold;")
+                aliases=['Click state to view details:'], # Changed alias for clarity
+                style=("background-color: white; color: #333333; font-family: arial; font-size: 14px; padding: 10px; border-radius: 5px; font-weight: bold; cursor: pointer;") # Added cursor pointer
             ),
-            script=click_script
+            # Embed the JavaScript click handler script here
+            embed=True, # Important for the script to be included
+            js_event_handlers=[('click', click_script)] # Simplified way to attach JS handlers if using newer Folium
+            # If js_event_handlers doesn't work reliably or for older Folium versions, use the 'script' argument:
+            # script=click_script 
         ).add_to(m)
         
-        # Add state border lines for clarity
+        # Add state border lines for clarity (optional, but good for definition)
         folium.GeoJson(
             us_states_geojson,
             name="State Borders",
@@ -1946,6 +1962,16 @@ elif page == "Interactive Map":
     # Display the map
     folium_static(m, width=1000, height=600)
     
+    # Add a fallback back button at the bottom for detailed state view
+    if selected_state:
+        st.markdown("""
+        <div style="text-align: center; margin-top: 20px;">
+            <a href="javascript:void(0);" onclick="window.location.search=''" style="display: inline-block; padding: 10px 20px; background-color: #515D9A; 
+                   color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                ← Return to US Map Overview
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
     
     # Display data table for the filtered households if a state is selected
     if selected_state:
