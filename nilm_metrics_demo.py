@@ -1485,7 +1485,10 @@ elif page == "Interactive Map":
             zoom_start=4,
             tiles="CartoDB positron"
         )
-        
+
+        # Add satellite view tile layer
+        folium.TileLayer('Esri_WorldImagery', name='Satellite View', attr='Esri').add_to(m)
+
         # Add GeoJSON states layer with click functionality
         style_function = lambda feature: {
             'fillColor': primary_purple,
@@ -1640,7 +1643,10 @@ elif page == "Interactive Map":
             zoom_start=state['zoom'],
             tiles="CartoDB positron"
         )
-        
+
+        # Add satellite view tile layer
+        folium.TileLayer('Esri_WorldImagery', name='Satellite View', attr='Esri').add_to(m)
+
         # Add a back button to the overview map with improved styling
         back_button_html = '''
         <div id="back-button" style="position: absolute; 
