@@ -1585,22 +1585,29 @@ elif page == "Interactive Map":
     show_ac = st.sidebar.checkbox("Show AC Units", value=True)
     show_pv = st.sidebar.checkbox("Show Solar Panels", value=True)
     
-    # Add custom CSS for the refresh button
-    st.markdown("""
-    <style>
-    [data-testid="baseButton-secondary"].refresh-map-button {
-        background-color: #D32F2F !important;
-        color: black !important;
-        font-weight: bold !important;
-        border: 2px solid black !important;
-        border-radius: 5px !important;
-    }
-    </style>
+    # Add custom HTML button instead of Streamlit button
+    st.sidebar.markdown("""
+    <div style="padding: 10px 0;">
+        <a href="?refresh=true" target="_self" style="
+            display: block;
+            text-align: center;
+            background-color: #D32F2F;
+            color: black;
+            font-weight: bold;
+            padding: 10px;
+            border: 2px solid black;
+            border-radius: 5px;
+            text-decoration: none;
+            margin: 10px 0;">
+            ↻ Refresh Map View
+        </a>
+    </div>
     """, unsafe_allow_html=True)
     
-    # Add refresh button with custom styling
-    if st.sidebar.button("↻ Refresh Map View", use_container_width=True, key="refresh-map-button"):
-        # Reset any state selection and reload the page
+    # Check for refresh parameter
+    params = st.query_params
+    if "refresh" in params:
+        # Clear parameters and reload
         st.query_params.clear()
         st.experimental_rerun()
     
