@@ -1599,15 +1599,6 @@ elif page == "Interactive Map":
 
     # Add state boundaries with click functionality ONLY if no state is selected
     if not selected_state and us_states_geojson:
-        # Function to create the redirect URL
-        def create_popup_html(feature):
-            state_id = feature['id']
-            state_name = feature['properties']['name']
-            # Generate URL that sets the 'state' query parameter
-            # Note: Streamlit handles page reload on query param change
-            url = f"?state={state_id}"
-            return f'<a href="{url}" target="_self">Click to view devices in: {state_name}</a>'
-            
         folium.GeoJson(
             us_states_geojson,
             style_function=lambda x: {
@@ -1628,11 +1619,13 @@ elif page == "Interactive Map":
                 labels=True,
                 sticky=True
             ),
-            popup=folium.Popup(folium.Html(create_popup_html(feature), script=True)) # Use folium.Html for link
-            # popup=folium.features.GeoJsonPopup( # This simpler popup doesn't allow custom links easily
-            #     fields=['name'],
-            #     aliases=['Click to view devices in:']
-            # )
+            popup=folium.features.GeoJsonPopup(
+                fields=['id', 'name'],
+                aliases=['', ''],
+                labels=False,
+                parse_html=True,
+                fmt=lambda feature: f'<a href="?state={feature["id"]}" target="_self">Click to view devices in: {feature["properties"]["name"]}</a>'
+            )
         ).add_to(m)
 
     # Create marker cluster for households
