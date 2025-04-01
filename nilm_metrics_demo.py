@@ -264,13 +264,10 @@ if page == "Sample Output":
     try:
         df = pd.read_csv('disagg_sample.csv')
         
-    except FileNotFoundError:
-        st.error("The 'disagg_sample.csv' file was not found.")
-    
-    st.markdown("""
+        st.markdown("""
         This dashboard presents a sample output from our energy disaggregation model, which analyzes household 
         energy consumption data and identifies specific appliance usage patterns.
-
+        
         ### Key Assumptions:
         - Sample represents output for multiple homes with diverse energy profiles
         - Values reflect monthly average energy consumption in kWh
@@ -278,16 +275,13 @@ if page == "Sample Output":
         - Grid consumption represents total household electricity usage
         - Model confidence levels are not shown in this simplified output
         """)
-
-        # Ensure the subheader is correctly indented
+        
         st.subheader("Sample Model Output with Interactive Filtering")
-
-        # Add filter controls in a more compact format
         filter_cols = st.columns(4)
-
+        
         with filter_cols[0]:
             ev_filter = st.selectbox("EV Charging", ["Any", "Present", "Not Present"])
-
+        
         with filter_cols[1]:
             ac_filter = st.selectbox("Air Conditioning", ["Any", "Present", "Not Present"])
 
@@ -525,15 +519,12 @@ if page == "Sample Output":
     
 elif page == "Performance Metrics":
     # Performance Metrics page
-    # Just one title, with a more comprehensive subheader
     st.title("NILM Performance Dashboard")
-    st.subheader(f"Device Detection Performance Analysis")
+    st.subheader("Device Detection Performance Analysis")
     
-    # Define metrics data with updated values
     @st.cache_data
     def load_performance_data():
-        # Data for all models
-        models_data = {
+        return {
             'V1': {
                 'DPSPerc': {
                     'EV Charging': 80.2603,
@@ -637,8 +628,6 @@ elif page == "Performance Metrics":
                 }
             }
         }
-        
-        return models_data
 
     # Load performance data
     models_data = load_performance_data()
