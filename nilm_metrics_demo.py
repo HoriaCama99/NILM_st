@@ -1511,7 +1511,7 @@ elif page == "Performance Metrics":
     """, unsafe_allow_html=True)
 
 elif page == "Interactive Map":
-    # Interactive Map page
+    # Interactive Map page - Use exactly the same code as in nilm_deployment_map.py
     st.title("NILM Deployment Map")
     st.subheader("Geographic Distribution of Homes with Smart Devices")
     
