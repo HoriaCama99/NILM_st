@@ -1585,9 +1585,16 @@ elif page == "Interactive Map":
     show_ac = st.sidebar.checkbox("Show AC Units", value=True)
     show_pv = st.sidebar.checkbox("Show Solar Panels", value=True)
     
-    # Load data first
-    states_data, all_households = generate_geo_data()
-    us_geojson = load_us_geojson()
+    # Add refresh button
+    if st.sidebar.button("↻ Refresh Map View", use_container_width=True):
+        # Reset any state selection and reload the page
+        st.query_params.clear()
+        st.experimental_rerun()
+    
+    # Load data with a spinner
+    with st.spinner("Loading map data..."):
+        states_data, all_households = generate_geo_data()
+        us_geojson = load_us_geojson()
     
     # Get state from URL parameter if available
     params = st.query_params
@@ -1714,8 +1721,12 @@ elif page == "Interactive Map":
     # Add Layer Control to toggle layers
     folium.LayerControl().add_to(m)
     
-    # Display the map
-    folium_static(m, width=1000, height=600)
+    # Display the map with a loading spinner
+    with st.spinner("Rendering map... This may take a moment for all states..."):
+        st.subheader("Interactive Energy Deployment Map")
+        st.caption("Click on a state to see details or use the controls to filter by device type")
+        folium_static(m, width=1000, height=600)
+        st.info("💡 **Tip:** Use the refresh button in the sidebar to reset the map view if needed.")
     
     # Add summary statistics even if no state is selected
     if not selected_state:
@@ -1735,6 +1746,48 @@ elif page == "Interactive Map":
             st.metric("AC Units", f"{total_ac:,}", f"{total_ac/total_homes:.1%}")
         with col4:
             st.metric("Solar Panels", f"{total_pv:,}", f"{total_pv/total_homes:.1%}")
+        
+        # Add device distribution bar chart
+        st.subheader("Device Distribution by State")
+        
+        # Get top 10 states for the visualization
+        top_states = sorted(
+            [(code, states_data[code]['name'], 
+              states_data[code]['ev_homes'] + states_data[code]['ac_homes'] + states_data[code]['pv_homes']) 
+             for code in states_data],
+            key=lambda x: x[2], reverse=True
+        )[:10]
+        
+        chart_data = []
+        for code, name, _ in top_states:
+            chart_data.extend([
+                {'State': name, 'Device': 'EV Chargers', 'Count': states_data[code]['ev_homes']},
+                {'State': name, 'Device': 'AC Units', 'Count': states_data[code]['ac_homes']},
+                {'State': name, 'Device': 'Solar Panels', 'Count': states_data[code]['pv_homes']}
+            ])
+        
+        fig = px.bar(
+            pd.DataFrame(chart_data),
+            x='State', y='Count', color='Device',
+            color_discrete_map={
+                'EV Chargers': 'blue',
+                'AC Units': 'orange',
+                'Solar Panels': 'green'
+            },
+            title='Top 10 States by Device Distribution',
+            barmode='group'
+        )
+        
+        fig.update_layout(
+            xaxis_title='State',
+            yaxis_title='Number of Devices',
+            legend_title='Device Type',
+            plot_bgcolor=white,
+            paper_bgcolor=white,
+            font=dict(color=dark_purple)
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
             
         # Show state breakdown
         st.subheader("State Breakdown")
