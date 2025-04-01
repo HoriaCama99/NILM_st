@@ -245,10 +245,10 @@ st.markdown("""
 # Define the banner path once at the top of the script
 banner_path = "ECMX_linkedinheader_SN.png"  
 
-# Add page selection at the top (now with three options)
-page = st.sidebar.radio("Select Page", ["Sample Output", "Performance Metrics", "Interactive Map"], index=1)
+# Add page selection at the top (only two options)
+page = st.sidebar.radio("Select Page", ["Sample Output", "Performance Metrics", "Interactive Map"])
 
-# Display banner on all pages
+# Display banner on both pages
 try:
     # Display banner image
     banner_image = Image.open(banner_path)
@@ -256,861 +256,478 @@ try:
 except Exception as e:
     st.warning(f"Banner image not found at {banner_path}. Please update the path in the code.")
 
-# --- Add map page functions before page navigation ---
-# Cache the data generation for map page
-@st.cache_data
-def generate_geo_data():
-    # US states with coordinates (approximate centers)
-    states_data = {
-        'CA': {'name': 'California', 'lat': 36.7783, 'lon': -119.4179, 'zoom': 6},
-        'TX': {'name': 'Texas', 'lat': 31.9686, 'lon': -99.9018, 'zoom': 6},
-        'NY': {'name': 'New York', 'lat': 42.1657, 'lon': -74.9481, 'zoom': 7},
-        'FL': {'name': 'Florida', 'lat': 27.6648, 'lon': -81.5158, 'zoom': 6},
-        'MA': {'name': 'Massachusetts', 'lat': 42.4072, 'lon': -71.3824, 'zoom': 8}
-    }
-    
-    # Generate stats for each state
-    for state_code in states_data:
-        state = states_data[state_code]
-        state['total_homes'] = random.randint(150, 500)
-        state['ev_homes'] = random.randint(30, int(state['total_homes'] * 0.3))
-        state['ac_homes'] = random.randint(int(state['total_homes'] * 0.5), int(state['total_homes'] * 0.9))
-        state['pv_homes'] = random.randint(20, int(state['total_homes'] * 0.25))
-    
-    def generate_households(state_code, count=100):
-        """Generate mock household data within a state"""
-        state = states_data[state_code]
-        households = []
-        
-        # Define the spread of points (in degrees)
-        lat_spread = 1.5
-        lon_spread = 1.5
-        
-        for i in range(count):
-            # Randomly place homes around the state center
-            lat = state['lat'] + (random.random() - 0.5) * lat_spread
-            lon = state['lon'] + (random.random() - 0.5) * lon_spread
-            
-            # Assign devices randomly but weighted by state percentages
-            has_ev = random.random() < (state['ev_homes'] / state['total_homes'])
-            has_ac = random.random() < (state['ac_homes'] / state['total_homes'])
-            has_pv = random.random() < (state['pv_homes'] / state['total_homes'])
-            
-            # Ensure at least one device is present
-            if not (has_ev or has_ac or has_pv):
-                device_type = random.choice(['ev', 'ac', 'pv'])
-                if device_type == 'ev': has_ev = True
-                elif device_type == 'ac': has_ac = True
-                else: has_pv = True
-            
-            household = {
-                'id': f"{state_code}-{i+1}",
-                'lat': lat,
-                'lon': lon,
-                'has_ev': has_ev,
-                'has_ac': has_ac,
-                'has_pv': has_pv,
-                'energy_consumption': random.randint(20, 100),
-                'state': state_code
-            }
-            households.append(household)
-        
-        return households
-    
-    # Generate households for each state
-    all_households = []
-    for state_code in states_data:
-        state_households = generate_households(state_code, states_data[state_code]['total_homes'])
-        all_households.extend(state_households)
-    
-    return states_data, all_households
-
-# Load GeoJSON data for US states
-@st.cache_data
-def load_us_geojson():
-    try:
-        response = requests.get("https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json")
-        us_states = response.json()
-        
-        # Filter to only include our selected states
-        state_codes = ['CA', 'TX', 'NY', 'FL', 'MA']
-        us_states['features'] = [f for f in us_states['features'] 
-                                if f['id'] in state_codes]
-        
-        return us_states
-    except Exception as e:
-        st.error(f"Error loading US state boundaries: {e}")
-        return None
-
 if page == "Sample Output":
-    # Try to load the sample data CSV
-    try:
-        df = pd.read_csv('disagg_sample.csv')
-        
-        st.markdown("""
-        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-            <h3 style="color: #515D9A;">Sample NILM Disaggregation Results</h3>
-            <p>This table shows sample outputs from our disaggregation model, including predicted device states and energy consumption values.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Add interactive filtering directly with the first dataframe
-        st.subheader("Sample Model Output with Interactive Filtering")
-        
-        # Add filter controls in a more compact format
-        filter_cols = st.columns(4)
+    # Convert the sample data to a DataFrame
+    df = pd.read_csv('disagg_sample.csv') 
 
-        with filter_cols[0]:
-            ev_filter = st.selectbox("EV Charging", ["Any", "Present", "Not Present"])
+    # Page title and introduction
+    st.title("Energy Disaggregation Model: Sample Output")
 
-        with filter_cols[1]:
-            ac_filter = st.selectbox("Air Conditioning", ["Any", "Present", "Not Present"])
+    st.markdown("""
+    This dashboard presents a sample output from our energy disaggregation model, which analyzes household 
+    energy consumption data and identifies specific appliance usage patterns.
 
-        with filter_cols[2]:
-            pv_filter = st.selectbox("Solar PV", ["Any", "Present", "Not Present"])
-
-        with filter_cols[3]:
-            wh_filter = st.selectbox("Water Heater", ["Any", "Present", "Not Present"])
-
-        # Apply filters
-        filtered_df = df.copy()
-
-        if ev_filter == "Present":
-            filtered_df = filtered_df[filtered_df['ev detected'] == 1]
-        elif ev_filter == "Not Present":
-            filtered_df = filtered_df[filtered_df['ev detected'] == 0]
-
-        if ac_filter == "Present":
-            filtered_df = filtered_df[filtered_df['ac detected'] == 1]
-        elif ac_filter == "Not Present":
-            filtered_df = filtered_df[filtered_df['ac detected'] == 0]
-
-        if pv_filter == "Present":
-            filtered_df = filtered_df[filtered_df['pv detected'] == 1]
-        elif pv_filter == "Not Present":
-            filtered_df = filtered_df[filtered_df['pv detected'] == 0]
-
-        if wh_filter == "Present":
-            filtered_df = filtered_df[filtered_df['water heater detected'] == 1]
-        elif wh_filter == "Not Present":
-            filtered_df = filtered_df[filtered_df['water heater detected'] == 0]
-
-        # Display filtered dataframe with record count
-        st.dataframe(filtered_df, use_container_width=True)
-        st.caption(f"Showing {len(filtered_df)} of {len(df)} homes")
-
-        # Create two columns for the interactive plots
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.subheader("Appliance Presence in Housing Portfolio")
-            
-            # Calculate presence percentages
-            appliance_presence = {
-                'EV Charging': filtered_df['ev detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
-                'Air Conditioning': filtered_df['ac detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
-                'Solar PV': filtered_df['pv detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
-                'Water Heater': filtered_df['water heater detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0
-            }
-            
-            # Create interactive bar chart using Plotly with team colors
-            fig1 = px.bar(
-                x=list(appliance_presence.keys()),
-                y=list(appliance_presence.values()),
-                labels={'x': 'Appliance Type', 'y': 'Percentage of Homes (%)'},
-                color=list(appliance_presence.keys()),
-                color_discrete_map={
-                        'EV Charging': primary_purple,
-                        'Air Conditioning': green,
-                        'Solar PV': cream,
-                        'Water Heater': salmon
-                },
-                text=[f"{val:.1f}%" for val in appliance_presence.values()]
-            )
-            
-            # Update layout with team colors - now with white background
-            fig1.update_layout(
-                showlegend=False,
-                xaxis_title="Appliance Type",
-                yaxis_title="Percentage of Homes (%)",
-                yaxis_range=[0, 100],
-                margin=dict(l=20, r=20, t=30, b=20),
-                    paper_bgcolor=white,
-                    plot_bgcolor=white,
-                    font=dict(color=dark_purple)
-            )
-            
-            fig1.update_traces(textposition='outside', textfont=dict(color=dark_purple))
-            fig1.update_xaxes(showgrid=False, gridcolor=light_purple, tickfont=dict(color=dark_purple))
-            fig1.update_yaxes(showgrid=True, gridcolor=light_purple, tickfont=dict(color=dark_purple))
-            
-            # Display the plot
-            st.plotly_chart(fig1, use_container_width=True)
-            
-            # Add interactive details
-            with st.expander("About Appliance Presence"):
-                st.markdown("""
-                This chart shows the percentage of homes in the sample where each appliance type was detected.
-                
-                - **Air Conditioning**: Most commonly detected appliance
-                - **Solar PV**: Shows significant renewable adoption
-                - **EV Charging**: Indicates electric vehicle ownership
-                - **Water Heater**: Least commonly detected in this sample
-                
-                Detection is based on energy signature patterns identified by the disaggregation model.
-                """)
-
-        with col2:
-            st.subheader("Total Energy Distribution by Type")
-            
-            # Calculate disaggregated appliance total
-            disaggregated_total = (filtered_df['ev charging (kWh)'].sum() + 
-                                  filtered_df['air conditioning (kWh)'].sum() + 
-                                  filtered_df['water heater (kWh)'].sum())
-            
-            # Calculate "Other Consumption" by subtracting known appliances from grid total
-            other_consumption = filtered_df['grid (kWh)'].sum() - disaggregated_total
-            other_consumption = max(0, other_consumption)  # Ensure it's not negative
-            
-            energy_totals = {
-                'EV Charging': filtered_df['ev charging (kWh)'].sum(),
-                'Air Conditioning': filtered_df['air conditioning (kWh)'].sum(),
-                'Water Heater': filtered_df['water heater (kWh)'].sum(),
-                'Other Consumption': other_consumption
-            }
-            
-            # Create interactive pie chart using Plotly with team colors
-            fig2 = px.pie(
-                values=list(energy_totals.values()),
-                names=list(energy_totals.keys()),
-                color=list(energy_totals.keys()),
-                color_discrete_map={
-                        'EV Charging': primary_purple,
-                        'Air Conditioning': green,
-                        'Water Heater': salmon,
-                        'Other Consumption': light_purple
-                },
-                hole=0.4
-            )
-            
-            # Update layout with team colors - now with white background
-            fig2.update_layout(
-                legend_title="Energy Type",
-                margin=dict(l=20, r=20, t=30, b=20),
-                    paper_bgcolor=white,
-                    plot_bgcolor=white,
-                    font=dict(color=dark_purple),
-                    legend=dict(font=dict(color=dark_purple))
-            )
-            
-            fig2.update_traces(
-                textinfo='percent+label',
-                    hovertemplate='%{label}<br>%{value:.1f} kWh<br>%{percent}',
-                    textfont=dict(color=dark_gray)  # Darker text for better contrast
-            )
-            
-            # Display the plot
-            st.plotly_chart(fig2, use_container_width=True)
-            
-            # Add interactive details
-            with st.expander("About Energy Distribution"):
-                st.markdown("""
-                    This chart shows how the total energy consumption is distributed across different appliance types.
-                
-                - **Air Conditioning**: Typically accounts for significant consumption
-                - **EV Charging**: Can be a major energy consumer when present
-                - **Water Heater**: Generally smaller portion of total energy use
-                    - **Other Consumption**: Remaining grid usage not attributed to the three main appliances
-                
-                Understanding this distribution helps identify the highest impact areas for efficiency improvements.
-                """)
-
-        # Add summary metrics
-        st.markdown(f"""
-        <style>
-            .metric-container {{
-                background-color: {primary_purple};
-                border-radius: 10px;
-                padding: 15px 15px;
-                margin: 10px 0;
-                border: 2px solid {primary_purple};
-            }}
-        </style>
-        """, unsafe_allow_html=True)
-
-        st.subheader("Key Metrics")
-        metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-
-        with metric_col1:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            st.metric(
-                label="Total Homes",
-                value=len(filtered_df),
-                delta=f"{len(filtered_df) - len(df)}" if len(filtered_df) != len(df) else None,
-                help="Number of households in the filtered dataset"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with metric_col2:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            avg_grid = filtered_df['grid (kWh)'].mean() if len(filtered_df) > 0 else 0
-            st.metric(
-                label="Avg. Grid Consumption",
-                value=f"{avg_grid:.1f} kWh",
-                help="Average total electricity consumption per home"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with metric_col3:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            pv_homes = filtered_df[filtered_df['pv detected'] == 1]
-            pv_avg = pv_homes['solar production (kWh)'].mean() if len(pv_homes) > 0 else 0
-            st.metric(
-                label="Avg. Solar Production",
-                value=f"{pv_avg:.1f} kWh",
-                help="Average solar production for homes with PV systems"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with metric_col4:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            # Percentage of consumption identified by model
-            total_grid = filtered_df['grid (kWh)'].sum()
-            total_identified = disaggregated_total
-            pct_identified = (total_identified / total_grid * 100) if total_grid > 0 else 0
-            
-            st.metric(
-                label="Consumption Identified",
-                value=f"{pct_identified:.1f}%",
-                help="Percentage of total grid consumption attributed to specific appliances"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        # Add footer with primary purple color
-        st.markdown("---")
-        st.markdown(f"""
-        <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
-            This sample output demonstrates the type of insights available from the disaggregation model. 
-            In a full deployment, thousands of households would be analyzed to provide statistically significant patterns and trends.
-        </div>
-        """, unsafe_allow_html=True)
-    except Exception as e:
-        st.error(f"Error loading sample data: {e}")
-        st.info("Please make sure the 'disagg_sample.csv' file is in the same directory as this script.")
-    
-elif page == "Performance Metrics":
-    # Performance Metrics page
-    # Just one title, with a more comprehensive subheader
-    st.title("NILM Performance Dashboard")
-    st.subheader(f"Device Detection Performance Analysis")
-    
-    # Define metrics data with updated values
-    @st.cache_data
-    def load_performance_data():
-        # Data for all models
-        models_data = {
-            'V1': {
-                'DPSPerc': {
-                    'EV Charging': 80.2603,
-                    'AC Usage': 76.6360,
-                    'PV Usage': 92.5777
-                },
-                'FPR': {
-                    'EV Charging': 0.1961,
-                    'AC Usage': 0.3488,
-                    'PV Usage': 0.1579
-                },
-                'TECA': {
-                    'EV Charging': 0.7185,
-                    'AC Usage': 0.6713,
-                    'PV Usage': 0.8602
-                }
-            },
-            'V2': {
-                'DPSPerc': {
-                    'EV Charging': 82.4146,
-                    'AC Usage': 76.6360,
-                    'PV Usage': 92.5777
-                },
-                'FPR': {
-                    'EV Charging': 0.1667,
-                    'AC Usage': 0.3488,
-                    'PV Usage': 0.1579
-                },
-                'TECA': {
-                    'EV Charging': 0.7544,
-                    'AC Usage': 0.6519,
-                    'PV Usage': 0.8812
-                }
-            },
-            'V3': {
-                'DPSPerc': {
-                    'EV Charging': 81.8612,
-                    'AC Usage': 73.0220,
-                    'PV Usage': 92.0629
-                },
-                'FPR': {
-                    'EV Charging': 0.1667,
-                    'AC Usage': 0.4419,
-                    'PV Usage': 0.1754
-                },
-                'TECA': {
-                    'EV Charging': 0.7179,
-                    'AC Usage': 0.6606,
-                    'PV Usage': 0.8513
-                }
-            },
-            'V4': {
-                'DPSPerc': {
-                    'EV Charging': 85.8123,
-                    'AC Usage': 76.3889,
-                    'PV Usage': 91.5448
-                },
-                'FPR': {
-                    'EV Charging': 0.1176,
-                    'AC Usage': 0.1977,
-                    'PV Usage': 0.1930
-                },
-                'TECA': {
-                    'EV Charging': 0.7741,
-                    'AC Usage': 0.6718,
-                    'PV Usage': 0.8395
-                }
-            },
-            'V5': {
-                'DPSPerc': {
-                    'EV Charging': 81.1060,
-                    'AC Usage': 77.5813,
-                    'PV Usage': 91.9317
-                },
-                'FPR': {
-                    'EV Charging': 0.1373,
-                    'AC Usage': 0.3750,
-                    'PV Usage': 0.1930
-                },
-                'TECA': {
-                    'EV Charging': 0.6697,
-                    'AC Usage': 0.6912,
-                    'PV Usage': 0.7680
-                }
-            },
-            'V6': {
-                'DPSPerc': {
-                    'EV Charging': 86.5757,
-                    'AC Usage': 83.0483,
-                    'PV Usage': 85.0008
-                },
-                'FPR': {
-                    'EV Charging': 0.0541,
-                    'AC Usage': 0.3750,
-                    'PV Usage': 0.0000
-                },
-                'TECA': {
-                    'EV Charging': 0.7491,
-                    'AC Usage': 0.7739,
-                    'PV Usage': 0.6443
-                }
-            }
-        }
-        
-        return models_data
-
-    # Load performance data
-    models_data = load_performance_data()
-
-    # Define model dates
-    model_dates = {
-        "V1": "March 3",
-        "V2": "March 6",
-        "V3": "March 7",
-        "V4": "March 13",
-        "V5": "March 18",
-        "V6": "March 25"
-    }
-
-    # Model selection in sidebar
-    selected_model = st.sidebar.selectbox(
-        "Select Model",
-        ["V1", "V2", "V3", "V4", "V5", "V6"],
-        index=5,  # Default to V6
-        format_func=lambda x: f"{x} ({model_dates[x]})"  # Format with dates
-    )
-
-    # Add device type filter in sidebar - remove WH Usage
-    device_types = st.sidebar.multiselect(
-        "Select Device Types",
-        ["EV Charging", "AC Usage", "PV Usage"],
-        default=["EV Charging", "AC Usage", "PV Usage"]
-    )
-
-    # Add fallback mechanism for empty device selection
-    if not device_types:
-        st.warning("⚠️ Please select at least one device type!")
-        # Add an empty space to make the warning more visible
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        st.info("Use the sidebar to select device types to display performance metrics.")
-        # Skip the rest of the content by adding an early return
-        st.stop()
-
-    # Add metric explanation in sidebar expander
-    with st.sidebar.expander("Metric Explanations"):
-        st.markdown("""
-        **TECA (Total Energy Correctly Assigned):** This metric evaluates the core technical function of NILM algorithms: accurate energy decomposition. It measures not just classification accuracy but quantification precision, providing a direct measure of algorithm performance against the fundamental technical objective of energy disaggregation. This metric is reproducible across different datasets and allows direct comparison with other NILM research.
-        
-        **DPSPerc (%):** Selected for its statistical robustness in handling class imbalance, which is inherent in NILM applications where device usage events are typically sparse in the overall energy signal. DPSPerc provides a balanced evaluation by giving equal weight to both successful detection and non-detection, making it more reliable than accuracy across varying device usage frequencies. We use the recall FPP plane in this case.
-        
-        **FPR (False Positive Rate):** Essential for technical validation as it directly quantifies Type I errors in our statistical model. In signal processing applications like NILM, false positives introduce systematic bias in energy disaggregation, affecting model reliability more severely than false negatives. This metric is especially critical when evaluating algorithm performance on noisy energy signals with multiple overlapping loads.
-        
-        """)
-
-    # Add technical motivation in sidebar expander
-    with st.sidebar.expander("Why These Metrics?"):
-        st.markdown("""
-        **Technical Rationale:**
-        
-        • **DPSPerc:** Statistically robust to class imbalance inherent in NILM applications where device usage events are sparse in the overall energy signal.
-        
-        • **FPR:** Directly quantifies Type I errors, crucial for NILM where false positives introduce systematic bias in energy disaggregation.
-        
-        • **TECA:** Evaluates the core technical function of NILM: accurate energy decomposition, providing direct measure of algorithm performance.
-        
-        These metrics maintain consistency across households with different energy consumption patterns, making model evaluation more reproducible and generalizable.
-        """)
-
-    st.sidebar.markdown("---")
-    st.sidebar.info("This dashboard presents the performance metrics of our NILM algorithm for detecting various device usage patterns.")
-
-    # After the sidebar elements but before the Key metrics display
-    st.markdown(f"""
-    This dashboard presents performance metrics for the **{selected_model} ({model_dates[selected_model]})** model 
-    in detecting EV Charging, AC Usage, PV Usage, and WH Usage consumption patterns. For this benchmark, we have used six versions of the model (V1-V6), each with different hyperparameters and training strategies.
+    ### Key Assumptions:
+    - Sample represents output for multiple homes with diverse energy profiles
+    - Values reflect monthly average energy consumption in kWh
+    - Detection flags (0/1) indicate presence of each appliance
+    - Grid consumption represents total household electricity usage
+    - Model confidence levels are not shown in this simplified output
     """)
 
-    # Main content area for Performance Metrics page
-    st.subheader(f"Model: {selected_model} ({model_dates[selected_model]})")
+    # Add interactive filtering directly with the first dataframe
+    st.subheader("Sample Model Output with Interactive Filtering")
 
-    # Key metrics display section - now in a 2-column layout
-    metrics_col, trend_col = st.columns([1, 1])
-    
-    with metrics_col:
-        st.markdown("### Key Metrics")
+    # Add filter controls in a more compact format
+    filter_cols = st.columns(4)
 
-        # Create metrics in 4-column layout for the selected model
-        metrics_cols = st.columns(min(4, len(device_types)))
+    with filter_cols[0]:
+        ev_filter = st.selectbox("EV Charging", ["Any", "Present", "Not Present"])
 
-        # Define colors for each device
-        device_colors = {
-            'EV Charging': primary_purple,
-            'AC Usage': green,
-            'PV Usage': cream,
-            'WH Usage': salmon
+    with filter_cols[1]:
+        ac_filter = st.selectbox("Air Conditioning", ["Any", "Present", "Not Present"])
+
+    with filter_cols[2]:
+        pv_filter = st.selectbox("Solar PV", ["Any", "Present", "Not Present"])
+
+    with filter_cols[3]:
+        wh_filter = st.selectbox("Water Heater", ["Any", "Present", "Not Present"])
+
+    # Apply filters
+    filtered_df = df.copy()
+
+    if ev_filter == "Present":
+        filtered_df = filtered_df[filtered_df['ev detected'] == 1]
+    elif ev_filter == "Not Present":
+        filtered_df = filtered_df[filtered_df['ev detected'] == 0]
+
+    if ac_filter == "Present":
+        filtered_df = filtered_df[filtered_df['ac detected'] == 1]
+    elif ac_filter == "Not Present":
+        filtered_df = filtered_df[filtered_df['ac detected'] == 0]
+
+    if pv_filter == "Present":
+        filtered_df = filtered_df[filtered_df['pv detected'] == 1]
+    elif pv_filter == "Not Present":
+        filtered_df = filtered_df[filtered_df['pv detected'] == 0]
+
+    if wh_filter == "Present":
+        filtered_df = filtered_df[filtered_df['water heater detected'] == 1]
+    elif wh_filter == "Not Present":
+        filtered_df = filtered_df[filtered_df['water heater detected'] == 0]
+
+    # Display filtered dataframe with record count
+    st.dataframe(filtered_df, use_container_width=True)
+    st.caption(f"Showing {len(filtered_df)} of {len(df)} homes")
+
+    # Create two columns for the interactive plots
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Appliance Presence in Housing Portfolio")
+        
+        # Calculate presence percentages
+        appliance_presence = {
+            'EV Charging': filtered_df['ev detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
+            'Air Conditioning': filtered_df['ac detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
+            'Solar PV': filtered_df['pv detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
+            'Water Heater': filtered_df['water heater detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0
         }
-
-        # Display metric cards for each device type
-        for i, device in enumerate(device_types):
-            with metrics_cols[i % len(metrics_cols)]:
-                st.markdown(f"<h4 style='color:{device_colors[device]};'>{device}</h4>", unsafe_allow_html=True)
-                
-                # DPSPerc
-                st.metric(
-                    "DPSPerc (%)", 
-                    f"{models_data[selected_model]['DPSPerc'][device]:.2f}%",
-                    delta=None,
-                    delta_color="normal"
-                )
-                
-                # FPR - Lower is better, so we'll display the inverse
-                fpr_value = models_data[selected_model]['FPR'][device]
-                st.metric(
-                    "False Positive Rate", 
-                    f"{fpr_value * 100:.2f}%",
-                    delta=None,
-                    delta_color="normal"
-                )
-                
-                # TECA - convert to percentage
-                teca_value = models_data[selected_model]['TECA'][device]
-                st.metric(
-                    "TECA (%)", 
-                    f"{teca_value * 100:.2f}%",
-                    delta=None,
-                    delta_color="normal"
-                )
+        
+        # Create interactive bar chart using Plotly with team colors
+        fig1 = px.bar(
+            x=list(appliance_presence.keys()),
+            y=list(appliance_presence.values()),
+            labels={'x': 'Appliance Type', 'y': 'Percentage of Homes (%)'},
+            color=list(appliance_presence.keys()),
+            color_discrete_map={
+                    'EV Charging': primary_purple,
+                    'Air Conditioning': green,
+                    'Solar PV': cream,
+                    'Water Heater': salmon
+            },
+            text=[f"{val:.1f}%" for val in appliance_presence.values()]
+        )
+        
+        # Update layout with team colors - now with white background
+        fig1.update_layout(
+            showlegend=False,
+            xaxis_title="Appliance Type",
+            yaxis_title="Percentage of Homes (%)",
+            yaxis_range=[0, 100],
+            margin=dict(l=20, r=20, t=30, b=20),
+                paper_bgcolor=white,
+                plot_bgcolor=white,
+                font=dict(color=dark_purple)
+        )
+        
+        fig1.update_traces(textposition='outside', textfont=dict(color=dark_purple))
+        fig1.update_xaxes(showgrid=False, gridcolor=light_purple, tickfont=dict(color=dark_purple))
+        fig1.update_yaxes(showgrid=True, gridcolor=light_purple, tickfont=dict(color=dark_purple))
     
-    with trend_col:
-        st.markdown("### Performance Trend")
+    # Display the plot
+    st.plotly_chart(fig1, use_container_width=True)
+    
+    # Add interactive details
+    with st.expander("About Appliance Presence"):
+        st.markdown("""
+        This chart shows the percentage of homes in the sample where each appliance type was detected.
         
-        # Get the first device as default if device_types is not empty
-        default_device = device_types[0] if device_types else "EV Charging"
+        - **Air Conditioning**: Most commonly detected appliance
+        - **Solar PV**: Shows significant renewable adoption
+        - **EV Charging**: Indicates electric vehicle ownership
+        - **Water Heater**: Least commonly detected in this sample
         
-        # Allow user to select a device for the trend visualization
-        trend_device = st.selectbox(
-            "Select device for trend analysis", 
-            device_types,
-            index=0
-        )
-        
-        # Prepare data for the line chart showing performance over model versions
-        trend_data = []
-        
-        for model in ["V1", "V2", "V3", "V4", "V5", "V6"]:
-            trend_data.append({
-                "Model": f"{model} ({model_dates[model]})",
-                "DPSPerc (%)": models_data[model]["DPSPerc"][trend_device],
-                "FPR (%)": models_data[model]["FPR"][trend_device] * 100,  # Convert to percentage
-                "TECA (%)": models_data[model]["TECA"][trend_device] * 100  # Convert to percentage
-            })
-        
-        trend_df = pd.DataFrame(trend_data)
-        
-        # Create a mapping to convert display names back to model keys
-        model_display_to_key = {f"{model} ({model_dates[model]})": model for model in ["V1", "V2", "V3", "V4", "V5", "V6"]}
-        
-        # Find best model for each metric
-        best_dpsperc_display = trend_df.loc[trend_df["DPSPerc (%)"].idxmax()]["Model"]
-        best_fpr_display = trend_df.loc[trend_df["FPR (%)"].idxmin()]["Model"]  # Lowest is best for FPR
-        best_teca_display = trend_df.loc[trend_df["TECA (%)"].idxmax()]["Model"]
-        
-        # Store original model keys for data lookup
-        best_dpsperc_model = model_display_to_key[best_dpsperc_display]
-        best_fpr_model = model_display_to_key[best_fpr_display]
-        best_teca_model = model_display_to_key[best_teca_display]
-        
-        # Create line chart
-        fig = go.Figure()
-        
-        # Add DPSPerc line
-        fig.add_trace(go.Scatter(
-            x=trend_df["Model"],
-            y=trend_df["DPSPerc (%)"],
-            mode='lines+markers',
-            name='DPSPerc (%)',
-            line=dict(color=primary_purple, width=3),
-            marker=dict(size=10)
-        ))
-        
-        # Add FPR line
-        fig.add_trace(go.Scatter(
-            x=trend_df["Model"],
-            y=trend_df["FPR (%)"],
-            mode='lines+markers',
-            name='FPR (%)',
-            line=dict(color=salmon, width=3),
-            marker=dict(size=10)
-        ))
-        
-        # Add TECA line
-        fig.add_trace(go.Scatter(
-            x=trend_df["Model"],
-            y=trend_df["TECA (%)"],
-            mode='lines+markers',
-            name='TECA (%)',
-            line=dict(color=green, width=3),
-            marker=dict(size=10)
-        ))
-        
-        # Highlight best model for each metric with stars
-        # DPSPerc best
-        dpsperc_best_idx = trend_df[trend_df["Model"] == best_dpsperc_display].index[0]
-        fig.add_trace(go.Scatter(
-            x=[best_dpsperc_display],
-            y=[trend_df.iloc[dpsperc_best_idx]["DPSPerc (%)"]],
-            mode='markers',
-            marker=dict(
-                symbol='star',
-                size=16,
-                color=primary_purple,
-                line=dict(color='white', width=1)
-            ),
-            name="Best DPSPerc",
-            showlegend=True
-        ))
-        
-        # FPR best
-        fpr_best_idx = trend_df[trend_df["Model"] == best_fpr_display].index[0]
-        fig.add_trace(go.Scatter(
-            x=[best_fpr_display],
-            y=[trend_df.iloc[fpr_best_idx]["FPR (%)"]],
-            mode='markers',
-            marker=dict(
-                symbol='star',
-                size=16,
-                color=salmon,
-                line=dict(color='white', width=1)
-            ),
-            name="Best FPR",
-            showlegend=True
-        ))
-        
-        # TECA best
-        teca_best_idx = trend_df[trend_df["Model"] == best_teca_display].index[0]
-        fig.add_trace(go.Scatter(
-            x=[best_teca_display],
-            y=[trend_df.iloc[teca_best_idx]["TECA (%)"]],
-            mode='markers',
-            marker=dict(
-                symbol='star',
-                size=16,
-                color=green,
-                line=dict(color='white', width=1)
-            ),
-            name="Best TECA",
-            showlegend=True
-        ))
-        
-        # Define the selected model display name here
-        selected_model_display = f"{selected_model} ({model_dates[selected_model]})"
-        
-        # Highlight the currently selected model with circles
-        current_model_index = ["V1", "V2", "V3", "V4", "V5", "V6"].index(selected_model)
-        
-        # Add vertical line for currently selected model
-        fig.add_shape(
-            type="line",
-            x0=selected_model_display,
-            y0=0,
-            x1=selected_model_display,
-            y1=100,
-            line=dict(
-                color="rgba(80, 80, 80, 0.3)",
-                width=6,
-                dash="dot",
-            )
-        )
-        
-        # Add timeline elements - faint vertical lines and model version labels at bottom
-        model_display_names = [f"{model} ({model_dates[model]})" for model in ["V1", "V2", "V3", "V4", "V5", "V6"]]
-        
-        for model_display in model_display_names:
-            if model_display != selected_model_display:  # We already added a line for the selected model
-                fig.add_shape(
-                    type="line",
-                    x0=model_display,
-                    y0=0,
-                    x1=model_display,
-                    y1=100,
-                    line=dict(
-                        color="rgba(200, 200, 200, 0.3)",
-                        width=1,
-                    )
-                )
-        
-        # Determine which model has best average performance
-        trend_df['FPR_inv'] = 100 - trend_df['FPR (%)']  # Invert FPR so higher is better
-        trend_df['avg_score'] = (trend_df['DPSPerc (%)'] + trend_df['FPR_inv'] + trend_df['TECA (%)']) / 3
-        best_overall_display = trend_df.loc[trend_df['avg_score'].idxmax()]['Model']
-        best_overall = model_display_to_key[best_overall_display]
+        Detection is based on energy signature patterns identified by the disaggregation model.
+        """)
 
-        # Add highlight for the best overall model - using a vertical bar instead of rectangle
-        fig.add_shape(
-            type="line",
-            x0=best_overall_display,
-            y0=0,
-            x1=best_overall_display,
-            y1=100,
-            line=dict(
-                color=primary_purple,
-                width=10,
-            ),
-            opacity=0.3,
-            layer="below",
-        )
+    with col2:
+        st.subheader("Total Energy Distribution by Type")
         
-        # Add "Best Overall" annotation for models
-        if len(set([best_dpsperc_model, best_fpr_model, best_teca_model])) == 1:
-            # If one model is best at everything
-            best_model = best_dpsperc_model
-            best_model_display = best_dpsperc_display
-            fig.add_annotation(
-                x=best_model_display,
-                y=100,
-                text=f"BEST OVERALL",
-                showarrow=False,
-                yanchor="bottom",
-                font=dict(color=dark_purple, size=12, family="Arial Black"),
-                bgcolor="rgba(255, 255, 255, 0.8)",
-                bordercolor=primary_purple,
-                borderwidth=2,
-                borderpad=4
-            )
-        else:            
-            fig.add_annotation(
-                x=best_overall_display,
-                y=100,
-                text=f"BEST OVERALL",
-                showarrow=False,
-                yanchor="bottom",
-                font=dict(color=dark_purple, size=12, family="Arial Black"),
-                bgcolor="rgba(255, 255, 255, 0.8)",
-                bordercolor=primary_purple,
-                borderwidth=2,
-                borderpad=4
-            )
+        # Calculate disaggregated appliance total
+        disaggregated_total = (filtered_df['ev charging (kWh)'].sum() + 
+                              filtered_df['air conditioning (kWh)'].sum() + 
+                              filtered_df['water heater (kWh)'].sum())
         
-        # Update layout
-        fig.update_layout(
-            xaxis_title="Model Version Timeline",
-            yaxis_title="Performance (%)",
-            xaxis=dict(
-                tickmode='array',
-                tickvals=trend_df["Model"].tolist(),
-                ticktext=trend_df["Model"].tolist(),
-                tickangle=0,
-                tickfont=dict(size=12, color=dark_purple),
-                showgrid=False
-            ),
-            yaxis=dict(
-                # Use full range to show all metrics including FPR
-                range=[0, 100]
-            ),
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
-            ),
+        # Calculate "Other Consumption" by subtracting known appliances from grid total
+        other_consumption = filtered_df['grid (kWh)'].sum() - disaggregated_total
+        other_consumption = max(0, other_consumption)  # Ensure it's not negative
+        
+    energy_totals = {
+        'EV Charging': filtered_df['ev charging (kWh)'].sum(),
+        'Air Conditioning': filtered_df['air conditioning (kWh)'].sum(),
+            'Water Heater': filtered_df['water heater (kWh)'].sum(),
+            'Other Consumption': other_consumption
+    }
+    
+        # Create interactive pie chart using Plotly with team colors
+    fig2 = px.pie(
+        values=list(energy_totals.values()),
+        names=list(energy_totals.keys()),
+        color=list(energy_totals.keys()),
+        color_discrete_map={
+                'EV Charging': primary_purple,
+                'Air Conditioning': green,
+                'Water Heater': salmon,
+                'Other Consumption': light_purple
+        },
+        hole=0.4
+    )
+    
+        # Update layout with team colors - now with white background
+    fig2.update_layout(
+        legend_title="Energy Type",
+        margin=dict(l=20, r=20, t=30, b=20),
             paper_bgcolor=white,
             plot_bgcolor=white,
             font=dict(color=dark_purple),
-            height=500,
-            margin=dict(l=20, r=20, t=30, b=20)
+            legend=dict(font=dict(color=dark_purple))
+    )
+    
+    fig2.update_traces(
+        textinfo='percent+label',
+            hovertemplate='%{label}<br>%{value:.1f} kWh<br>%{percent}',
+            textfont=dict(color=dark_gray)  # Darker text for better contrast
+    )
+    
+    # Display the plot
+    st.plotly_chart(fig2, use_container_width=True)
+    
+    # Add interactive details
+    with st.expander("About Energy Distribution"):
+        st.markdown("""
+            This chart shows how the total energy consumption is distributed across different appliance types.
+        
+        - **Air Conditioning**: Typically accounts for significant consumption
+        - **EV Charging**: Can be a major energy consumer when present
+        - **Water Heater**: Generally smaller portion of total energy use
+            - **Other Consumption**: Remaining grid usage not attributed to the three main appliances
+        
+        Understanding this distribution helps identify the highest impact areas for efficiency improvements.
+        """)
+
+    # Add summary metrics
+    st.markdown(f"""
+    <style>
+        .metric-container {{
+            background-color: {primary_purple};
+            border-radius: 10px;
+            padding: 15px 15px;
+            margin: 10px 0;
+            border: 2px solid {primary_purple};
+        }}
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.subheader("Key Metrics")
+    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+
+    with metric_col1:
+        st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+        st.metric(
+            label="Total Homes",
+            value=len(filtered_df),
+            delta=f"{len(filtered_df) - len(df)}" if len(filtered_df) != len(df) else None,
+            help="Number of households in the filtered dataset"
         )
-        
-        # Add a note about FPR
-        fig.add_annotation(
-            x=0.98,
-            y=0.03,
-            xref="paper",
-            yref="paper",
-            text="Note: Lower FPR is better",
-            showarrow=False,
-            bgcolor="rgba(255, 255, 255, 0.8)",
-            bordercolor=salmon,
-            borderwidth=1,
-            borderpad=4,
-            font=dict(color=dark_purple, size=10)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with metric_col2:
+        st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+        avg_grid = filtered_df['grid (kWh)'].mean() if len(filtered_df) > 0 else 0
+        st.metric(
+            label="Avg. Grid Consumption",
+            value=f"{avg_grid:.1f} kWh",
+            help="Average total electricity consumption per home"
         )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with metric_col3:
+        st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+        pv_homes = filtered_df[filtered_df['pv detected'] == 1]
+        pv_avg = pv_homes['solar production (kWh)'].mean() if len(pv_homes) > 0 else 0
+        st.metric(
+            label="Avg. Solar Production",
+            value=f"{pv_avg:.1f} kWh",
+            help="Average solar production for homes with PV systems"
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with metric_col4:
+        st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
+        # Percentage of consumption identified by model
+        total_grid = filtered_df['grid (kWh)'].sum()
+        total_identified = disaggregated_total
+        pct_identified = (total_identified / total_grid * 100) if total_grid > 0 else 0
         
-        # Display the chart
-        st.plotly_chart(fig, use_container_width=True)
+        st.metric(
+            label="Consumption Identified",
+            value=f"{pct_identified:.1f}%",
+            help="Percentage of total grid consumption attributed to specific appliances"
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Geographic Energy Insights Map
+    st.subheader("Geographical Energy Insights")
+    
+    # Mock dataset for geographical visualization
+    @st.cache_data
+    def generate_geo_data():
+        import random
+        import datetime
         
-        # Add key stats about best models
-        st.markdown(f"""
-        <div style="border-left: 3px solid {primary_purple}; padding-left: 10px; margin: 10px 0;">
-            <small>
-            <strong>Best DPSPerc:</strong> {best_dpsperc_display} ({trend_df.loc[trend_df['Model'] == best_dpsperc_display, 'DPSPerc (%)'].values[0]:.2f}%)<br>
-            <strong>Best FPR:</strong> {best_fpr_display} ({trend_df.loc[trend_df['Model'] == best_fpr_display, 'FPR (%)'].values[0]:.2f}%)<br>
-            <strong>Best TECA:</strong> {best_teca_display} ({trend_df.loc[trend_df['Model'] == best_teca_display, 'TECA (%)'].values[0]:.2f}%)
-            </small>
-        </div>
-        """, unsafe_allow_html=True)
+        # Define states and regions
+        regions = {
+            'Northeast': ['ME', 'NH', 'VT', 'MA', 'RI', 'CT', 'NY', 'NJ', 'PA'],
+            'Southeast': ['DE', 'MD', 'VA', 'WV', 'KY', 'NC', 'SC', 'TN', 'GA', 'FL', 'AL', 'MS', 'AR', 'LA'],
+            'Midwest': ['OH', 'MI', 'IN', 'IL', 'WI', 'MN', 'IA', 'MO', 'ND', 'SD', 'NE', 'KS'],
+            'Southwest': ['OK', 'TX', 'NM', 'AZ'],
+            'West': ['CO', 'WY', 'MT', 'ID', 'WA', 'OR', 'UT', 'NV', 'CA', 'AK', 'HI']
+        }
         
-        # Add a brief explanation
-        if selected_model == "V6":
-            st.caption(f"The timeline shows how metrics for {trend_device} have evolved through model versions. Stars indicate best performance for each metric.")
-        else:
-            st.caption(f"The timeline shows how metrics for {trend_device} have evolved through versions. Try selecting different models to compare their performance.")
+        # Create a base for our mock dataset
+        geo_data = []
+        
+        # Define time periods - will create data for past 24 months
+        current_date = datetime.datetime.now()
+        start_date = current_date - datetime.timedelta(days=24*30)  # approx 24 months back
+        time_periods = []
+        
+        # Generate monthly time periods
+        for i in range(24):
+            month_date = start_date + datetime.timedelta(days=30*i)
+            time_periods.append({
+                'date': month_date,
+                'year': month_date.year,
+                'month': month_date.month,
+                'month_name': month_date.strftime('%b'),
+                'quarter': (month_date.month-1)//3 + 1,
+                'period_label': month_date.strftime('%b %Y')
+            })
+        
+        # Set region-specific patterns
+        base_region_characteristics = {
+            'Northeast': {
+                'grid_range': (800, 1200),  # Higher consumption due to heating
+                'solar_range': (100, 350),   # Moderate solar production
+                'ev_range': (150, 400),      # Higher EV adoption 
+                'ac_range': (100, 300),      # Lower AC due to climate
+                'water_heater_range': (150, 300),  # Higher water heating needs
+                'pv_adoption_range': (15, 40),     # Moderate solar adoption
+                'ev_adoption_range': (15, 45)      # Higher EV adoption
+            },
+            'Southeast': {
+                'grid_range': (900, 1400),   # Higher consumption due to AC
+                'solar_range': (200, 450),   # Good solar production
+                'ev_range': (50, 250),       # Lower EV adoption
+                'ac_range': (250, 500),      # Higher AC usage
+                'water_heater_range': (100, 200),  # Lower water heating needs
+                'pv_adoption_range': (10, 35),     # Moderate solar adoption
+                'ev_adoption_range': (5, 25)       # Lower EV adoption
+            },
+            'Midwest': {
+                'grid_range': (700, 1100),   # Moderate consumption
+                'solar_range': (50, 250),    # Lower solar production
+                'ev_range': (50, 200),       # Moderate-low EV adoption
+                'ac_range': (150, 350),      # Moderate AC usage
+                'water_heater_range': (120, 250),  # Moderate water heating
+                'pv_adoption_range': (5, 25),      # Lower solar adoption
+                'ev_adoption_range': (8, 30)       # Moderate EV adoption
+            },
+            'Southwest': {
+                'grid_range': (900, 1300),   # Higher consumption due to AC
+                'solar_range': (300, 600),   # High solar production
+                'ev_range': (100, 300),      # Moderate EV adoption
+                'ac_range': (300, 550),      # Very high AC usage
+                'water_heater_range': (80, 180),   # Lower water heating
+                'pv_adoption_range': (25, 60),     # High solar adoption
+                'ev_adoption_range': (10, 35)      # Moderate EV adoption
+            },
+            'West': {
+                'grid_range': (600, 1000),   # Lower grid consumption (efficiency)
+                'solar_range': (250, 550),   # High solar production
+                'ev_range': (150, 450),      # High EV adoption
+                'ac_range': (150, 350),      # Moderate AC usage
+                'water_heater_range': (100, 200),  # Moderate water heating
+                'pv_adoption_range': (20, 55),     # High solar adoption
+                'ev_adoption_range': (15, 50)      # High EV adoption
+            }
+        }
+        
+        # Define seasonal adjustments by month
+        seasonal_factors = {
+            # Month -> (grid, solar, ev, ac, water_heater)
+            1:  (1.2,  0.7,  0.9, 0.3, 1.4),  # January
+            2:  (1.15, 0.8,  0.9, 0.3, 1.3),  # February
+            3:  (1.0,  0.9,  0.95, 0.5, 1.2),  # March
+            4:  (0.9,  1.0,  1.0, 0.7, 1.0),  # April
+            5:  (0.8,  1.1,  1.0, 0.9, 0.9),  # May
+            6:  (0.9,  1.2,  1.0, 1.3, 0.8),  # June
+            7:  (1.0,  1.2,  1.1, 1.5, 0.7),  # July
+            8:  (1.0,  1.15, 1.1, 1.4, 0.7),  # August
+            9:  (0.9,  1.1,  1.05, 1.2, 0.8),  # September
+            10: (0.85, 0.9,  1.0, 0.8, 0.9),  # October
+            11: (0.95, 0.8,  0.95, 0.5, 1.1),  # November
+            12: (1.1,  0.7,  0.9, 0.3, 1.3)   # December
+        }
+        
+        # Define more pronounced yearly growth trends - make historical progression more noticeable
+        # The factors represent multipliers for (grid, solar, ev, ac, water_heater, pv_adoption, ev_adoption, efficiency)
+        yearly_growth = {
+            # 0 = oldest data, 1 = middle data, 2 = newest data (2 years of data)
+            0: (1.15, 0.7, 0.6, 1.0, 1.05, 0.5, 0.4, 0.7),  # 2 years ago: higher grid use, lower renewables & efficiency
+            1: (1.05, 0.85, 0.8, 1.0, 1.0, 0.75, 0.7, 0.85),  # 1 year ago: transitioning
+            2: (1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0)  # Current year: baseline
+        }
+        
+        # Define innovation adoption tiers for states (which states adopt technologies first)
+        # This creates more realistic patterns where certain states lead in adoption
+        state_adoption_tiers = {
+            'early_adopters': ['CA', 'NY', 'MA', 'WA', 'OR', 'CO', 'HI', 'VT'],
+            'early_majority': ['CT', 'NJ', 'MD', 'IL', 'MN', 'AZ', 'NV', 'TX', 'FL', 'UT', 'NM'],
+            'late_majority': ['PA', 'OH', 'MI', 'NC', 'SC', 'GA', 'VA', 'WI', 'IA', 'NH', 'ME', 'RI', 'DE'],
+            'laggards': ['WV', 'KY', 'TN', 'AL', 'MS', 'AR', 'LA', 'OK', 'KS', 'NE', 'SD', 'ND', 'MT', 'ID', 'WY', 'AK']
+        }
+        
+        # Adoption multipliers based on time and state tier
+        # Format: [early_adopters, early_majority, late_majority, laggards]
+        adoption_timeline = {
+            0: [0.7, 0.4, 0.25, 0.1],  # 2 years ago
+            1: [0.9, 0.7, 0.5, 0.3],   # 1 year ago
+            2: [1.0, 0.9, 0.8, 0.6]    # Current
+        }
+        
+        # Generate data for each state, time period, and state
+        for time_period in time_periods:
+            year_delta = min(2, time_period['year'] - start_date.year)  # Cap at 2 years difference
+            month = time_period['month']
+            
+            # Get seasonal and yearly adjustment factors
+            season_factor = seasonal_factors[month]
+            year_factor = yearly_growth.get(year_delta, yearly_growth[0])  # Use 0 if not found
+            
+            for region, states in regions.items():
+                base_char = base_region_characteristics[region]
+                
+                # Adjust base characteristics for this time period
+                char = {
+                    'grid_range': (
+                        base_char['grid_range'][0] * season_factor[0] * year_factor[0],
+                        base_char['grid_range'][1] * season_factor[0] * year_factor[0]
+                    ),
+                    'solar_range': (
+                        base_char['solar_range'][0] * season_factor[1] * year_factor[1],
+                        base_char['solar_range'][1] * season_factor[1] * year_factor[1]
+                    ),
+                    'ev_range': (
+                        base_char['ev_range'][0] * season_factor[2] * year_factor[2],
+                        base_char['ev_range'][1] * season_factor[2] * year_factor[2]
+                    ),
+                    'ac_range': (
+                        base_char['ac_range'][0] * season_factor[3] * year_factor[3],
+                        base_char['ac_range'][1] * season_factor[3] * year_factor[3]
+                    ),
+                    'water_heater_range': (
+                        base_char['water_heater_range'][0] * season_factor[4] * year_factor[4],
+                        base_char['water_heater_range'][1] * season_factor[4] * year_factor[4]
+                    ),
+                    'pv_adoption_range': (
+                        base_char['pv_adoption_range'][0] * year_factor[5],
+                        base_char['pv_adoption_range'][1] * year_factor[5]
+                    ),
+                    'ev_adoption_range': (
+                        base_char['ev_adoption_range'][0] * year_factor[6],
+                        base_char['ev_adoption_range'][1] * year_factor[6]
+                    )
+                }
+                
+                for state in states:
+                    # Determine which adoption tier this state belongs to
+                    state_tier = None
+                    for tier, states_list in state_adoption_tiers.items():
+                        if state in states_list:
+                            state_tier = tier
+                            break
+                    
+                    # Get adoption multiplier based on state tier and time period
+                    if state_tier == 'early_adopters':
+                        tier_index = 0
+                    elif state_tier == 'early_majority':
+                        tier_index = 1
+                    elif state_tier == 'late_majority':
+                        tier_index = 2
+                    else:  # laggards
+                        tier_index = 3
+                    
+                    # Get adoption multiplier for this time period and state tier
+                    adoption_multiplier = adoption_timeline[year_delta][tier_index]
+                    
+                    # Add some realistic variance within regions
+                    variance_factor = random.uniform(0.8, 1.2)
+                    
+                    # Base metrics 
+                    grid_consumption = random.uniform(*char['grid_range']) * variance_factor
+                    
+                    # Apply state-specific adoption multipliers
+                    solar_production = random.uniform(*char['solar_range']) * variance_factor * adoption_multiplier
+                    ev_charging = random.uniform(*char['ev_range']) * variance_factor * adoption_multiplier
+                    ac_usage = random.uniform(*char['ac_range']) * variance_factor
+                    water_heater = random.uniform(*char['water_heater_range']) * variance_factor
+                    
+                    # Adoption rates (percentages) with stronger historical progression
+                    pv_adoption = random.uniform(*char['pv_adoption_range']) * adoption_multiplier
+                    ev_adoption = random.uniform(*char['ev_adoption_range']) * adoption_multiplier
+                    
+                    # Energy efficiency improves over time, with early adopter states leading
+                    efficiency_base = 55 + random.uniform(-5, 5)  # Base efficiency
+                    efficiency_growth = year_factor[7] * adoption_multiplier  # Apply time and state tier factors
+                    efficiency_score = min(98, efficiency_base * efficiency_growth)  # Cap at 98
+                    
+                    # Home counts for context - with growth over time
+                    home_count = int(random.uniform(500, 5000) * (1 + year_delta * 0.05))
+                    
+                    # Calculate derived metrics
+                    solar_coverage = (solar_production / grid_consumption * 100) if grid_consumption > 0 else 0
 
     # Sample Composition Table
     st.markdown("### Sample Composition")
@@ -1511,7 +1128,7 @@ elif page == "Performance Metrics":
     """, unsafe_allow_html=True)
 
 elif page == "Interactive Map":
-    # Interactive Map page - Use exactly the same code as in nilm_deployment_map.py
+    # Interactive Map page
     st.title("NILM Deployment Map")
     st.subheader("Geographic Distribution of Homes with Smart Devices")
     
@@ -1660,12 +1277,3 @@ elif page == "Interactive Map":
         st.subheader("Homes Data")
         df = pd.DataFrame(filtered_households)
         st.dataframe(df)
-    
-    # Footer
-    st.markdown("---")
-    st.markdown(f"""
-    <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
-        This interactive map shows the geographic distribution of homes with different smart devices.
-        Click on a state to zoom in and explore homes with EV chargers, AC units, and solar panels.
-    </div>
-    """, unsafe_allow_html=True)
