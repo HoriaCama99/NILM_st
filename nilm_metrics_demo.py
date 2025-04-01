@@ -1585,31 +1585,11 @@ elif page == "Interactive Map":
     show_ac = st.sidebar.checkbox("Show AC Units", value=True)
     show_pv = st.sidebar.checkbox("Show Solar Panels", value=True)
     
-    # Add custom HTML button instead of Streamlit button
-    st.sidebar.markdown("""
-    <div style="padding: 10px 0;">
-        <a href="?refresh=true" target="_self" style="
-            display: block;
-            text-align: center;
-            background-color: #D32F2F;
-            color: black;
-            font-weight: bold;
-            padding: 10px;
-            border: 2px solid black;
-            border-radius: 5px;
-            text-decoration: none;
-            margin: 10px 0;">
-            ↻ Refresh Map View
-        </a>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Check for refresh parameter
-    params = st.query_params
-    if "refresh" in params:
-        # Clear parameters and reload
+    # Add refresh button
+    if st.sidebar.button("↻ Refresh Map View", use_container_width=True):
+        # Reset any state selection and reload the page
         st.query_params.clear()
-        st.experimental_rerun()
+        st.rerun()
     
     # Load data with a spinner
     with st.spinner("Loading map data..."):
@@ -1773,78 +1753,59 @@ elif page == "Interactive Map":
         # Get top 10 states for the visualization
         top_states = sorted(
             [(code, states_data[code]['name'], 
-              states_data[code]['total_homes']) 
+              states_data[code]['ev_homes'] + states_data[code]['ac_homes'] + states_data[code]['pv_homes']) 
              for code in states_data],
             key=lambda x: x[2], reverse=True
         )[:10]
         
-        # Create normalized data for visualization
         chart_data = []
-        for code, name, total in top_states:
-            # Calculate proportion of each device type as decimal (0-1)
-            ev_percentage = states_data[code]['ev_homes'] / total
-            ac_percentage = states_data[code]['ac_homes'] / total
-            pv_percentage = states_data[code]['pv_homes'] / total
-            
-            # Add data for bar chart
+        for code, name, _ in top_states:
             chart_data.extend([
-                {'State': name, 'Device': 'EV Chargers', 'Percentage': ev_percentage, 'Count': states_data[code]['ev_homes']},
-                {'State': name, 'Device': 'AC Units', 'Percentage': ac_percentage, 'Count': states_data[code]['ac_homes']},
-                {'State': name, 'Device': 'Solar Panels', 'Percentage': pv_percentage, 'Count': states_data[code]['pv_homes']}
+                {'State': name, 'Device': 'EV Chargers', 'Count': states_data[code]['ev_homes']},
+                {'State': name, 'Device': 'AC Units', 'Count': states_data[code]['ac_homes']},
+                {'State': name, 'Device': 'Solar Panels', 'Count': states_data[code]['pv_homes']}
             ])
         
-        chart_df = pd.DataFrame(chart_data)
-        
-        # Create grouped bar chart
         fig = px.bar(
-            chart_df,
-            x='State', 
-            y='Percentage', 
-            color='Device',
+            pd.DataFrame(chart_data),
+            x='State', y='Count', color='Device',
             color_discrete_map={
                 'EV Chargers': 'blue',
                 'AC Units': 'orange',
                 'Solar Panels': 'green'
             },
-            title='Percentage of Homes with Each Device Type by State',
-            barmode='group',  # Change to grouped bars
-            text='Count',     # Show device count as text
-            hover_data={
-                'Percentage': ':.1%',
-                'Count': True,
-                'State': False
-            }
+            title='Top 10 States by Device Distribution',
+            barmode='group'
         )
         
         fig.update_layout(
             xaxis_title='State',
-            yaxis_title='Percentage of Homes',
+            yaxis_title='Number of Devices',
             legend_title='Device Type',
             plot_bgcolor=white,
             paper_bgcolor=white,
-            font=dict(color=dark_purple),
-            uniformtext_minsize=8,
-            uniformtext_mode='hide',
-            yaxis=dict(
-                tickformat='.0%',   # Format as percentage
-                range=[0, 1.0]      # Maximum of 100%
-            )
-        )
-        
-        # Improve text display
-        fig.update_traces(
-            texttemplate='%{text}',
-            textposition='outside',
-            cliponaxis=False
+            font=dict(color=dark_purple)
         )
         
         st.plotly_chart(fig, use_container_width=True)
+            
+        # Show state breakdown
+        st.subheader("State Breakdown")
+        state_stats = []
+        for code in states_data:
+            state = states_data[code]
+            state_stats.append({
+                "State": state['name'],
+                "Total Homes": state['total_homes'],
+                "EV Chargers": state['ev_homes'],
+                "AC Units": state['ac_homes'],
+                "Solar Panels": state['pv_homes'],
+                "EV %": f"{state['ev_homes']/state['total_homes']:.1%}",
+                "AC %": f"{state['ac_homes']/state['total_homes']:.1%}",
+                "Solar %": f"{state['pv_homes']/state['total_homes']:.1%}"
+            })
         
-        # Add explanation
-        st.caption("""
-        This chart shows the percentage of homes equipped with each device type across the top 10 states.
-        For example, if a state shows 80% for AC Units, it means 80% of homes in that state have AC units.
-        """)
+        st.dataframe(pd.DataFrame(state_stats), use_container_width=True)
     
     # Display statistics if a state is selected
     if selected_state:
