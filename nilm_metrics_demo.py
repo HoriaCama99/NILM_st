@@ -1585,6 +1585,22 @@ elif page == "Interactive Map":
     show_ac = st.sidebar.checkbox("Show AC Units", value=True)
     show_pv = st.sidebar.checkbox("Show Solar Panels", value=True)
     
+    # Add custom styling for the refresh button
+    st.sidebar.markdown("""
+    <style>
+    div[data-testid="stButton"] button {
+        background-color: #515D9A !important;
+        color: black !important;
+        font-weight: bold !important;
+        border: 1px solid darkgray !important;
+    }
+    div[data-testid="stButton"] button:hover {
+        background-color: #B8BCF3 !important;
+        color: black !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     # Add refresh button
     if st.sidebar.button("↻ Refresh Map View", use_container_width=True):
         # Reset any state selection and reload the page
