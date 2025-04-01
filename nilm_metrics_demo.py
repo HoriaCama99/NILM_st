@@ -1432,7 +1432,6 @@ elif page == "Performance Metrics":
     """, unsafe_allow_html=True)
 
 elif page == "Interactive Map":
-    # Interactive Map page
     st.title("NILM Deployment Map")
     st.subheader("Geographic Distribution of Homes with Smart Devices")
     
@@ -1535,21 +1534,19 @@ elif page == "Interactive Map":
     params = st.query_params
     selected_state = params.get("state", [""])[0]
     
-    if selected_state not in states_data:
+    if selected_state not in ['CA', 'TX', 'NY', 'FL', 'MA']:
         selected_state = ""
     
-    # Filter households by selected state and device types
-    filtered_households = [
-        h for h in households if 
-        (not selected_state or h['state'] == selected_state) and
-        ((show_ev and h['has_ev']) or 
-         (show_ac and h['has_ac']) or 
-         (show_pv and h['has_pv']))
-    ]
-    
-    # Create map
+    # Create base map
     if selected_state:
-        state = states_data[selected_state]
+        state_coords = {
+            'CA': {'lat': 36.7783, 'lon': -119.4179, 'zoom': 6},
+            'TX': {'lat': 31.9686, 'lon': -99.9018, 'zoom': 6},
+            'NY': {'lat': 42.1657, 'lon': -74.9481, 'zoom': 7},
+            'FL': {'lat': 27.6648, 'lon': -81.5158, 'zoom': 6},
+            'MA': {'lat': 42.4072, 'lon': -71.3824, 'zoom': 8}
+        }
+        state = state_coords[selected_state]
         m = folium.Map(
             location=[state['lat'], state['lon']], 
             zoom_start=state['zoom'],
@@ -1565,35 +1562,17 @@ elif page == "Interactive Map":
     # Add satellite view layer
     folium.TileLayer('Esri_WorldImagery', name='Satellite View', attr='Esri').add_to(m)
     
-    if not selected_state and us_states_geojson:
-        # Add state boundaries with click functionality
-        style_function = lambda x: {
-            'fillColor': primary_purple,
-            'color': 'white',
-            'weight': 1,
-            'fillOpacity': 0.5
-        }
-        
-        folium.GeoJson(
-            us_states_geojson,
-            style_function=style_function,
-            highlight_function=lambda x: {
-                'fillColor': light_purple,
-                'color': 'white',
-                'weight': 3,
-                'fillOpacity': 0.7
-            },
-            tooltip=folium.GeoJsonTooltip(
-                fields=['name'],
-                aliases=['State:'],
-                labels=True,
-                sticky=True
-            ),
-            popup=folium.GeoJsonPopup(
-                fields=['name'],
-                aliases=['Click to view devices in:']
-            )
-        ).add_to(m)
+    # Display the map
+    folium_static(m, width=1000, height=600)
+    
+    # Filter households by selected state and device types
+    filtered_households = [
+        h for h in households if 
+        (not selected_state or h['state'] == selected_state) and
+        ((show_ev and h['has_ev']) or 
+         (show_ac and h['has_ac']) or 
+         (show_pv and h['has_pv']))
+    ]
     
     # Create marker cluster for households
     marker_cluster = MarkerCluster().add_to(m)
@@ -1643,9 +1622,6 @@ elif page == "Interactive Map":
     </div>
     '''
     m.get_root().html.add_child(folium.Element(legend_html))
-    
-    # Display the map
-    folium_static(m, width=1000, height=600)
     
     # Display statistics if a state is selected
     if selected_state:
