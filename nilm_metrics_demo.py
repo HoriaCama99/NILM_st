@@ -256,6 +256,9 @@ try:
 except Exception as e:
     st.warning(f"Banner image not found at {banner_path}. Please update the path in the code.")
 
+# Initialize selected_model to the default value before page logic
+selected_model = "V6" # Default model
+
 if page == "Sample Output":
     # Sample Output page code goes here
     st.title("Energy Disaggregation Model: Sample Output")
