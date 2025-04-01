@@ -1620,6 +1620,7 @@ elif page == "Interactive Map":
                 sticky=True
             ),
             popup=folium.features.GeoJsonPopup(
+                fields=['id', 'name'],
                 labels=False,
                 parse_html=True,
                 fmt=lambda feature: f'<a href="?state={feature["id"]}" target="_self">Click to view devices in: {feature["properties"]["name"]}</a>'
