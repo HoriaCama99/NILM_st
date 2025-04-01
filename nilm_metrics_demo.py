@@ -1585,11 +1585,24 @@ elif page == "Interactive Map":
     show_ac = st.sidebar.checkbox("Show AC Units", value=True)
     show_pv = st.sidebar.checkbox("Show Solar Panels", value=True)
     
-    # Add refresh button
-    if st.sidebar.button("↻ Refresh Map View", use_container_width=True):
+    # Add custom CSS for the refresh button
+    st.markdown("""
+    <style>
+    [data-testid="baseButton-secondary"].refresh-map-button {
+        background-color: #D32F2F !important;
+        color: black !important;
+        font-weight: bold !important;
+        border: 2px solid black !important;
+        border-radius: 5px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Add refresh button with custom styling
+    if st.sidebar.button("↻ Refresh Map View", use_container_width=True, key="refresh-map-button"):
         # Reset any state selection and reload the page
         st.query_params.clear()
-        st.rerun()
+        st.experimental_rerun()
     
     # Load data with a spinner
     with st.spinner("Loading map data..."):
@@ -1753,38 +1766,69 @@ elif page == "Interactive Map":
         # Get top 10 states for the visualization
         top_states = sorted(
             [(code, states_data[code]['name'], 
-              states_data[code]['ev_homes'] + states_data[code]['ac_homes'] + states_data[code]['pv_homes']) 
+              states_data[code]['total_homes']) 
              for code in states_data],
             key=lambda x: x[2], reverse=True
         )[:10]
         
+        # Create normalized data for stacked bars
         chart_data = []
-        for code, name, _ in top_states:
+        for code, name, total in top_states:
+            # Calculate proportion of each device type
+            ev_percentage = states_data[code]['ev_homes'] / total * 100
+            ac_percentage = states_data[code]['ac_homes'] / total * 100
+            pv_percentage = states_data[code]['pv_homes'] / total * 100
+            
+            # Add data for stacked bar
             chart_data.extend([
-                {'State': name, 'Device': 'EV Chargers', 'Count': states_data[code]['ev_homes']},
-                {'State': name, 'Device': 'AC Units', 'Count': states_data[code]['ac_homes']},
-                {'State': name, 'Device': 'Solar Panels', 'Count': states_data[code]['pv_homes']}
+                {'State': name, 'Device': 'EV Chargers', 'Percentage': ev_percentage, 'Count': states_data[code]['ev_homes']},
+                {'State': name, 'Device': 'AC Units', 'Percentage': ac_percentage, 'Count': states_data[code]['ac_homes']},
+                {'State': name, 'Device': 'Solar Panels', 'Percentage': pv_percentage, 'Count': states_data[code]['pv_homes']}
             ])
         
+        chart_df = pd.DataFrame(chart_data)
+        
+        # Create stacked bar chart
         fig = px.bar(
-            pd.DataFrame(chart_data),
-            x='State', y='Count', color='Device',
+            chart_df,
+            x='State', 
+            y='Percentage', 
+            color='Device',
             color_discrete_map={
                 'EV Chargers': 'blue',
                 'AC Units': 'orange',
                 'Solar Panels': 'green'
             },
-            title='Top 10 States by Device Distribution',
-            barmode='group'
+            title='Device Distribution (% of Homes) by State',
+            barmode='stack',
+            text='Count',  # Show device count as text
+            hover_data={
+                'Percentage': ':.1f%',
+                'Count': True,
+                'State': False
+            }
         )
         
         fig.update_layout(
             xaxis_title='State',
-            yaxis_title='Number of Devices',
+            yaxis_title='Percentage of Homes with Devices',
             legend_title='Device Type',
             plot_bgcolor=white,
             paper_bgcolor=white,
-            font=dict(color=dark_purple)
+            font=dict(color=dark_purple),
+            uniformtext_minsize=8,
+            uniformtext_mode='hide',
+            yaxis=dict(
+                tickformat=',.0%',
+                range=[0, 200]  # Maximum of 200% since each home can have multiple devices
+            )
+        )
+        
+        # Improve text display
+        fig.update_traces(
+            texttemplate='%{text}',
+            textposition='inside',
+            insidetextanchor='middle'
         )
         
         st.plotly_chart(fig, use_container_width=True)
