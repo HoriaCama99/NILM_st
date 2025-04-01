@@ -1445,6 +1445,8 @@ elif page == "Interactive Map":
     
     # Create function to generate mock data for US states
     # Cache the data generation
+
+    # Cache the data generation
     @st.cache_data
     def generate_geo_data():
         # US states with coordinates (approximate centers)
@@ -1455,7 +1457,7 @@ elif page == "Interactive Map":
             'FL': {'name': 'Florida', 'lat': 27.6648, 'lon': -81.5158, 'zoom': 6},
             'MA': {'name': 'Massachusetts', 'lat': 42.4072, 'lon': -71.3824, 'zoom': 8}
         }
-        
+
         # Generate stats for each state
         for state_code in states_data:
             state = states_data[state_code]
@@ -1463,33 +1465,33 @@ elif page == "Interactive Map":
             state['ev_homes'] = random.randint(30, int(state['total_homes'] * 0.3))
             state['ac_homes'] = random.randint(int(state['total_homes'] * 0.5), int(state['total_homes'] * 0.9))
             state['pv_homes'] = random.randint(20, int(state['total_homes'] * 0.25))
-        
+
         def generate_households(state_code, count=100):
             """Generate mock household data within a state"""
             state = states_data[state_code]
             households = []
-            
+
             # Define the spread of points (in degrees)
             lat_spread = 1.5
             lon_spread = 1.5
-            
+
             for i in range(count):
                 # Randomly place homes around the state center
                 lat = state['lat'] + (random.random() - 0.5) * lat_spread
                 lon = state['lon'] + (random.random() - 0.5) * lon_spread
-                
+
                 # Assign devices randomly but weighted by state percentages
                 has_ev = random.random() < (state['ev_homes'] / state['total_homes'])
                 has_ac = random.random() < (state['ac_homes'] / state['total_homes'])
                 has_pv = random.random() < (state['pv_homes'] / state['total_homes'])
-                
+
                 # Ensure at least one device is present
                 if not (has_ev or has_ac or has_pv):
                     device_type = random.choice(['ev', 'ac', 'pv'])
                     if device_type == 'ev': has_ev = True
                     elif device_type == 'ac': has_ac = True
                     else: has_pv = True
-                
+
                 household = {
                     'id': f"{state_code}-{i+1}",
                     'lat': lat,
@@ -1501,15 +1503,15 @@ elif page == "Interactive Map":
                     'state': state_code
                 }
                 households.append(household)
-            
+
             return households
-        
+
         # Generate households for each state
         all_households = []
         for state_code in states_data:
             state_households = generate_households(state_code, states_data[state_code]['total_homes'])
             all_households.extend(state_households)
-        
+
         return states_data, all_households
 
     # Load GeoJSON data for US states
@@ -1517,171 +1519,28 @@ elif page == "Interactive Map":
     def load_us_geojson():
         try:
             response = requests.get("https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json")
+            response.raise_for_status() # Raise an exception for bad status codes
             us_states = response.json()
-            
+
             # Filter to only include our selected states
             state_codes = ['CA', 'TX', 'NY', 'FL', 'MA']
-            us_states['features'] = [f for f in us_states['features'] 
-                                    if f['id'] in state_codes]
-            
+            # Make sure 'features' exists before filtering
+            if 'features' in us_states:
+                us_states['features'] = [f for f in us_states['features']
+                                        if f.get('id') in state_codes]
+            else:
+                st.warning("GeoJSON data does not contain 'features'. State boundaries might not display correctly.")
+                us_states['features'] = [] # Ensure features is an empty list if not present
+
+
             return us_states
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             st.error(f"Error loading US state boundaries: {e}")
             return None
+        except Exception as e:
+            st.error(f"An unexpected error occurred while processing GeoJSON: {e}")
+            return None
 
-    # Main app
-    def main():
-        st.title("NILM Deployment Map")
-        st.subheader("Geographic Distribution of Homes with Smart Devices")
-        
-        # Load data
-        states_data, households = generate_geo_data()
-        us_states_geojson = load_us_geojson()
-        
-        # Create filter controls in sidebar
-        st.sidebar.markdown("### Map Filters")
-        show_ev = st.sidebar.checkbox("Show EV Chargers", value=True)
-        show_ac = st.sidebar.checkbox("Show AC Units", value=True)
-        show_pv = st.sidebar.checkbox("Show Solar Panels", value=True)
-        
-        # Get state from URL parameter if available
-        params = st.query_params
-        selected_state = params.get("state", [""])[0]
-        
-        if selected_state not in states_data:
-            selected_state = ""
-        
-        # Filter households by selected state and device types
-        filtered_households = [
-            h for h in households if 
-            (not selected_state or h['state'] == selected_state) and
-            ((show_ev and h['has_ev']) or 
-            (show_ac and h['has_ac']) or 
-            (show_pv and h['has_pv']))
-        ]
-        
-        # Create map
-        if selected_state:
-            state = states_data[selected_state]
-            m = folium.Map(
-                location=[state['lat'], state['lon']], 
-                zoom_start=state['zoom'],
-                tiles="CartoDB positron"
-            )
-        else:
-            m = folium.Map(
-                location=[39.8283, -98.5795],  # Center of US
-                zoom_start=4,
-                tiles="CartoDB positron"
-            )
-        
-        # Add satellite view layer
-        folium.TileLayer('Esri_WorldImagery', name='Satellite View', attr='Esri').add_to(m)
-        
-        if not selected_state and us_states_geojson:
-            # Add state boundaries with click functionality
-            style_function = lambda x: {
-                'fillColor': primary_purple,
-                'color': 'white',
-                'weight': 1,
-                'fillOpacity': 0.5
-            }
-            
-            folium.GeoJson(
-                us_states_geojson,
-                style_function=style_function,
-                highlight_function=lambda x: {
-                    'fillColor': light_purple,
-                    'color': 'white',
-                    'weight': 3,
-                    'fillOpacity': 0.7
-                },
-                tooltip=folium.GeoJsonTooltip(
-                    fields=['name'],
-                    aliases=['State:'],
-                    labels=True,
-                    sticky=True
-                ),
-                popup=folium.GeoJsonPopup(
-                    fields=['name'],
-                    aliases=['Click to view devices in:']
-                )
-            ).add_to(m)
-        
-        # Create marker cluster for households
-        marker_cluster = MarkerCluster().add_to(m)
-        
-        # Add markers for each household
-        for house in filtered_households:
-            # Determine marker icon based on devices
-            if house['has_ev'] and show_ev:
-                icon_color = "blue"
-                icon_name = "plug"
-            elif house['has_pv'] and show_pv:
-                icon_color = "green"
-                icon_name = "sun"
-            else:
-                icon_color = "orange"
-                icon_name = "home"
-            
-            # Create popup content
-            popup_content = f"""
-            <div style="min-width: 200px;">
-                <h4>Home {house['id']}</h4>
-                <b>Devices:</b><br>
-                {'✓ EV Charger<br>' if house['has_ev'] else ''}
-                {'✓ AC Unit<br>' if house['has_ac'] else ''}
-                {'✓ Solar Panels<br>' if house['has_pv'] else ''}
-                <b>Daily Energy:</b> {house['energy_consumption']} kWh
-            </div>
-            """
-            
-            # Add marker
-            folium.Marker(
-                location=[house['lat'], house['lon']],
-                popup=popup_content,
-                icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa'),
-                tooltip=f"Home {house['id']}"
-            ).add_to(marker_cluster)
-        
-        # Add legend
-        legend_html = '''
-        <div style="position: fixed; bottom: 50px; right: 50px; 
-                    background-color: white; padding: 10px; border-radius: 5px;
-                    border: 2px solid gray;">
-            <h4>Legend</h4>
-            <p><i class="fa fa-plug" style="color: blue;"></i> EV Charger</p>
-            <p><i class="fa fa-snowflake-o" style="color: orange;"></i> AC Unit</p>
-            <p><i class="fa fa-sun-o" style="color: green;"></i> Solar Panel</p>
-        </div>
-        '''
-        m.get_root().html.add_child(folium.Element(legend_html))
-        
-        # Display the map
-        folium_static(m, width=1000, height=600)
-        
-        # Display statistics if a state is selected
-        if selected_state:
-            state = states_data[selected_state]
-            st.subheader(f"{state['name']} Statistics")
-            
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Total Homes", state['total_homes'])
-            with col2:
-                st.metric("EV Chargers", state['ev_homes'])
-            with col3:
-                st.metric("AC Units", state['ac_homes'])
-            with col4:
-                st.metric("Solar Panels", state['pv_homes'])
-            
-            # Display data table
-            st.subheader("Homes Data")
-            df = pd.DataFrame(filtered_households)
-            st.dataframe(df)
-
-    if __name__ == "__main__":
-        main() 
     
     # Footer
     st.markdown("---")
