@@ -1589,7 +1589,7 @@ elif page == "Interactive Map":
     if st.sidebar.button("↻ Refresh Map View", use_container_width=True):
         # Reset any state selection and reload the page
         st.query_params.clear()
-        st.experimental_rerun()
+        st.rerun()
     
     # Load data with a spinner
     with st.spinner("Loading map data..."):
