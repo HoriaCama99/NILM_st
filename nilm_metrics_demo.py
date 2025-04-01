@@ -1781,10 +1781,10 @@ elif page == "Interactive Map":
         # Create normalized data for stacked bars
         chart_data = []
         for code, name, total in top_states:
-            # Calculate proportion of each device type
-            ev_percentage = states_data[code]['ev_homes'] / total * 100
-            ac_percentage = states_data[code]['ac_homes'] / total * 100
-            pv_percentage = states_data[code]['pv_homes'] / total * 100
+            # Calculate proportion of each device type as decimal (0-1)
+            ev_percentage = states_data[code]['ev_homes'] / total
+            ac_percentage = states_data[code]['ac_homes'] / total
+            pv_percentage = states_data[code]['pv_homes'] / total
             
             # Add data for stacked bar
             chart_data.extend([
@@ -1810,7 +1810,7 @@ elif page == "Interactive Map":
             barmode='stack',
             text='Count',  # Show device count as text
             hover_data={
-                'Percentage': ':.1f%',
+                'Percentage': ':.1%',
                 'Count': True,
                 'State': False
             }
@@ -1826,8 +1826,8 @@ elif page == "Interactive Map":
             uniformtext_minsize=8,
             uniformtext_mode='hide',
             yaxis=dict(
-                tickformat=',.0%',
-                range=[0, 200]  # Maximum of 200% since each home can have multiple devices
+                tickformat='.0%',  # Format as percentage
+                range=[0, 2.0]  # Maximum of 200% since each home can have multiple devices
             )
         )
         
