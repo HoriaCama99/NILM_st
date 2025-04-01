@@ -267,7 +267,7 @@ if page == "Sample Output":
         st.markdown("""
         This dashboard presents a sample output from our energy disaggregation model, which analyzes household 
         energy consumption data and identifies specific appliance usage patterns.
-        
+
         ### Key Assumptions:
         - Sample represents output for multiple homes with diverse energy profiles
         - Values reflect monthly average energy consumption in kWh
@@ -275,13 +275,16 @@ if page == "Sample Output":
         - Grid consumption represents total household electricity usage
         - Model confidence levels are not shown in this simplified output
         """)
-        
+
+        # Add interactive filtering directly with the first dataframe
         st.subheader("Sample Model Output with Interactive Filtering")
+
+        # Add filter controls in a more compact format
         filter_cols = st.columns(4)
-        
+
         with filter_cols[0]:
             ev_filter = st.selectbox("EV Charging", ["Any", "Present", "Not Present"])
-        
+
         with filter_cols[1]:
             ac_filter = st.selectbox("Air Conditioning", ["Any", "Present", "Not Present"])
 
@@ -516,15 +519,18 @@ if page == "Sample Output":
     except Exception as e:
         st.error(f"Error loading sample data: {e}")
         st.info("Please make sure the 'disagg_sample.csv' file is in the same directory as this script.")
-    
+
 elif page == "Performance Metrics":
     # Performance Metrics page
+    # Just one title, with a more comprehensive subheader
     st.title("NILM Performance Dashboard")
-    st.subheader("Device Detection Performance Analysis")
+    st.subheader(f"Device Detection Performance Analysis")
     
+    # Define metrics data with updated values
     @st.cache_data
     def load_performance_data():
-        return {
+        # Data for all models
+        models_data = {
             'V1': {
                 'DPSPerc': {
                     'EV Charging': 80.2603,
@@ -628,6 +634,8 @@ elif page == "Performance Metrics":
                 }
             }
         }
+        
+        return models_data
 
     # Load performance data
     models_data = load_performance_data()
@@ -750,7 +758,7 @@ elif page == "Performance Metrics":
                     delta=None,
                     delta_color="normal"
                 )
-    
+
     with trend_col:
         st.markdown("### Performance Trend")
         
@@ -1728,7 +1736,7 @@ elif page == "Interactive Map":
 
         # Add satellite view tile layer
         folium.TileLayer('Esri_WorldImagery', name='Satellite View', attr='Esri').add_to(m)
-        
+
         # Add GeoJSON states layer with click functionality
         style_function = lambda feature: {
             'fillColor': primary_purple,
@@ -1886,7 +1894,7 @@ elif page == "Interactive Map":
 
         # Add satellite view tile layer
         folium.TileLayer('Esri_WorldImagery', name='Satellite View', attr='Esri').add_to(m)
-        
+
         # Add a back button to the overview map with improved styling
         back_button_html = '''
         <div id="back-button" style="position: absolute; 
@@ -2229,64 +2237,3 @@ elif page == "Interactive Map":
         Click on a state to zoom in and explore homes with EV chargers, AC units, and solar panels.
     </div>
     """, unsafe_allow_html=True)
-
-    # Create a map with state contours and a dropdown for state selection
-    # Use the :target CSS pseudo-class to highlight the selected state
-
-    # Create a function to generate the map with state contours
-    @st.cache_data
-    def generate_state_map():
-        # Load GeoJSON data for US states
-        us_states_geojson = load_us_geojson()
-
-        # Create a map centered on the US
-        m = folium.Map(location=[39.8283, -98.5795], zoom_start=4, tiles="CartoDB positron")
-
-        # Add GeoJSON layer for state contours
-        folium.GeoJson(
-            us_states_geojson,
-            name="US States",
-            style_function=lambda feature: {
-                'fillColor': primary_purple,
-                'color': 'white',
-                'weight': 1,
-                'fillOpacity': 0.5,
-            },
-            highlight_function=lambda feature: {
-                'fillColor': light_purple,
-                'color': 'white',
-                'weight': 3,
-                'fillOpacity': 0.7,
-            },
-            tooltip=folium.GeoJsonTooltip(
-                fields=['name'],
-                aliases=['State:'],
-                labels=True,
-                sticky=True
-            )
-        ).add_to(m)
-
-        return m
-
-    # Create a dropdown for state selection
-    selected_state = st.selectbox(
-         "Select State",
-         options=list(states_data.keys()),
-         format_func=lambda x: states_data[x]['name']
-    )
-
-    # Load markers for the selected state
-    if selected_state:
-         # Filter households by selected state
-         filtered_households = [h for h in households if h['state'] == selected_state]
-
-         # Add markers for each household in the selected state
-         for house in filtered_households:
-             folium.Marker(
-                 location=[house['lat'], house['lon']],
-                 popup=f"Home {house['id']}",
-                 icon=folium.Icon(color='blue' if house['has_ev'] else 'green' if house['has_pv'] else 'orange')
-             ).add_to(m)
-
-    # Display the map
-    folium_static(m, width=1000, height=600)
