@@ -1550,13 +1550,34 @@ elif page == "Interactive Map":
     show_ac = st.sidebar.checkbox("Show AC Units", value=True)
     show_pv = st.sidebar.checkbox("Show Solar Panels", value=True)
     
-    # Get state from URL parameter if available
-    params = st.query_params
-    selected_state = params.get("state", [""])[0]
-    
-    # Load data
+    # Load data first
     states_data, all_households = generate_geo_data()
     us_geojson = load_us_geojson()
+    
+    # Get state from URL parameter if available
+    params = st.query_params
+    url_state = params.get("state", [""])[0]
+    
+    # Add state selector dropdown
+    state_options = [""] + list(states_data.keys())
+    state_labels = {"": "All States"}
+    state_labels.update({code: states_data[code]['name'] for code in states_data})
+    
+    selected_state = st.sidebar.selectbox(
+        "Select State",
+        state_options,
+        format_func=lambda x: state_labels.get(x, x),
+        index=state_options.index(url_state) if url_state in state_options else 0
+    )
+    
+    # Update URL if state selected via dropdown
+    if selected_state and selected_state != url_state:
+        params["state"] = selected_state
+        st.query_params.set_state(params)
+    elif not selected_state and url_state:
+        # Clear state from URL if deselected in dropdown
+        del params["state"]
+        st.query_params.set_state(params)
     
     if selected_state not in states_data:
         selected_state = ""
@@ -1658,11 +1679,20 @@ elif page == "Interactive Map":
     legend_html = '''
     <div style="position: fixed; bottom: 50px; right: 50px; 
                 background-color: white; padding: 10px; border-radius: 5px;
-                border: 2px solid gray;">
-        <h4>Legend</h4>
-        <p><i class="fa fa-plug" style="color: blue;"></i> EV Charger</p>
-        <p><i class="fa fa-snowflake-o" style="color: orange;"></i> AC Unit</p>
-        <p><i class="fa fa-sun-o" style="color: green;"></i> Solar Panel</p>
+                border: 2px solid gray; z-index: 9999;">
+        <h4 style="margin-top: 0; color: #515D9A;">Device Legend</h4>
+        <div style="display: flex; align-items: center; margin: 5px 0;">
+            <div style="width: 20px; height: 20px; background-color: blue; border-radius: 50%; margin-right: 10px;"></div>
+            <span>EV Charger</span>
+        </div>
+        <div style="display: flex; align-items: center; margin: 5px 0;">
+            <div style="width: 20px; height: 20px; background-color: orange; border-radius: 50%; margin-right: 10px;"></div>
+            <span>AC Unit</span>
+        </div>
+        <div style="display: flex; align-items: center; margin: 5px 0;">
+            <div style="width: 20px; height: 20px; background-color: green; border-radius: 50%; margin-right: 10px;"></div>
+            <span>Solar Panel</span>
+        </div>
     </div>
     '''
     m.get_root().html.add_child(folium.Element(legend_html))
@@ -1673,6 +1703,43 @@ elif page == "Interactive Map":
     # Display the map
     folium_static(m, width=1000, height=600)
     
+    # Add summary statistics even if no state is selected
+    if not selected_state:
+        st.subheader("Portfolio Overview")
+        
+        total_homes = sum(states_data[state]['total_homes'] for state in states_data)
+        total_ev = sum(states_data[state]['ev_homes'] for state in states_data)
+        total_ac = sum(states_data[state]['ac_homes'] for state in states_data)
+        total_pv = sum(states_data[state]['pv_homes'] for state in states_data)
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Homes", f"{total_homes:,}")
+        with col2:
+            st.metric("EV Chargers", f"{total_ev:,}", f"{total_ev/total_homes:.1%}")
+        with col3:
+            st.metric("AC Units", f"{total_ac:,}", f"{total_ac/total_homes:.1%}")
+        with col4:
+            st.metric("Solar Panels", f"{total_pv:,}", f"{total_pv/total_homes:.1%}")
+            
+        # Show state breakdown
+        st.subheader("State Breakdown")
+        state_stats = []
+        for code in states_data:
+            state = states_data[code]
+            state_stats.append({
+                "State": state['name'],
+                "Total Homes": state['total_homes'],
+                "EV Chargers": state['ev_homes'],
+                "AC Units": state['ac_homes'],
+                "Solar Panels": state['pv_homes'],
+                "EV %": f"{state['ev_homes']/state['total_homes']:.1%}",
+                "AC %": f"{state['ac_homes']/state['total_homes']:.1%}",
+                "Solar %": f"{state['pv_homes']/state['total_homes']:.1%}"
+            })
+        
+        st.dataframe(pd.DataFrame(state_stats), use_container_width=True)
+    
     # Display statistics if a state is selected
     if selected_state:
         state = states_data[selected_state]
@@ -1680,18 +1747,32 @@ elif page == "Interactive Map":
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Total Homes", state['total_homes'])
+            st.metric("Total Homes", f"{state['total_homes']:,}")
         with col2:
-            st.metric("EV Chargers", state['ev_homes'])
+            ev_pct = state['ev_homes']/state['total_homes']
+            st.metric("EV Chargers", f"{state['ev_homes']:,}", f"{ev_pct:.1%}")
         with col3:
-            st.metric("AC Units", state['ac_homes'])
+            ac_pct = state['ac_homes']/state['total_homes']
+            st.metric("AC Units", f"{state['ac_homes']:,}", f"{ac_pct:.1%}")
         with col4:
-            st.metric("Solar Panels", state['pv_homes'])
+            pv_pct = state['pv_homes']/state['total_homes']
+            st.metric("Solar Panels", f"{state['pv_homes']:,}", f"{pv_pct:.1%}")
         
         # Display data table
         st.subheader("Homes Data")
-        df = pd.DataFrame(filtered_households)
-        st.dataframe(df)
+        columns_to_show = ['id', 'energy_consumption', 'has_ev', 'has_ac', 'has_pv']
+        df = pd.DataFrame(filtered_households)[columns_to_show]
+        
+        # Rename columns for display
+        column_map = {
+            'id': 'Home ID',
+            'energy_consumption': 'Energy (kWh)',
+            'has_ev': 'EV Charger',
+            'has_ac': 'AC Unit',
+            'has_pv': 'Solar Panel'
+        }
+        df = df.rename(columns=column_map)
+        st.dataframe(df, use_container_width=True)
     # --- End Map Generation Logic ---
 
     # Footer
