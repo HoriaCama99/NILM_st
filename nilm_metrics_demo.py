@@ -1545,6 +1545,67 @@ elif page == "Interactive Map":
             return None
 
     
+    # --- Add Map Generation and Display Logic --- 
+    states_data, all_households = generate_geo_data()
+    us_geojson = load_us_geojson()
+
+    # Initialize map centered on US
+    map_center = [39.8283, -98.5795] # Approximate center of continental US
+    m = folium.Map(location=map_center, zoom_start=4)
+
+    # Add state boundaries if GeoJSON loaded successfully
+    if us_geojson:
+        folium.GeoJson(
+            us_geojson,
+            name='us-states',
+            style_function=lambda feature: {
+                'fillColor': primary_purple, 
+                'color': white, # Border color
+                'weight': 1,
+                'fillOpacity': 0.2,
+            },
+            tooltip=folium.features.GeoJsonTooltip(fields=['id'], aliases=['State:'])
+        ).add_to(m)
+
+    # Add household markers using MarkerCluster
+    marker_cluster = MarkerCluster(name="Households").add_to(m)
+
+    # Define colors for markers
+    marker_colors = {
+        'ev': 'purple',
+        'ac': 'green',
+        'pv': 'orange'
+    }
+
+    for household in all_households:
+        # Determine primary device for icon color (simple logic)
+        icon_color = 'blue' # Default
+        if household['has_ev']: icon_color = marker_colors['ev']
+        elif household['has_ac']: icon_color = marker_colors['ac']
+        elif household['has_pv']: icon_color = marker_colors['pv']
+
+        # Create popup content
+        popup_html = f"<b>Household ID:</b> {household['id']}<br>"
+        popup_html += f"<b>State:</b> {household['state']}<br>"
+        popup_html += f"<b>EV Charger:</b> {'Yes' if household['has_ev'] else 'No'}<br>"
+        popup_html += f"<b>AC Unit:</b> {'Yes' if household['has_ac'] else 'No'}<br>"
+        popup_html += f"<b>Solar PV:</b> {'Yes' if household['has_pv'] else 'No'}<br>"
+        popup_html += f"<b>Energy Consumption:</b> {household['energy_consumption']} kWh"
+
+        # Add marker to cluster
+        folium.Marker(
+            location=[household['lat'], household['lon']],
+            popup=folium.Popup(popup_html, max_width=300),
+            icon=folium.Icon(color=icon_color, icon='home')
+        ).add_to(marker_cluster)
+        
+    # Add Layer Control to toggle layers
+    folium.LayerControl().add_to(m)
+    
+    # Display the map in Streamlit
+    folium_static(m, width=1000, height=600)
+    # --- End Map Generation Logic ---
+
     # Footer
     st.markdown("---")
     st.markdown(f"""
