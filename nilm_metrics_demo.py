@@ -1564,7 +1564,7 @@ elif page == "Interactive Map":
                 'weight': 1,
                 'fillOpacity': 0.2,
             },
-            tooltip=folium.features.GeoJsonTooltip(fields=['id'], aliases=['State:'])
+            tooltip=folium.features.GeoJsonTooltip(fields=['name'], aliases=['State:'])
         ).add_to(m)
 
     # Add household markers using MarkerCluster
