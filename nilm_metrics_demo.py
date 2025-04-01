@@ -1778,7 +1778,7 @@ elif page == "Interactive Map":
             key=lambda x: x[2], reverse=True
         )[:10]
         
-        # Create normalized data for stacked bars
+        # Create normalized data for visualization
         chart_data = []
         for code, name, total in top_states:
             # Calculate proportion of each device type as decimal (0-1)
@@ -1786,7 +1786,7 @@ elif page == "Interactive Map":
             ac_percentage = states_data[code]['ac_homes'] / total
             pv_percentage = states_data[code]['pv_homes'] / total
             
-            # Add data for stacked bar
+            # Add data for bar chart
             chart_data.extend([
                 {'State': name, 'Device': 'EV Chargers', 'Percentage': ev_percentage, 'Count': states_data[code]['ev_homes']},
                 {'State': name, 'Device': 'AC Units', 'Percentage': ac_percentage, 'Count': states_data[code]['ac_homes']},
@@ -1795,7 +1795,7 @@ elif page == "Interactive Map":
         
         chart_df = pd.DataFrame(chart_data)
         
-        # Create stacked bar chart
+        # Create grouped bar chart
         fig = px.bar(
             chart_df,
             x='State', 
@@ -1806,9 +1806,9 @@ elif page == "Interactive Map":
                 'AC Units': 'orange',
                 'Solar Panels': 'green'
             },
-            title='Device Distribution (% of Homes) by State',
-            barmode='stack',
-            text='Count',  # Show device count as text
+            title='Percentage of Homes with Each Device Type by State',
+            barmode='group',  # Change to grouped bars
+            text='Count',     # Show device count as text
             hover_data={
                 'Percentage': ':.1%',
                 'Count': True,
@@ -1818,7 +1818,7 @@ elif page == "Interactive Map":
         
         fig.update_layout(
             xaxis_title='State',
-            yaxis_title='Percentage of Homes with Devices',
+            yaxis_title='Percentage of Homes',
             legend_title='Device Type',
             plot_bgcolor=white,
             paper_bgcolor=white,
@@ -1826,37 +1826,25 @@ elif page == "Interactive Map":
             uniformtext_minsize=8,
             uniformtext_mode='hide',
             yaxis=dict(
-                tickformat='.0%',  # Format as percentage
-                range=[0, 2.0]  # Maximum of 200% since each home can have multiple devices
+                tickformat='.0%',   # Format as percentage
+                range=[0, 1.0]      # Maximum of 100%
             )
         )
         
         # Improve text display
         fig.update_traces(
             texttemplate='%{text}',
-            textposition='inside',
-            insidetextanchor='middle'
+            textposition='outside',
+            cliponaxis=False
         )
         
         st.plotly_chart(fig, use_container_width=True)
-            
-        # Show state breakdown
-        st.subheader("State Breakdown")
-        state_stats = []
-        for code in states_data:
-            state = states_data[code]
-            state_stats.append({
-                "State": state['name'],
-                "Total Homes": state['total_homes'],
-                "EV Chargers": state['ev_homes'],
-                "AC Units": state['ac_homes'],
-                "Solar Panels": state['pv_homes'],
-                "EV %": f"{state['ev_homes']/state['total_homes']:.1%}",
-                "AC %": f"{state['ac_homes']/state['total_homes']:.1%}",
-                "Solar %": f"{state['pv_homes']/state['total_homes']:.1%}"
-            })
         
-        st.dataframe(pd.DataFrame(state_stats), use_container_width=True)
+        # Add explanation
+        st.caption("""
+        This chart shows the percentage of homes equipped with each device type across the top 10 states.
+        For example, if a state shows 80% for AC Units, it means 80% of homes in that state have AC units.
+        """)
     
     # Display statistics if a state is selected
     if selected_state:
