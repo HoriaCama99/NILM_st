@@ -1563,68 +1563,24 @@ elif page == "Interactive Map":
 
         return states_data, all_households
 
-    # New cached function to generate households for a specific state
+    # New cached function to **load pre-generated** households for a specific state
     @st.cache_data
     def generate_households_for_state(state_code, state_info):
-        """Generate mock household data within a specific state."""
-        count = state_info.get('total_homes', 0)
-        if count == 0:
+        """Load pre-generated mock household data for a specific state from JSON."""
+        file_path = f"map_data/households_{state_code}.json"
+        try:
+            with open(file_path, 'r') as f:
+                households = json.load(f)
+            return households
+        except FileNotFoundError:
+            st.error(f"Data file not found for state {state_code} at {file_path}. Please run the data generation script.")
+            return [] # Return empty list if file not found
+        except json.JSONDecodeError:
+            st.error(f"Error decoding JSON data for state {state_code} from {file_path}.")
             return []
-
-        lat_center = state_info.get('lat', 0)
-        lon_center = state_info.get('lon', 0)
-        ev_homes_count = state_info.get('ev_homes', 0)
-        ac_homes_count = state_info.get('ac_homes', 0)
-        pv_homes_count = state_info.get('pv_homes', 0)
-
-        lat_spread = 1.5
-        lon_spread = 1.5
-
-        ev_prob = ev_homes_count / count
-        ac_prob = ac_homes_count / count
-        pv_prob = pv_homes_count / count
-        base_prob_sum = ev_prob + ac_prob + pv_prob + 1e-9 # Avoid division by zero later
-
-        # Pre-generate random numbers for efficiency if count is large
-        # (Adjust threshold as needed)
-        num_random_draws = count * 4 # For lat, lon, ev, ac, pv checks
-        rand_draws = np.random.rand(num_random_draws)
-        energy_draws = np.random.randint(20, 101, size=count) # Use numpy for randint
-
-        households = []
-        rand_idx = 0
-        for i in range(count):
-            lat = lat_center + (rand_draws[rand_idx] - 0.5) * lat_spread
-            lon = lon_center + (rand_draws[rand_idx + 1] - 0.5) * lon_spread
-            has_ev = rand_draws[rand_idx + 2] < ev_prob
-            has_ac = rand_draws[rand_idx + 3] < ac_prob
-            has_pv = rand_draws[rand_idx + 4] < pv_prob
-            
-            # Simplified 'ensure one device' logic
-            if not (has_ev or has_ac or has_pv):
-                 # Assign based on relative probability
-                 draw = rand_draws[rand_idx + 5] * base_prob_sum
-                 if draw < ev_prob:
-                     has_ev = True
-                 elif draw < ev_prob + ac_prob:
-                     has_ac = True
-                 else:
-                     has_pv = True
-                 rand_idx += 1 # Consume an extra random number
-
-            households.append({
-                'id': f"{state_code}-{i+1}",
-                'lat': lat,
-                'lon': lon,
-                'has_ev': has_ev,
-                'has_ac': has_ac,
-                'has_pv': has_pv,
-                'energy_consumption': energy_draws[i], # Use pre-generated int
-                'state': state_code
-            })
-            rand_idx += 5 # Increment index for next iteration
-
-        return households
+        except Exception as e:
+            st.error(f"An unexpected error occurred loading data for state {state_code}: {e}")
+            return []
 
     # Load GeoJSON data for US states
     @st.cache_data
