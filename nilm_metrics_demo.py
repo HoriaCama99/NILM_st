@@ -1566,16 +1566,20 @@ elif page == "Interactive Map":
     # Load GeoJSON data for US states
     @st.cache_data
     def load_us_geojson():
+        geojson_path = "us-states.json"  # Assume file is in the root directory
         try:
-            response = requests.get("https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json")
-            response.raise_for_status() # Raise an exception for bad status codes
-            us_states = response.json()
+            # Load from local file
+            with open(geojson_path, 'r') as f:
+                us_states = json.load(f)
             return us_states
-        except requests.exceptions.RequestException as e:
-            st.error(f"Error loading US state boundaries: {e}")
+        except FileNotFoundError:
+            st.error(f"Error: GeoJSON file not found at {geojson_path}. Please ensure the file exists in the application's root directory.")
+            return None
+        except json.JSONDecodeError:
+            st.error(f"Error: Failed to parse GeoJSON file at {geojson_path}. Please ensure it is valid JSON.")
             return None
         except Exception as e:
-            st.error(f"An unexpected error occurred while processing GeoJSON: {e}")
+            st.error(f"An unexpected error occurred while loading GeoJSON: {e}")
             return None
 
     # --- Add Map Generation and Display Logic ---
@@ -1646,6 +1650,7 @@ elif page == "Interactive Map":
     # Add satellite view layer
     folium.TileLayer('Esri_WorldImagery', name='Satellite View', attr='Esri').add_to(m)
     
+    # Only add the GeoJSON layer if viewing the whole US map and the data loaded successfully
     if not selected_state and us_geojson:
         # Add state boundaries with click functionality
         style_function = lambda x: {
