@@ -1532,8 +1532,8 @@ elif page == "Interactive Map":
         st.rerun()
     
     # Load data with a spinner
-    with st.spinner("Loading map data..."):
-        states_data, all_households = generate_geo_data()
+    with st.spinner("Loading state data..."):
+        states_data = generate_geo_data() # Only expect one return value now
         us_geojson = load_us_geojson()
     
     # Get state from URL parameter if available
