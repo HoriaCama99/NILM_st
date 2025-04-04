@@ -16,6 +16,7 @@ import plotly.subplots as sp
 from PIL import Image
 import datetime
 import requests
+import time
 
 # Hide the default Streamlit navigation menu
 st.set_page_config(
@@ -1676,36 +1677,42 @@ elif page == "Interactive Map":
     
     # Only add the GeoJSON layer if viewing the whole US map and the data loaded successfully
     if not selected_state and us_geojson:
-        # Add state boundaries with click functionality
-        style_function = lambda x: {
-            'fillColor': primary_purple,
-            'color': 'white',
-            'weight': 1,
-            'fillOpacity': 0.5
-        }
+        # --- GeoJSON rendering removed for faster initial load ---
+        pass # Explicitly do nothing here now
+        # t8 = time.time()
+        # # Add state boundaries with click functionality
+        # style_function = lambda x: {
+        #     'fillColor': primary_purple,
+        #     'color': 'white',
+        #     'weight': 1,
+        #     'fillOpacity': 0.5
+        # }
         
-        folium.GeoJson(
-            us_geojson,
-            style_function=style_function,
-            highlight_function=lambda x: {
-                'fillColor': light_purple,
-                'color': 'white',
-                'weight': 3,
-                'fillOpacity': 0.7
-            },
-            tooltip=folium.GeoJsonTooltip(
-                fields=['name'],
-                aliases=['State:'],
-                labels=True,
-                sticky=True
-            ),
-            popup=folium.GeoJsonPopup(
-                fields=['name'],
-                aliases=['Click to view devices in:']
-            )
-        ).add_to(m)
+        # folium.GeoJson(
+        #     us_geojson,
+        #     style_function=style_function,
+        #     highlight_function=lambda x: {
+        #         'fillColor': light_purple,
+        #         'color': 'white',
+        #         'weight': 3,
+        #         'fillOpacity': 0.7
+        #     },
+        #     tooltip=folium.GeoJsonTooltip(
+        #         fields=['name'],
+        #         aliases=['State:'],
+        #         labels=True,
+        #         sticky=True
+        #     ),
+        #     popup=folium.GeoJsonPopup(
+        #         fields=['name'],
+        #         aliases=['Click to view devices in:']
+        #     )
+        # ).add_to(m)
+        # t9 = time.time()
+        # st.sidebar.write(f"Add GeoJSON layer: {t9-t8:.2f}s") # Print timing
     
     # Create marker cluster (it's ok to add an empty cluster)
+    t10 = time.time()
     marker_cluster = MarkerCluster().add_to(m)
     
     # Add markers ONLY if a state is selected and there are filtered households
