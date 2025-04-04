@@ -1515,67 +1515,83 @@ elif page == "Interactive Map":
             state['ac_homes'] = random.randint(int(state['total_homes'] * 0.5), int(state['total_homes'] * 0.9))
             state['pv_homes'] = random.randint(20, int(state['total_homes'] * 0.25))
 
-        def generate_households(state_code, count=100):
-            """Generate mock household data within a state"""
-            state = states_data[state_code]
-            households = []
+        # Removed household generation from here
 
-            # Define the spread of points (in degrees)
-            lat_spread = 1.5
-            lon_spread = 1.5
+        return states_data # Only return state-level data
 
-            for i in range(count):
-                # Randomly place homes around the state center
-                lat = state['lat'] + (random.random() - 0.5) * lat_spread
-                lon = state['lon'] + (random.random() - 0.5) * lon_spread
+    # New cached function to generate households for a specific state
+    @st.cache_data
+    def generate_households_for_state(state_code, state_info):
+        """Generate mock household data within a specific state."""
+        households = []
+        count = state_info.get('total_homes', 0) # Use .get for safety
+        if count == 0:
+            return [] # Return empty list if no homes
 
-                # Assign devices randomly but weighted by state percentages
-                has_ev = random.random() < (state['ev_homes'] / state['total_homes'])
-                has_ac = random.random() < (state['ac_homes'] / state['total_homes'])
-                has_pv = random.random() < (state['pv_homes'] / state['total_homes'])
+        lat_center = state_info.get('lat', 0)
+        lon_center = state_info.get('lon', 0)
+        ev_homes_count = state_info.get('ev_homes', 0)
+        ac_homes_count = state_info.get('ac_homes', 0)
+        pv_homes_count = state_info.get('pv_homes', 0)
 
-                # Ensure at least one device is present
-                if not (has_ev or has_ac or has_pv):
-                    device_type = random.choice(['ev', 'ac', 'pv'])
-                    if device_type == 'ev': has_ev = True
-                    elif device_type == 'ac': has_ac = True
-                    else: has_pv = True
+        # Define the spread of points (in degrees)
+        lat_spread = 1.5
+        lon_spread = 1.5
 
-                household = {
-                    'id': f"{state_code}-{i+1}",
-                    'lat': lat,
-                    'lon': lon,
-                    'has_ev': has_ev,
-                    'has_ac': has_ac,
-                    'has_pv': has_pv,
-                    'energy_consumption': random.randint(20, 100),
-                    'state': state_code
-                }
-                households.append(household)
+        # Calculate probabilities outside the loop
+        ev_prob = ev_homes_count / count if count > 0 else 0
+        ac_prob = ac_homes_count / count if count > 0 else 0
+        pv_prob = pv_homes_count / count if count > 0 else 0
 
-            return households
+        for i in range(count):
+            # Randomly place homes around the state center
+            lat = lat_center + (random.random() - 0.5) * lat_spread
+            lon = lon_center + (random.random() - 0.5) * lon_spread
 
-        # Generate households for each state
-        all_households = []
-        for state_code in states_data:
-            state_households = generate_households(state_code, states_data[state_code]['total_homes'])
-            all_households.extend(state_households)
+            # Assign devices randomly but weighted by state percentages
+            has_ev = random.random() < ev_prob
+            has_ac = random.random() < ac_prob
+            has_pv = random.random() < pv_prob
 
-        return states_data, all_households
+            # Optional: Ensure at least one device is present
+            if not (has_ev or has_ac or has_pv):
+                # Simplified random assignment if none selected by probability
+                device_type = random.choice(['ev', 'ac', 'pv'])
+                if device_type == 'ev': has_ev = True
+                elif device_type == 'ac': has_ac = True
+                else: has_pv = True
+
+            household = {
+                'id': f"{state_code}-{i+1}",
+                'lat': lat,
+                'lon': lon,
+                'has_ev': has_ev,
+                'has_ac': has_ac,
+                'has_pv': has_pv,
+                'energy_consumption': random.randint(20, 100),
+                'state': state_code
+            }
+            households.append(household)
+
+        return households
 
     # Load GeoJSON data for US states
     @st.cache_data
     def load_us_geojson():
+        geojson_path = "us-states.json" # Assume file is in the root directory
         try:
-            response = requests.get("https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json")
-            response.raise_for_status() # Raise an exception for bad status codes
-            us_states = response.json()
+            # Load from local file
+            with open(geojson_path, 'r') as f:
+                us_states = json.load(f)
             return us_states
-        except requests.exceptions.RequestException as e:
-            st.error(f"Error loading US state boundaries: {e}")
+        except FileNotFoundError:
+            st.error(f"Error: GeoJSON file not found at {geojson_path}. Please ensure the file exists in the application's root directory.")
+            return None
+        except json.JSONDecodeError:
+            st.error(f"Error: Failed to parse GeoJSON file at {geojson_path}. Please ensure it is valid JSON.")
             return None
         except Exception as e:
-            st.error(f"An unexpected error occurred while processing GeoJSON: {e}")
+            st.error(f"An unexpected error occurred while loading GeoJSON: {e}")
             return None
 
     # --- Add Map Generation and Display Logic ---
