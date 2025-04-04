@@ -1784,22 +1784,33 @@ elif page == "Interactive Map":
         st.subheader("Interactive Energy Deployment Map")
         map_caption = "Click on a state to view household data." if not selected_state else f"Showing households for {states_data[selected_state]['name']}. Use filters to refine."
         st.caption(map_caption)
+        t14 = time.time()
         folium_static(m, width=1000, height=600)
         if not selected_state:
              st.info("💡 **Tip:** Click a state on the map to load and view individual household data.")
         else:
             st.info("💡 **Tip:** Use the sidebar filters to show/hide devices. Use the refresh button to go back to the US view.")
+    t15 = time.time()
+    st.sidebar.write(f"folium_static call: {t15-t14:.2f}s") # Print timing
     
     # --- Display Stats --- 
+    # Add a debug print for states_data type
+    st.sidebar.write(f"Type of states_data before stats: {type(states_data)}")
+    
     # Show Portfolio Overview (national stats) only if no state is selected
     if not selected_state:
         st.subheader("Portfolio Overview")
         
-        total_homes = sum(states_data[state]['total_homes'] for state in states_data)
-        total_ev = sum(states_data[state]['ev_homes'] for state in states_data)
-        total_ac = sum(states_data[state]['ac_homes'] for state in states_data)
-        total_pv = sum(states_data[state]['pv_homes'] for state in states_data)
-        
+        # Check if states_data is actually a dict before proceeding
+        if isinstance(states_data, dict):
+            total_homes = sum(states_data[state].get('total_homes', 0) for state in states_data) # Use .get for safety
+            total_ev = sum(states_data[state].get('ev_homes', 0) for state in states_data)
+            total_ac = sum(states_data[state].get('ac_homes', 0) for state in states_data)
+            total_pv = sum(states_data[state].get('pv_homes', 0) for state in states_data)
+        else:
+            st.error("Internal Error: states_data is not in the expected format.")
+            total_homes, total_ev, total_ac, total_pv = 0, 0, 0, 0 # Default values
+            
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Total Homes", f"{total_homes:,}")
