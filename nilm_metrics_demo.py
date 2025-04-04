@@ -1526,8 +1526,10 @@ elif page == "Interactive Map":
         """Generate mock household data within a specific state."""
         households = []
         count = state_info.get('total_homes', 0) # Use .get for safety
-        if count == 0: 
-            return [] # Return empty list if no homes
+        
+        # Return early if no homes to avoid division by zero
+        if count <= 0: 
+            return [] 
             
         lat_center = state_info.get('lat', 0)
         lon_center = state_info.get('lon', 0)
@@ -1539,7 +1541,7 @@ elif page == "Interactive Map":
         lat_spread = 1.5
         lon_spread = 1.5
 
-        # Calculate probabilities outside the loop
+        # Calculate probabilities ONLY if count > 0 (already checked above)
         ev_prob = ev_homes_count / count
         ac_prob = ac_homes_count / count
         pv_prob = pv_homes_count / count
@@ -1554,17 +1556,13 @@ elif page == "Interactive Map":
             has_ac = random.random() < ac_prob
             has_pv = random.random() < pv_prob
 
-            # Optional: Ensure at least one device is present 
-            # (Consider if this is truly needed - might slightly skew distributions)
+            # Simpler fallback: If no device assigned, randomly pick one
+            # This avoids potential division issues in the previous complex fallback
             if not (has_ev or has_ac or has_pv):
-                # If no device assigned by chance, randomly pick one based on prevalence
-                # This is a simple way, more complex weighting could be used
-                if random.random() < ev_prob / (ev_prob + ac_prob + pv_prob + 1e-9): # Add epsilon to avoid div by zero
-                    has_ev = True
-                elif random.random() < ac_prob / (ac_prob + pv_prob + 1e-9):
-                    has_ac = True
-                else:
-                    has_pv = True
+                choice = random.choice(['ev', 'ac', 'pv']) # Simple random choice
+                if choice == 'ev': has_ev = True
+                elif choice == 'ac': has_ac = True
+                else: has_pv = True
 
             household = {
                 'id': f"{state_code}-{i+1}",
@@ -1629,10 +1627,26 @@ elif page == "Interactive Map":
         st.rerun()
     
     # Load state summary data and GeoJSON
+    t0 = time.time()
     with st.spinner("Loading state data..."):
         states_data = generate_geo_data()
         us_geojson = load_us_geojson()
+    t1 = time.time()
+    st.sidebar.write(f"Load geo data: {t1-t0:.2f}s") # Print timing to sidebar
     
+    # --- Ensure states_data is a dictionary --- 
+    if not isinstance(states_data, dict):
+        st.sidebar.warning(f"states_data was {type(states_data)}, attempting conversion.")
+        try:
+            # Assuming it might be a list/tuple of key-value pairs or similar
+            states_data = dict(states_data)
+        except (TypeError, ValueError) as e:
+            st.error(f"Could not convert states_data to dict: {e}")
+            # Stop execution or assign default if conversion fails
+            states_data = {} 
+            st.stop()
+    # --- End check ---
+
     # Get state from URL parameter if available
     params = st.query_params
     selected_state = params.get("state", [""])[0]
