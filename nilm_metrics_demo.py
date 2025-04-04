@@ -1696,16 +1696,8 @@ elif page == "Interactive Map":
                 labels=True,
                 sticky=True
             ),
-            # Modified Popup to show State Name and Code (ID)
-            # Removed the JavaScript click handler as it interferes
-            popup=folium.Popup(
-                # Manually construct the popup content to show name and ID
-                # Accessing feature.id and feature.properties.name
-                # This requires a slightly more complex setup using lambda
-                # or by iterating through features if GeoJsonPopup doesn't support this directly.
-                # Simpler: Use GeoJsonTooltip for hover, and a basic click popup.
-                folium.GeoJsonPopup(fields=['name'], aliases=['State:'])
-            )
+            # Pass GeoJsonPopup directly to the popup argument of GeoJson
+            popup=folium.GeoJsonPopup(fields=['name'], aliases=['State:'])
         )
         # Removed the custom JavaScript click handler
         geojson_layer.add_to(m)
