@@ -1696,9 +1696,10 @@ elif page == "Interactive Map":
                 labels=True,
                 sticky=True
             ),
+            # Corrected Popup fields - only 'name' is in properties
             popup=folium.GeoJsonPopup(
-                 fields=['name', 'id'], # Include 'id' which is the state code
-                 aliases=['State:', 'Code:'],
+                 fields=['name'], 
+                 aliases=['State:'],
                  labels=True,
                  parse_html=False,
                  show=False # Start hidden
@@ -1706,18 +1707,15 @@ elif page == "Interactive Map":
         )
         
         # Add JavaScript to update URL on feature click
-        # This is a bit of a hack and might have security implications depending on context
-        # It creates a JavaScript function and assigns it to the layer's click event
+        # Corrected access to feature ID using feature.id
         geojson_layer.add_child(folium.Element(f"""
             <script>
                 function handleClick(e) {{ 
-                    var props = e.target.feature.properties;
-                    if (props.id) {{
+                    var featureId = e.target.feature.id; // Access top-level feature ID
+                    if (featureId) {{
                         // Construct the new URL with the state query parameter
                         let currentUrl = window.location.href.split('?')[0];
-                        let newUrl = currentUrl + '?state=' + props.id;
-                        // Change the browser's URL without a full page reload (might not trigger Streamlit rerun)
-                        // window.history.pushState({{}}, '', newUrl);
+                        let newUrl = currentUrl + '?state=' + featureId;
                         // Force a reload to make Streamlit recognize the change
                          window.location.href = newUrl;
                     }}
