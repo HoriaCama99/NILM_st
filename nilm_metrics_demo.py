@@ -1725,15 +1725,16 @@ elif page == "Interactive Map":
         # Display the map using folium_static
         folium_static(m, width=1000, height=600)
         
-        # Add note if sampling was applied
-        if sampling_applied:
-            st.caption(f"⚠️ Displaying a sample of {MAX_MARKERS_TO_DISPLAY} out of {len(filtered_households)} filtered homes for performance reasons.")
+        # --- Removed the check for sampling_applied as it's no longer relevant with FastMarkerCluster ---
             
         # Update Tip message based on context
         if not selected_state:
              st.info("💡 **Tip:** Click a state on the map to load and view individual household data.")
+        else:
+            st.info("💡 **Tip:** Use the sidebar filters to show/hide devices. Use the refresh button to go back to the US view.") # Added else clause for tip when state selected
     
-    # Add summary statistics even if no state is selected
+    # --- Display Stats --- 
+    # Show Portfolio Overview (national stats) only if no state is selected
     if not selected_state:
         st.subheader("Portfolio Overview")
         
