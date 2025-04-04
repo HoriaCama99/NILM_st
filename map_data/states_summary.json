@@ -1,0 +1,512 @@
+{
+    "AL": {
+        "name": "Alabama",
+        "lat": 32.7794,
+        "lon": -86.8287,
+        "zoom": 7,
+        "total_homes": 301,
+        "ev_homes": 31,
+        "ac_homes": 200,
+        "pv_homes": 30
+    },
+    "AK": {
+        "name": "Alaska",
+        "lat": 64.0685,
+        "lon": -152.2782,
+        "zoom": 4,
+        "total_homes": 264,
+        "ev_homes": 41,
+        "ac_homes": 132,
+        "pv_homes": 48
+    },
+    "AZ": {
+        "name": "Arizona",
+        "lat": 34.2744,
+        "lon": -111.6602,
+        "zoom": 7,
+        "total_homes": 437,
+        "ev_homes": 104,
+        "ac_homes": 218,
+        "pv_homes": 60
+    },
+    "AR": {
+        "name": "Arkansas",
+        "lat": 34.8938,
+        "lon": -92.4426,
+        "zoom": 7,
+        "total_homes": 333,
+        "ev_homes": 61,
+        "ac_homes": 275,
+        "pv_homes": 39
+    },
+    "CA": {
+        "name": "California",
+        "lat": 36.7783,
+        "lon": -119.4179,
+        "zoom": 6,
+        "total_homes": 434,
+        "ev_homes": 95,
+        "ac_homes": 248,
+        "pv_homes": 43
+    },
+    "CO": {
+        "name": "Colorado",
+        "lat": 39.5501,
+        "lon": -105.7821,
+        "zoom": 7,
+        "total_homes": 347,
+        "ev_homes": 76,
+        "ac_homes": 206,
+        "pv_homes": 24
+    },
+    "CT": {
+        "name": "Connecticut",
+        "lat": 41.6219,
+        "lon": -72.7273,
+        "zoom": 8,
+        "total_homes": 386,
+        "ev_homes": 84,
+        "ac_homes": 345,
+        "pv_homes": 32
+    },
+    "DE": {
+        "name": "Delaware",
+        "lat": 38.9896,
+        "lon": -75.505,
+        "zoom": 8,
+        "total_homes": 445,
+        "ev_homes": 54,
+        "ac_homes": 356,
+        "pv_homes": 83
+    },
+    "DC": {
+        "name": "District of Columbia",
+        "lat": 38.9072,
+        "lon": -77.0369,
+        "zoom": 10,
+        "total_homes": 385,
+        "ev_homes": 114,
+        "ac_homes": 219,
+        "pv_homes": 67
+    },
+    "FL": {
+        "name": "Florida",
+        "lat": 27.6648,
+        "lon": -81.5158,
+        "zoom": 6,
+        "total_homes": 469,
+        "ev_homes": 56,
+        "ac_homes": 388,
+        "pv_homes": 74
+    },
+    "GA": {
+        "name": "Georgia",
+        "lat": 32.6415,
+        "lon": -83.4426,
+        "zoom": 7,
+        "total_homes": 218,
+        "ev_homes": 55,
+        "ac_homes": 192,
+        "pv_homes": 25
+    },
+    "HI": {
+        "name": "Hawaii",
+        "lat": 20.2927,
+        "lon": -156.3737,
+        "zoom": 7,
+        "total_homes": 418,
+        "ev_homes": 39,
+        "ac_homes": 376,
+        "pv_homes": 20
+    },
+    "ID": {
+        "name": "Idaho",
+        "lat": 44.0682,
+        "lon": -114.742,
+        "zoom": 6,
+        "total_homes": 438,
+        "ev_homes": 128,
+        "ac_homes": 285,
+        "pv_homes": 102
+    },
+    "IL": {
+        "name": "Illinois",
+        "lat": 40.0417,
+        "lon": -89.1965,
+        "zoom": 7,
+        "total_homes": 180,
+        "ev_homes": 41,
+        "ac_homes": 109,
+        "pv_homes": 29
+    },
+    "IN": {
+        "name": "Indiana",
+        "lat": 39.8942,
+        "lon": -86.2816,
+        "zoom": 7,
+        "total_homes": 449,
+        "ev_homes": 65,
+        "ac_homes": 398,
+        "pv_homes": 109
+    },
+    "IA": {
+        "name": "Iowa",
+        "lat": 42.0751,
+        "lon": -93.496,
+        "zoom": 7,
+        "total_homes": 332,
+        "ev_homes": 93,
+        "ac_homes": 210,
+        "pv_homes": 53
+    },
+    "KS": {
+        "name": "Kansas",
+        "lat": 38.4937,
+        "lon": -98.3804,
+        "zoom": 7,
+        "total_homes": 287,
+        "ev_homes": 47,
+        "ac_homes": 235,
+        "pv_homes": 21
+    },
+    "KY": {
+        "name": "Kentucky",
+        "lat": 37.5347,
+        "lon": -85.3021,
+        "zoom": 7,
+        "total_homes": 204,
+        "ev_homes": 32,
+        "ac_homes": 118,
+        "pv_homes": 26
+    },
+    "LA": {
+        "name": "Louisiana",
+        "lat": 31.0689,
+        "lon": -91.9968,
+        "zoom": 7,
+        "total_homes": 307,
+        "ev_homes": 57,
+        "ac_homes": 201,
+        "pv_homes": 67
+    },
+    "ME": {
+        "name": "Maine",
+        "lat": 45.3695,
+        "lon": -69.2428,
+        "zoom": 7,
+        "total_homes": 162,
+        "ev_homes": 48,
+        "ac_homes": 128,
+        "pv_homes": 34
+    },
+    "MD": {
+        "name": "Maryland",
+        "lat": 39.055,
+        "lon": -76.7909,
+        "zoom": 7,
+        "total_homes": 188,
+        "ev_homes": 50,
+        "ac_homes": 103,
+        "pv_homes": 35
+    },
+    "MA": {
+        "name": "Massachusetts",
+        "lat": 42.2596,
+        "lon": -71.8083,
+        "zoom": 8,
+        "total_homes": 308,
+        "ev_homes": 78,
+        "ac_homes": 254,
+        "pv_homes": 74
+    },
+    "MI": {
+        "name": "Michigan",
+        "lat": 44.3467,
+        "lon": -85.4102,
+        "zoom": 7,
+        "total_homes": 182,
+        "ev_homes": 37,
+        "ac_homes": 161,
+        "pv_homes": 28
+    },
+    "MN": {
+        "name": "Minnesota",
+        "lat": 46.2807,
+        "lon": -94.3053,
+        "zoom": 6,
+        "total_homes": 223,
+        "ev_homes": 52,
+        "ac_homes": 128,
+        "pv_homes": 42
+    },
+    "MS": {
+        "name": "Mississippi",
+        "lat": 32.7364,
+        "lon": -89.6678,
+        "zoom": 7,
+        "total_homes": 347,
+        "ev_homes": 43,
+        "ac_homes": 277,
+        "pv_homes": 53
+    },
+    "MO": {
+        "name": "Missouri",
+        "lat": 38.3566,
+        "lon": -92.458,
+        "zoom": 7,
+        "total_homes": 179,
+        "ev_homes": 53,
+        "ac_homes": 93,
+        "pv_homes": 37
+    },
+    "MT": {
+        "name": "Montana",
+        "lat": 46.8797,
+        "lon": -110.3626,
+        "zoom": 6,
+        "total_homes": 270,
+        "ev_homes": 36,
+        "ac_homes": 210,
+        "pv_homes": 24
+    },
+    "NE": {
+        "name": "Nebraska",
+        "lat": 41.5378,
+        "lon": -99.7951,
+        "zoom": 7,
+        "total_homes": 466,
+        "ev_homes": 100,
+        "ac_homes": 335,
+        "pv_homes": 52
+    },
+    "NV": {
+        "name": "Nevada",
+        "lat": 39.3289,
+        "lon": -116.6312,
+        "zoom": 6,
+        "total_homes": 187,
+        "ev_homes": 36,
+        "ac_homes": 112,
+        "pv_homes": 27
+    },
+    "NH": {
+        "name": "New Hampshire",
+        "lat": 43.6805,
+        "lon": -71.5811,
+        "zoom": 7,
+        "total_homes": 197,
+        "ev_homes": 49,
+        "ac_homes": 145,
+        "pv_homes": 32
+    },
+    "NJ": {
+        "name": "New Jersey",
+        "lat": 40.1907,
+        "lon": -74.6728,
+        "zoom": 7,
+        "total_homes": 375,
+        "ev_homes": 83,
+        "ac_homes": 280,
+        "pv_homes": 47
+    },
+    "NM": {
+        "name": "New Mexico",
+        "lat": 34.4071,
+        "lon": -106.1126,
+        "zoom": 6,
+        "total_homes": 227,
+        "ev_homes": 64,
+        "ac_homes": 197,
+        "pv_homes": 45
+    },
+    "NY": {
+        "name": "New York",
+        "lat": 42.9538,
+        "lon": -75.5268,
+        "zoom": 7,
+        "total_homes": 392,
+        "ev_homes": 111,
+        "ac_homes": 277,
+        "pv_homes": 41
+    },
+    "NC": {
+        "name": "North Carolina",
+        "lat": 35.5557,
+        "lon": -79.3877,
+        "zoom": 7,
+        "total_homes": 260,
+        "ev_homes": 75,
+        "ac_homes": 233,
+        "pv_homes": 38
+    },
+    "ND": {
+        "name": "North Dakota",
+        "lat": 47.4501,
+        "lon": -100.4659,
+        "zoom": 7,
+        "total_homes": 170,
+        "ev_homes": 42,
+        "ac_homes": 144,
+        "pv_homes": 30
+    },
+    "OH": {
+        "name": "Ohio",
+        "lat": 40.2862,
+        "lon": -82.7937,
+        "zoom": 7,
+        "total_homes": 328,
+        "ev_homes": 40,
+        "ac_homes": 215,
+        "pv_homes": 31
+    },
+    "OK": {
+        "name": "Oklahoma",
+        "lat": 35.5889,
+        "lon": -97.4943,
+        "zoom": 7,
+        "total_homes": 463,
+        "ev_homes": 64,
+        "ac_homes": 375,
+        "pv_homes": 84
+    },
+    "OR": {
+        "name": "Oregon",
+        "lat": 43.9336,
+        "lon": -120.5583,
+        "zoom": 7,
+        "total_homes": 369,
+        "ev_homes": 107,
+        "ac_homes": 246,
+        "pv_homes": 76
+    },
+    "PA": {
+        "name": "Pennsylvania",
+        "lat": 40.8781,
+        "lon": -77.7996,
+        "zoom": 7,
+        "total_homes": 198,
+        "ev_homes": 41,
+        "ac_homes": 115,
+        "pv_homes": 36
+    },
+    "RI": {
+        "name": "Rhode Island",
+        "lat": 41.6762,
+        "lon": -71.5562,
+        "zoom": 9,
+        "total_homes": 397,
+        "ev_homes": 110,
+        "ac_homes": 349,
+        "pv_homes": 96
+    },
+    "SC": {
+        "name": "South Carolina",
+        "lat": 33.9169,
+        "lon": -80.8964,
+        "zoom": 7,
+        "total_homes": 224,
+        "ev_homes": 51,
+        "ac_homes": 170,
+        "pv_homes": 33
+    },
+    "SD": {
+        "name": "South Dakota",
+        "lat": 44.4443,
+        "lon": -100.2263,
+        "zoom": 7,
+        "total_homes": 241,
+        "ev_homes": 62,
+        "ac_homes": 205,
+        "pv_homes": 47
+    },
+    "TN": {
+        "name": "Tennessee",
+        "lat": 35.858,
+        "lon": -86.3505,
+        "zoom": 7,
+        "total_homes": 500,
+        "ev_homes": 92,
+        "ac_homes": 396,
+        "pv_homes": 61
+    },
+    "TX": {
+        "name": "Texas",
+        "lat": 31.4757,
+        "lon": -99.3312,
+        "zoom": 6,
+        "total_homes": 379,
+        "ev_homes": 96,
+        "ac_homes": 282,
+        "pv_homes": 31
+    },
+    "UT": {
+        "name": "Utah",
+        "lat": 39.3055,
+        "lon": -111.6703,
+        "zoom": 7,
+        "total_homes": 210,
+        "ev_homes": 61,
+        "ac_homes": 106,
+        "pv_homes": 49
+    },
+    "VT": {
+        "name": "Vermont",
+        "lat": 44.0687,
+        "lon": -72.6658,
+        "zoom": 7,
+        "total_homes": 157,
+        "ev_homes": 47,
+        "ac_homes": 89,
+        "pv_homes": 26
+    },
+    "VA": {
+        "name": "Virginia",
+        "lat": 37.5215,
+        "lon": -78.8537,
+        "zoom": 7,
+        "total_homes": 320,
+        "ev_homes": 62,
+        "ac_homes": 180,
+        "pv_homes": 39
+    },
+    "WA": {
+        "name": "Washington",
+        "lat": 47.3826,
+        "lon": -120.4472,
+        "zoom": 7,
+        "total_homes": 468,
+        "ev_homes": 51,
+        "ac_homes": 257,
+        "pv_homes": 28
+    },
+    "WV": {
+        "name": "West Virginia",
+        "lat": 38.6409,
+        "lon": -80.6227,
+        "zoom": 7,
+        "total_homes": 155,
+        "ev_homes": 43,
+        "ac_homes": 90,
+        "pv_homes": 30
+    },
+    "WI": {
+        "name": "Wisconsin",
+        "lat": 44.6243,
+        "lon": -89.9941,
+        "zoom": 7,
+        "total_homes": 289,
+        "ev_homes": 86,
+        "ac_homes": 181,
+        "pv_homes": 72
+    },
+    "WY": {
+        "name": "Wyoming",
+        "lat": 42.9957,
+        "lon": -107.5512,
+        "zoom": 7,
+        "total_homes": 350,
+        "ev_homes": 36,
+        "ac_homes": 228,
+        "pv_homes": 34
+    }
+}
