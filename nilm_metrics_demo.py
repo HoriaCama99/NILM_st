@@ -1544,12 +1544,15 @@ elif page == "Interactive Map":
         selected_state = ""
     
     # Filter households by selected state and device types
+    state_households = generate_households_for_state(selected_state, states_data[selected_state])
+    
+    # Filter the generated households based on sidebar checkboxes 
+    # Iterate over state_households (which is empty if no state is selected)
     filtered_households = [
-        h for h in all_households if 
-        (not selected_state or h['state'] == selected_state) and
-        ((show_ev and h['has_ev']) or 
-         (show_ac and h['has_ac']) or 
-         (show_pv and h['has_pv']))
+        h for h in state_households if 
+        ((show_ev and h.get('has_ev', False)) or 
+         (show_ac and h.get('has_ac', False)) or 
+         (show_pv and h.get('has_pv', False)))
     ]
     
     # Create map
