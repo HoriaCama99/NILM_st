@@ -11,7 +11,7 @@ import folium
 from streamlit_folium import folium_static
 import json
 import geopandas as gpd
-from folium.plugins import MarkerCluster, FastMarkerCluster # Import FastMarkerCluster
+from folium.plugins import MarkerCluster # Reverted: Removed FastMarkerCluster import
 import plotly.subplots as sp
 from PIL import Image
 import datetime
@@ -1676,19 +1676,44 @@ elif page == "Interactive Map":
             )
         ).add_to(m)
     
-    # Create marker cluster using FastMarkerCluster
-    # Prepare data for FastMarkerCluster (requires list of lat/lon pairs)
-    locations = [[house['lat'], house['lon']] for house in filtered_households]
+    # Create marker cluster (it's ok to add an empty cluster)
+    marker_cluster = MarkerCluster().add_to(m)
     
-    # Note: FastMarkerCluster doesn't support individual popups/tooltips/icons in the same way as MarkerCluster.
-    # It achieves speed by simplifying the data sent. We lose individual marker customization.
-    # If customization is essential, FastMarkerCluster might not be suitable.
-    
-    # We can add the cluster even if locations is empty
-    marker_cluster = FastMarkerCluster(data=locations).add_to(m)
-    
-    # --- Marker adding loop removed, as FastMarkerCluster handles it internally --- 
-    # --- Individual markers with custom popups/icons are NOT added when using FastMarkerCluster --- 
+    # --- Reverted: Removed FastMarkerCluster setup --- 
+        
+    # Add markers ONLY if a state is selected
+    if selected_state:
+        # --- Reverted: Use original filtered_households list, removed sampling logic --- 
+        for house in filtered_households: 
+            # Determine marker icon based on devices (use .get for safety)
+            icon_color = "grey" # Default
+            icon_name = "home"
+            if house.get('has_ev', False) and show_ev:
+                icon_color = "blue"
+                icon_name = "plug"
+            elif house.get('has_pv', False) and show_pv: # Check PV before AC for precedence
+                icon_color = "green"
+                icon_name = "sun"
+            elif house.get('has_ac', False) and show_ac:
+                icon_color = "orange"
+                # Use a different icon if desired, e.g., 'snowflake' or keep 'home'
+                icon_name = "snowflake" 
+            
+            # --- Create Tooltip instead of Popup --- 
+            tooltip_text = f"Home {house.get('id', 'N/A')}: "
+            devices = []
+            if house.get('has_ev', False): devices.append("EV")
+            if house.get('has_ac', False): devices.append("AC")
+            if house.get('has_pv', False): devices.append("PV")
+            tooltip_text += ", ".join(devices) if devices else "No Devices Detected"
+            
+            # Add marker with Icon and Tooltip (no Popup)
+            folium.Marker(
+                location=[house.get('lat', 0), house.get('lon', 0)],
+                # popup=folium.Popup(popup_content, max_width=300), # Removed Popup
+                icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa'),
+                tooltip=tooltip_text # Added Tooltip
+            ).add_to(marker_cluster)
     
     # Add legend (still relevant)
     legend_html = '''
