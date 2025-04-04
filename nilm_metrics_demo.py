@@ -1696,35 +1696,19 @@ elif page == "Interactive Map":
                 labels=True,
                 sticky=True
             ),
-            # Corrected Popup fields - only 'name' is in properties
-            popup=folium.GeoJsonPopup(
-                 fields=['name'], 
-                 aliases=['State:'],
-                 labels=True,
-                 parse_html=False,
-                 show=False # Start hidden
+            # Modified Popup to show State Name and Code (ID)
+            # Removed the JavaScript click handler as it interferes
+            popup=folium.Popup(
+                # Manually construct the popup content to show name and ID
+                # Accessing feature.id and feature.properties.name
+                # This requires a slightly more complex setup using lambda
+                # or by iterating through features if GeoJsonPopup doesn't support this directly.
+                # Simpler: Use GeoJsonTooltip for hover, and a basic click popup.
+                folium.GeoJsonPopup(fields=['name'], aliases=['State:'])
             )
         )
-        
-        # Add JavaScript to update URL on feature click
-        # Corrected access to feature ID using feature.id
-        geojson_layer.add_child(folium.Element(f"""
-            <script>
-                function handleClick(e) {{ 
-                    var featureId = e.target.feature.id; // Access top-level feature ID
-                    if (featureId) {{
-                        // Construct the new URL with the state query parameter
-                        let currentUrl = window.location.href.split('?')[0];
-                        let newUrl = currentUrl + '?state=' + featureId;
-                        // Force a reload to make Streamlit recognize the change
-                         window.location.href = newUrl;
-                    }}
-                }}
-                {geojson_layer.get_name()}.on('click', handleClick);
-            </script>
-        """))
+        # Removed the custom JavaScript click handler
         geojson_layer.add_to(m)
-
 
     # Create marker cluster (it's ok to add an empty cluster)
     marker_cluster = MarkerCluster().add_to(m)
