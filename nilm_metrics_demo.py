@@ -1543,10 +1543,14 @@ elif page == "Interactive Map":
     if selected_state not in states_data:
         selected_state = ""
     
-    # Filter households by selected state and device types
-    state_households = generate_households_for_state(selected_state, states_data[selected_state])
+    # --- Generate/Load household data ONLY if a state is selected ---
+    state_households = [] # Initialize as empty list BEFORE the check
+    if selected_state:
+        # Only call the function if we have a valid state key
+        with st.spinner(f"Loading household data for {states_data[selected_state]['name']}..."):
+             state_households = generate_households_for_state(selected_state, states_data[selected_state])
     
-    # Filter the generated households based on sidebar checkboxes 
+    # Filter the loaded households based on sidebar checkboxes 
     # Iterate over state_households (which is empty if no state is selected)
     filtered_households = [
         h for h in state_households if 
