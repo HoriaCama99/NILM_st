@@ -1696,10 +1696,27 @@ elif page == "Interactive Map":
                 labels=True,
                 sticky=True
             ),
-            # Pass GeoJsonPopup directly to the popup argument of GeoJson
-            popup=folium.GeoJsonPopup(fields=['name'], aliases=['State:'])
+            # No popup to interfere with click
+            # popup=folium.GeoJsonPopup(fields=['name'], aliases=['State:'])
         )
-        # Removed the custom JavaScript click handler
+        
+        # Re-add JavaScript to update URL on feature click
+        geojson_layer.add_child(folium.Element(f"""
+            <script>
+                function handleClick_{geojson_layer.get_name()}(e) {{ 
+                    var featureId = e.target.feature.id; // Access top-level feature ID
+                    if (featureId) {{
+                        // Construct the new URL with the state query parameter
+                        let currentUrl = window.location.href.split('?')[0];
+                        let newUrl = currentUrl + '?state=' + featureId;
+                        // Force a reload to make Streamlit recognize the change
+                        window.location.href = newUrl;
+                    }}
+                }}
+                // Assign the click handler to the layer
+                {geojson_layer.get_name()}.on('click', handleClick_{geojson_layer.get_name()});
+            </script>
+        """))
         geojson_layer.add_to(m)
 
     # Create marker cluster (it's ok to add an empty cluster)
