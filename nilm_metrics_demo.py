@@ -11,7 +11,7 @@ import folium
 from streamlit_folium import folium_static
 import json
 import geopandas as gpd
-from folium.plugins import MarkerCluster
+from folium.plugins import MarkerCluster, FastMarkerCluster # Import FastMarkerCluster
 import plotly.subplots as sp
 from PIL import Image
 import datetime
@@ -1515,87 +1515,67 @@ elif page == "Interactive Map":
             state['ac_homes'] = random.randint(int(state['total_homes'] * 0.5), int(state['total_homes'] * 0.9))
             state['pv_homes'] = random.randint(20, int(state['total_homes'] * 0.25))
 
-        # Removed household generation from here
-        
-        return states_data # Only return state-level data
+        def generate_households(state_code, count=100):
+            """Generate mock household data within a state"""
+            state = states_data[state_code]
+            households = []
 
-    # New cached function to generate households for a specific state
-    @st.cache_data
-    def generate_households_for_state(state_code, state_info):
-        """Generate mock household data within a specific state."""
-        households = []
-        count = state_info.get('total_homes', 0) # Use .get for safety
-        if count == 0: 
-            return [] # Return empty list if no homes
-            
-        lat_center = state_info.get('lat', 0)
-        lon_center = state_info.get('lon', 0)
-        ev_homes_count = state_info.get('ev_homes', 0)
-        ac_homes_count = state_info.get('ac_homes', 0)
-        pv_homes_count = state_info.get('pv_homes', 0)
-        
-        # Define the spread of points (in degrees)
-        lat_spread = 1.5
-        lon_spread = 1.5
+            # Define the spread of points (in degrees)
+            lat_spread = 1.5
+            lon_spread = 1.5
 
-        # Calculate probabilities outside the loop
-        ev_prob = ev_homes_count / count
-        ac_prob = ac_homes_count / count
-        pv_prob = pv_homes_count / count
+            for i in range(count):
+                # Randomly place homes around the state center
+                lat = state['lat'] + (random.random() - 0.5) * lat_spread
+                lon = state['lon'] + (random.random() - 0.5) * lon_spread
 
-        for i in range(count):
-            # Randomly place homes around the state center
-            lat = lat_center + (random.random() - 0.5) * lat_spread
-            lon = lon_center + (random.random() - 0.5) * lon_spread
+                # Assign devices randomly but weighted by state percentages
+                has_ev = random.random() < (state['ev_homes'] / state['total_homes'])
+                has_ac = random.random() < (state['ac_homes'] / state['total_homes'])
+                has_pv = random.random() < (state['pv_homes'] / state['total_homes'])
 
-            # Assign devices randomly but weighted by state percentages
-            has_ev = random.random() < ev_prob
-            has_ac = random.random() < ac_prob
-            has_pv = random.random() < pv_prob
+                # Ensure at least one device is present
+                if not (has_ev or has_ac or has_pv):
+                    device_type = random.choice(['ev', 'ac', 'pv'])
+                    if device_type == 'ev': has_ev = True
+                    elif device_type == 'ac': has_ac = True
+                    else: has_pv = True
 
-            # Optional: Ensure at least one device is present 
-            # (Consider if this is truly needed - might slightly skew distributions)
-            if not (has_ev or has_ac or has_pv):
-                # If no device assigned by chance, randomly pick one based on prevalence
-                # This is a simple way, more complex weighting could be used
-                if random.random() < ev_prob / (ev_prob + ac_prob + pv_prob + 1e-9): # Add epsilon to avoid div by zero
-                    has_ev = True
-                elif random.random() < ac_prob / (ac_prob + pv_prob + 1e-9):
-                    has_ac = True
-                else:
-                    has_pv = True
+                household = {
+                    'id': f"{state_code}-{i+1}",
+                    'lat': lat,
+                    'lon': lon,
+                    'has_ev': has_ev,
+                    'has_ac': has_ac,
+                    'has_pv': has_pv,
+                    'energy_consumption': random.randint(20, 100),
+                    'state': state_code
+                }
+                households.append(household)
 
-            household = {
-                'id': f"{state_code}-{i+1}",
-                'lat': lat,
-                'lon': lon,
-                'has_ev': has_ev,
-                'has_ac': has_ac,
-                'has_pv': has_pv,
-                'energy_consumption': random.randint(20, 100),
-                'state': state_code
-            }
-            households.append(household)
+            return households
 
-        return households
+        # Generate households for each state
+        all_households = []
+        for state_code in states_data:
+            state_households = generate_households(state_code, states_data[state_code]['total_homes'])
+            all_households.extend(state_households)
+
+        return states_data, all_households
 
     # Load GeoJSON data for US states
     @st.cache_data
     def load_us_geojson():
-        geojson_path = "us-states.json"  # Assume file is in the root directory
         try:
-            # Load from local file
-            with open(geojson_path, 'r') as f:
-                us_states = json.load(f)
+            response = requests.get("https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json")
+            response.raise_for_status() # Raise an exception for bad status codes
+            us_states = response.json()
             return us_states
-        except FileNotFoundError:
-            st.error(f"Error: GeoJSON file not found at {geojson_path}. Please ensure the file exists in the application's root directory.")
-            return None
-        except json.JSONDecodeError:
-            st.error(f"Error: Failed to parse GeoJSON file at {geojson_path}. Please ensure it is valid JSON.")
+        except requests.exceptions.RequestException as e:
+            st.error(f"Error loading US state boundaries: {e}")
             return None
         except Exception as e:
-            st.error(f"An unexpected error occurred while loading GeoJSON: {e}")
+            st.error(f"An unexpected error occurred while processing GeoJSON: {e}")
             return None
 
     # --- Add Map Generation and Display Logic ---
@@ -1627,33 +1607,25 @@ elif page == "Interactive Map":
         st.query_params.clear()
         st.rerun()
     
-    # Load state summary data and GeoJSON
-    with st.spinner("Loading state data..."):
-        states_data = generate_geo_data()
+    # Load data with a spinner
+    with st.spinner("Loading map data..."):
+        states_data, all_households = generate_geo_data()
         us_geojson = load_us_geojson()
     
     # Get state from URL parameter if available
     params = st.query_params
     selected_state = params.get("state", [""])[0]
     
-    # Validate selected state
     if selected_state not in states_data:
         selected_state = ""
     
-    # --- Generate household data ONLY if a state is selected ---
-    state_households = [] # Initialize as empty
-    if selected_state:
-        # Show spinner only when loading state-specific data
-        with st.spinner(f"Loading household data for {states_data[selected_state]['name']}..."):
-            state_households = generate_households_for_state(selected_state, states_data[selected_state])
-    
-    # Filter the generated households based on sidebar checkboxes 
-    # If no state selected, state_households is empty, so filtered_households will be empty
+    # Filter households by selected state and device types
     filtered_households = [
-        h for h in state_households if 
-        ((show_ev and h.get('has_ev', False)) or  # Use .get for safety
-         (show_ac and h.get('has_ac', False)) or 
-         (show_pv and h.get('has_pv', False)))
+        h for h in all_households if 
+        (not selected_state or h['state'] == selected_state) and
+        ((show_ev and h['has_ev']) or 
+         (show_ac and h['has_ac']) or 
+         (show_pv and h['has_pv']))
     ]
     
     # Create map
@@ -1674,7 +1646,6 @@ elif page == "Interactive Map":
     # Add satellite view layer
     folium.TileLayer('Esri_WorldImagery', name='Satellite View', attr='Esri').add_to(m)
     
-    # Only add the GeoJSON layer if viewing the whole US map and the data loaded successfully
     if not selected_state and us_geojson:
         # Add state boundaries with click functionality
         style_function = lambda x: {
@@ -1705,47 +1676,21 @@ elif page == "Interactive Map":
             )
         ).add_to(m)
     
-    # Create marker cluster (it's ok to add an empty cluster)
-    marker_cluster = MarkerCluster().add_to(m)
+    # Create marker cluster using FastMarkerCluster
+    # Prepare data for FastMarkerCluster (requires list of lat/lon pairs)
+    locations = [[house['lat'], house['lon']] for house in filtered_households]
     
-    # Add markers ONLY if a state is selected and there are filtered households
-    if selected_state and filtered_households:
-        for house in filtered_households:
-            # Determine marker icon based on devices (use .get for safety)
-            icon_color = "grey" # Default
-            icon_name = "home"
-            
-            if house.get('has_ev', False) and show_ev:
-                icon_color = "blue"
-                icon_name = "plug"
-            elif house.get('has_pv', False) and show_pv: # Check PV before AC for precedence
-                icon_color = "green"
-                icon_name = "sun"
-            elif house.get('has_ac', False) and show_ac:
-                icon_color = "orange"
-                icon_name = "snowflake" # Changed AC icon
-            
-            # Create popup content
-            popup_content = f"""
-            <div style="min-width: 200px;">
-                <h4>Home {house.get('id', 'N/A')}</h4>
-                <b>Devices:</b><br>
-                {'✓ EV Charger<br>' if house.get('has_ev', False) else ''}
-                {'✓ AC Unit<br>' if house.get('has_ac', False) else ''}
-                {'✓ Solar Panels<br>' if house.get('has_pv', False) else ''}
-                <b>Daily Energy:</b> {house.get('energy_consumption', 'N/A')} kWh
-            </div>
-            """
-            
-            # Add marker
-            folium.Marker(
-                location=[house.get('lat', 0), house.get('lon', 0)],
-                popup=folium.Popup(popup_content, max_width=300),
-                icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa'),
-                tooltip=f"Home {house.get('id', 'N/A')}"
-            ).add_to(marker_cluster)
+    # Note: FastMarkerCluster doesn't support individual popups/tooltips/icons in the same way as MarkerCluster.
+    # It achieves speed by simplifying the data sent. We lose individual marker customization.
+    # If customization is essential, FastMarkerCluster might not be suitable.
     
-    # Add legend
+    # We can add the cluster even if locations is empty
+    marker_cluster = FastMarkerCluster(data=locations).add_to(m)
+    
+    # --- Marker adding loop removed, as FastMarkerCluster handles it internally --- 
+    # --- Individual markers with custom popups/icons are NOT added when using FastMarkerCluster --- 
+    
+    # Add legend (still relevant)
     legend_html = '''
     <div style="position: fixed; bottom: 50px; right: 50px; 
                 background-color: white; padding: 10px; border-radius: 5px;
@@ -1771,20 +1716,24 @@ elif page == "Interactive Map":
     folium.LayerControl().add_to(m)
     
     # Display the map 
-    # Spinner message depends on whether we are showing states or households
     spinner_msg = "Rendering map..." if selected_state else "Rendering US states map..."
     with st.spinner(spinner_msg):
         st.subheader("Interactive Energy Deployment Map")
         map_caption = "Click on a state to view household data." if not selected_state else f"Showing households for {states_data[selected_state]['name']}. Use filters to refine."
         st.caption(map_caption)
+        
+        # Display the map using folium_static
         folium_static(m, width=1000, height=600)
+        
+        # Add note if sampling was applied
+        if sampling_applied:
+            st.caption(f"⚠️ Displaying a sample of {MAX_MARKERS_TO_DISPLAY} out of {len(filtered_households)} filtered homes for performance reasons.")
+            
+        # Update Tip message based on context
         if not selected_state:
              st.info("💡 **Tip:** Click a state on the map to load and view individual household data.")
-        else:
-            st.info("💡 **Tip:** Use the sidebar filters to show/hide devices. Use the refresh button to go back to the US view.")
     
-    # --- Display Stats --- 
-    # Show Portfolio Overview (national stats) only if no state is selected
+    # Add summary statistics even if no state is selected
     if not selected_state:
         st.subheader("Portfolio Overview")
         
@@ -1863,7 +1812,7 @@ elif page == "Interactive Map":
         
         st.dataframe(pd.DataFrame(state_stats), use_container_width=True)
     
-    # Display state-specific statistics and data table ONLY if a state is selected
+    # Display statistics if a state is selected
     if selected_state:
         state = states_data[selected_state]
         st.subheader(f"{state['name']} Statistics")
@@ -1896,7 +1845,7 @@ elif page == "Interactive Map":
         }
         df = df.rename(columns=column_map)
         st.dataframe(df, use_container_width=True)
-    # --- End Stats Display Logic ---
+    # --- End Map Generation Logic ---
 
     # Footer
     st.markdown("---")
