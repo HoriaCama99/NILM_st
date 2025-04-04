@@ -1515,53 +1515,69 @@ elif page == "Interactive Map":
             state['ac_homes'] = random.randint(int(state['total_homes'] * 0.5), int(state['total_homes'] * 0.9))
             state['pv_homes'] = random.randint(20, int(state['total_homes'] * 0.25))
 
-        def generate_households(state_code, count=100):
-            """Generate mock household data within a state"""
-            state = states_data[state_code]
-            households = []
+        # Removed household generation from here
+        
+        return states_data # Only return state-level data
 
-            # Define the spread of points (in degrees)
-            lat_spread = 1.5
-            lon_spread = 1.5
+    # New cached function to generate households for a specific state
+    @st.cache_data
+    def generate_households_for_state(state_code, state_info):
+        """Generate mock household data within a specific state."""
+        households = []
+        count = state_info.get('total_homes', 0) # Use .get for safety
+        if count == 0: 
+            return [] # Return empty list if no homes
+            
+        lat_center = state_info.get('lat', 0)
+        lon_center = state_info.get('lon', 0)
+        ev_homes_count = state_info.get('ev_homes', 0)
+        ac_homes_count = state_info.get('ac_homes', 0)
+        pv_homes_count = state_info.get('pv_homes', 0)
+        
+        # Define the spread of points (in degrees)
+        lat_spread = 1.5
+        lon_spread = 1.5
 
-            for i in range(count):
-                # Randomly place homes around the state center
-                lat = state['lat'] + (random.random() - 0.5) * lat_spread
-                lon = state['lon'] + (random.random() - 0.5) * lon_spread
+        # Calculate probabilities outside the loop
+        ev_prob = ev_homes_count / count
+        ac_prob = ac_homes_count / count
+        pv_prob = pv_homes_count / count
 
-                # Assign devices randomly but weighted by state percentages
-                has_ev = random.random() < (state['ev_homes'] / state['total_homes'])
-                has_ac = random.random() < (state['ac_homes'] / state['total_homes'])
-                has_pv = random.random() < (state['pv_homes'] / state['total_homes'])
+        for i in range(count):
+            # Randomly place homes around the state center
+            lat = lat_center + (random.random() - 0.5) * lat_spread
+            lon = lon_center + (random.random() - 0.5) * lon_spread
 
-                # Ensure at least one device is present
-                if not (has_ev or has_ac or has_pv):
-                    device_type = random.choice(['ev', 'ac', 'pv'])
-                    if device_type == 'ev': has_ev = True
-                    elif device_type == 'ac': has_ac = True
-                    else: has_pv = True
+            # Assign devices randomly but weighted by state percentages
+            has_ev = random.random() < ev_prob
+            has_ac = random.random() < ac_prob
+            has_pv = random.random() < pv_prob
 
-                household = {
-                    'id': f"{state_code}-{i+1}",
-                    'lat': lat,
-                    'lon': lon,
-                    'has_ev': has_ev,
-                    'has_ac': has_ac,
-                    'has_pv': has_pv,
-                    'energy_consumption': random.randint(20, 100),
-                    'state': state_code
-                }
-                households.append(household)
+            # Optional: Ensure at least one device is present 
+            # (Consider if this is truly needed - might slightly skew distributions)
+            if not (has_ev or has_ac or has_pv):
+                # If no device assigned by chance, randomly pick one based on prevalence
+                # This is a simple way, more complex weighting could be used
+                if random.random() < ev_prob / (ev_prob + ac_prob + pv_prob + 1e-9): # Add epsilon to avoid div by zero
+                    has_ev = True
+                elif random.random() < ac_prob / (ac_prob + pv_prob + 1e-9):
+                    has_ac = True
+                else:
+                    has_pv = True
 
-            return households
+            household = {
+                'id': f"{state_code}-{i+1}",
+                'lat': lat,
+                'lon': lon,
+                'has_ev': has_ev,
+                'has_ac': has_ac,
+                'has_pv': has_pv,
+                'energy_consumption': random.randint(20, 100),
+                'state': state_code
+            }
+            households.append(household)
 
-        # Generate households for each state
-        all_households = []
-        for state_code in states_data:
-            state_households = generate_households(state_code, states_data[state_code]['total_homes'])
-            all_households.extend(state_households)
-
-        return states_data, all_households
+        return households
 
     # Load GeoJSON data for US states
     @st.cache_data
@@ -1611,25 +1627,33 @@ elif page == "Interactive Map":
         st.query_params.clear()
         st.rerun()
     
-    # Load data with a spinner
-    with st.spinner("Loading map data..."):
-        states_data, all_households = generate_geo_data()
+    # Load state summary data and GeoJSON
+    with st.spinner("Loading state data..."):
+        states_data = generate_geo_data()
         us_geojson = load_us_geojson()
     
     # Get state from URL parameter if available
     params = st.query_params
     selected_state = params.get("state", [""])[0]
     
+    # Validate selected state
     if selected_state not in states_data:
         selected_state = ""
     
-    # Filter households by selected state and device types
+    # --- Generate household data ONLY if a state is selected ---
+    state_households = [] # Initialize as empty
+    if selected_state:
+        # Show spinner only when loading state-specific data
+        with st.spinner(f"Loading household data for {states_data[selected_state]['name']}..."):
+            state_households = generate_households_for_state(selected_state, states_data[selected_state])
+    
+    # Filter the generated households based on sidebar checkboxes 
+    # If no state selected, state_households is empty, so filtered_households will be empty
     filtered_households = [
-        h for h in all_households if 
-        (not selected_state or h['state'] == selected_state) and
-        ((show_ev and h['has_ev']) or 
-         (show_ac and h['has_ac']) or 
-         (show_pv and h['has_pv']))
+        h for h in state_households if 
+        ((show_ev and h.get('has_ev', False)) or  # Use .get for safety
+         (show_ac and h.get('has_ac', False)) or 
+         (show_pv and h.get('has_pv', False)))
     ]
     
     # Create map
@@ -1681,41 +1705,45 @@ elif page == "Interactive Map":
             )
         ).add_to(m)
     
-    # Create marker cluster for households
+    # Create marker cluster (it's ok to add an empty cluster)
     marker_cluster = MarkerCluster().add_to(m)
     
-    # Add markers for each household
-    for house in filtered_households:
-        # Determine marker icon based on devices
-        if house['has_ev'] and show_ev:
-            icon_color = "blue"
-            icon_name = "plug"
-        elif house['has_pv'] and show_pv:
-            icon_color = "green"
-            icon_name = "sun"
-        else:
-            icon_color = "orange"
+    # Add markers ONLY if a state is selected and there are filtered households
+    if selected_state and filtered_households:
+        for house in filtered_households:
+            # Determine marker icon based on devices (use .get for safety)
+            icon_color = "grey" # Default
             icon_name = "home"
-        
-        # Create popup content
-        popup_content = f"""
-        <div style="min-width: 200px;">
-            <h4>Home {house['id']}</h4>
-            <b>Devices:</b><br>
-            {'✓ EV Charger<br>' if house['has_ev'] else ''}
-            {'✓ AC Unit<br>' if house['has_ac'] else ''}
-            {'✓ Solar Panels<br>' if house['has_pv'] else ''}
-            <b>Daily Energy:</b> {house['energy_consumption']} kWh
-        </div>
-        """
-        
-        # Add marker
-        folium.Marker(
-            location=[house['lat'], house['lon']],
-            popup=folium.Popup(popup_content, max_width=300),
-            icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa'),
-            tooltip=f"Home {house['id']}"
-        ).add_to(marker_cluster)
+            
+            if house.get('has_ev', False) and show_ev:
+                icon_color = "blue"
+                icon_name = "plug"
+            elif house.get('has_pv', False) and show_pv: # Check PV before AC for precedence
+                icon_color = "green"
+                icon_name = "sun"
+            elif house.get('has_ac', False) and show_ac:
+                icon_color = "orange"
+                icon_name = "snowflake" # Changed AC icon
+            
+            # Create popup content
+            popup_content = f"""
+            <div style="min-width: 200px;">
+                <h4>Home {house.get('id', 'N/A')}</h4>
+                <b>Devices:</b><br>
+                {'✓ EV Charger<br>' if house.get('has_ev', False) else ''}
+                {'✓ AC Unit<br>' if house.get('has_ac', False) else ''}
+                {'✓ Solar Panels<br>' if house.get('has_pv', False) else ''}
+                <b>Daily Energy:</b> {house.get('energy_consumption', 'N/A')} kWh
+            </div>
+            """
+            
+            # Add marker
+            folium.Marker(
+                location=[house.get('lat', 0), house.get('lon', 0)],
+                popup=folium.Popup(popup_content, max_width=300),
+                icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa'),
+                tooltip=f"Home {house.get('id', 'N/A')}"
+            ).add_to(marker_cluster)
     
     # Add legend
     legend_html = '''
@@ -1742,14 +1770,21 @@ elif page == "Interactive Map":
     # Add Layer Control to toggle layers
     folium.LayerControl().add_to(m)
     
-    # Display the map with a loading spinner
-    with st.spinner("Rendering map... This may take a moment for all states..."):
+    # Display the map 
+    # Spinner message depends on whether we are showing states or households
+    spinner_msg = "Rendering map..." if selected_state else "Rendering US states map..."
+    with st.spinner(spinner_msg):
         st.subheader("Interactive Energy Deployment Map")
-        st.caption("Click on a state to see details or use the controls to filter by device type")
+        map_caption = "Click on a state to view household data." if not selected_state else f"Showing households for {states_data[selected_state]['name']}. Use filters to refine."
+        st.caption(map_caption)
         folium_static(m, width=1000, height=600)
-        st.info("💡 **Tip:** Use the refresh button in the sidebar to reset the map view if needed.")
+        if not selected_state:
+             st.info("💡 **Tip:** Click a state on the map to load and view individual household data.")
+        else:
+            st.info("💡 **Tip:** Use the sidebar filters to show/hide devices. Use the refresh button to go back to the US view.")
     
-    # Add summary statistics even if no state is selected
+    # --- Display Stats --- 
+    # Show Portfolio Overview (national stats) only if no state is selected
     if not selected_state:
         st.subheader("Portfolio Overview")
         
@@ -1828,7 +1863,7 @@ elif page == "Interactive Map":
         
         st.dataframe(pd.DataFrame(state_stats), use_container_width=True)
     
-    # Display statistics if a state is selected
+    # Display state-specific statistics and data table ONLY if a state is selected
     if selected_state:
         state = states_data[selected_state]
         st.subheader(f"{state['name']} Statistics")
@@ -1861,7 +1896,7 @@ elif page == "Interactive Map":
         }
         df = df.rename(columns=column_map)
         st.dataframe(df, use_container_width=True)
-    # --- End Map Generation Logic ---
+    # --- End Stats Display Logic ---
 
     # Footer
     st.markdown("---")
