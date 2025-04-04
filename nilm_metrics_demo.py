@@ -16,7 +16,6 @@ import plotly.subplots as sp
 from PIL import Image
 import datetime
 import requests
-import time
 
 # Hide the default Streamlit navigation menu
 st.set_page_config(
@@ -1526,10 +1525,8 @@ elif page == "Interactive Map":
         """Generate mock household data within a specific state."""
         households = []
         count = state_info.get('total_homes', 0) # Use .get for safety
-        
-        # Return early if no homes to avoid division by zero
-        if count <= 0: 
-            return [] 
+        if count == 0: 
+            return [] # Return empty list if no homes
             
         lat_center = state_info.get('lat', 0)
         lon_center = state_info.get('lon', 0)
@@ -1541,7 +1538,7 @@ elif page == "Interactive Map":
         lat_spread = 1.5
         lon_spread = 1.5
 
-        # Calculate probabilities ONLY if count > 0 (already checked above)
+        # Calculate probabilities outside the loop
         ev_prob = ev_homes_count / count
         ac_prob = ac_homes_count / count
         pv_prob = pv_homes_count / count
@@ -1556,13 +1553,17 @@ elif page == "Interactive Map":
             has_ac = random.random() < ac_prob
             has_pv = random.random() < pv_prob
 
-            # Simpler fallback: If no device assigned, randomly pick one
-            # This avoids potential division issues in the previous complex fallback
+            # Optional: Ensure at least one device is present 
+            # (Consider if this is truly needed - might slightly skew distributions)
             if not (has_ev or has_ac or has_pv):
-                choice = random.choice(['ev', 'ac', 'pv']) # Simple random choice
-                if choice == 'ev': has_ev = True
-                elif choice == 'ac': has_ac = True
-                else: has_pv = True
+                # If no device assigned by chance, randomly pick one based on prevalence
+                # This is a simple way, more complex weighting could be used
+                if random.random() < ev_prob / (ev_prob + ac_prob + pv_prob + 1e-9): # Add epsilon to avoid div by zero
+                    has_ev = True
+                elif random.random() < ac_prob / (ac_prob + pv_prob + 1e-9):
+                    has_ac = True
+                else:
+                    has_pv = True
 
             household = {
                 'id': f"{state_code}-{i+1}",
@@ -1627,26 +1628,10 @@ elif page == "Interactive Map":
         st.rerun()
     
     # Load state summary data and GeoJSON
-    t0 = time.time()
     with st.spinner("Loading state data..."):
         states_data = generate_geo_data()
         us_geojson = load_us_geojson()
-    t1 = time.time()
-    st.sidebar.write(f"Load geo data: {t1-t0:.2f}s") # Print timing to sidebar
     
-    # --- Ensure states_data is a dictionary --- 
-    if not isinstance(states_data, dict):
-        st.sidebar.warning(f"states_data was {type(states_data)}, attempting conversion.")
-        try:
-            # Assuming it might be a list/tuple of key-value pairs or similar
-            states_data = dict(states_data)
-        except (TypeError, ValueError) as e:
-            st.error(f"Could not convert states_data to dict: {e}")
-            # Stop execution or assign default if conversion fails
-            states_data = {} 
-            st.stop()
-    # --- End check ---
-
     # Get state from URL parameter if available
     params = st.query_params
     selected_state = params.get("state", [""])[0]
@@ -1691,42 +1676,36 @@ elif page == "Interactive Map":
     
     # Only add the GeoJSON layer if viewing the whole US map and the data loaded successfully
     if not selected_state and us_geojson:
-        # --- GeoJSON rendering removed for faster initial load ---
-        pass # Explicitly do nothing here now
-        # t8 = time.time()
-        # # Add state boundaries with click functionality
-        # style_function = lambda x: {
-        #     'fillColor': primary_purple,
-        #     'color': 'white',
-        #     'weight': 1,
-        #     'fillOpacity': 0.5
-        # }
+        # Add state boundaries with click functionality
+        style_function = lambda x: {
+            'fillColor': primary_purple,
+            'color': 'white',
+            'weight': 1,
+            'fillOpacity': 0.5
+        }
         
-        # folium.GeoJson(
-        #     us_geojson,
-        #     style_function=style_function,
-        #     highlight_function=lambda x: {
-        #         'fillColor': light_purple,
-        #         'color': 'white',
-        #         'weight': 3,
-        #         'fillOpacity': 0.7
-        #     },
-        #     tooltip=folium.GeoJsonTooltip(
-        #         fields=['name'],
-        #         aliases=['State:'],
-        #         labels=True,
-        #         sticky=True
-        #     ),
-        #     popup=folium.GeoJsonPopup(
-        #         fields=['name'],
-        #         aliases=['Click to view devices in:']
-        #     )
-        # ).add_to(m)
-        # t9 = time.time()
-        # st.sidebar.write(f"Add GeoJSON layer: {t9-t8:.2f}s") # Print timing
+        folium.GeoJson(
+            us_geojson,
+            style_function=style_function,
+            highlight_function=lambda x: {
+                'fillColor': light_purple,
+                'color': 'white',
+                'weight': 3,
+                'fillOpacity': 0.7
+            },
+            tooltip=folium.GeoJsonTooltip(
+                fields=['name'],
+                aliases=['State:'],
+                labels=True,
+                sticky=True
+            ),
+            popup=folium.GeoJsonPopup(
+                fields=['name'],
+                aliases=['Click to view devices in:']
+            )
+        ).add_to(m)
     
     # Create marker cluster (it's ok to add an empty cluster)
-    t10 = time.time()
     marker_cluster = MarkerCluster().add_to(m)
     
     # Add markers ONLY if a state is selected and there are filtered households
@@ -1798,33 +1777,22 @@ elif page == "Interactive Map":
         st.subheader("Interactive Energy Deployment Map")
         map_caption = "Click on a state to view household data." if not selected_state else f"Showing households for {states_data[selected_state]['name']}. Use filters to refine."
         st.caption(map_caption)
-        t14 = time.time()
         folium_static(m, width=1000, height=600)
         if not selected_state:
              st.info("💡 **Tip:** Click a state on the map to load and view individual household data.")
         else:
             st.info("💡 **Tip:** Use the sidebar filters to show/hide devices. Use the refresh button to go back to the US view.")
-    t15 = time.time()
-    st.sidebar.write(f"folium_static call: {t15-t14:.2f}s") # Print timing
     
     # --- Display Stats --- 
-    # Add a debug print for states_data type
-    st.sidebar.write(f"Type of states_data before stats: {type(states_data)}")
-    
     # Show Portfolio Overview (national stats) only if no state is selected
     if not selected_state:
         st.subheader("Portfolio Overview")
         
-        # Check if states_data is actually a dict before proceeding
-        if isinstance(states_data, dict):
-            total_homes = sum(states_data[state].get('total_homes', 0) for state in states_data) # Use .get for safety
-            total_ev = sum(states_data[state].get('ev_homes', 0) for state in states_data)
-            total_ac = sum(states_data[state].get('ac_homes', 0) for state in states_data)
-            total_pv = sum(states_data[state].get('pv_homes', 0) for state in states_data)
-        else:
-            st.error("Internal Error: states_data is not in the expected format.")
-            total_homes, total_ev, total_ac, total_pv = 0, 0, 0, 0 # Default values
-            
+        total_homes = sum(states_data[state]['total_homes'] for state in states_data)
+        total_ev = sum(states_data[state]['ev_homes'] for state in states_data)
+        total_ac = sum(states_data[state]['ac_homes'] for state in states_data)
+        total_pv = sum(states_data[state]['pv_homes'] for state in states_data)
+        
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Total Homes", f"{total_homes:,}")
