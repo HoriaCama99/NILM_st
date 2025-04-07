@@ -1728,19 +1728,31 @@ elif page == "Interactive Map":
         
         # Logic to handle the click event based on tooltip content
         if clicked_tooltip_content:
-            # Attempt to parse the state ID from the tooltip content
-            # Assumes tooltip format like "... | ID: XX"
+            # Attempt to parse the state ID from the tooltip content (handling newlines)
             try:
-                parts = clicked_tooltip_content.split('|')
-                id_part = next((part for part in parts if 'ID:' in part), None)
-                if id_part:
-                    clicked_state_id = id_part.split('ID:')[1].strip()
-                    # Update query params only if the clicked state is different
-                    if st.query_params.get("state", [""])[0] != clicked_state_id:
-                        st.query_params.state = clicked_state_id
-                        st.rerun()
+                # Find the index of "ID:"
+                id_label_index = clicked_tooltip_content.find("ID:")
+                if id_label_index != -1:
+                    # Extract the substring after "ID:"
+                    id_substring = clicked_tooltip_content[id_label_index + len("ID:"):]
+                    # Strip leading/trailing whitespace/newlines to get the ID
+                    clicked_state_id = id_substring.strip()
+
+                    # (Keep the debug prints for now to confirm the fix)
+                    st.write(f"Clicked Tooltip Content: '{clicked_tooltip_content}'") 
+                    st.write(f"Extracted State ID: '{clicked_state_id}'")
+
+                    if clicked_state_id: # Ensure we extracted a non-empty string
+                         # Update query params only if the clicked state is different and valid (e.g., 2 chars)
+                         if len(clicked_state_id) == 2 and st.query_params.get("state", [""])[0] != clicked_state_id:
+                             st.query_params.state = clicked_state_id
+                             st.rerun()
+                         elif len(clicked_state_id) != 2:
+                              st.warning(f"Extracted ID '{clicked_state_id}' is not two characters long.")
+                    else:
+                         st.warning("Could not extract State ID after 'ID:'.")
                 else:
-                    st.warning("Could not parse State ID from clicked tooltip.")
+                    st.warning("Could not find 'ID:' in clicked tooltip.")
             except Exception as e:
                 st.warning(f"Error parsing tooltip content: {e}")
 
