@@ -1549,9 +1549,30 @@ elif page == "Interactive Map":
     params = st.query_params
     selected_state = params.get("state", [""])[0]
 
-    if selected_state and selected_state not in states_data:
-        st.warning(f"State code '{selected_state}' from URL not found in data. Showing national view.")
-        selected_state = ""
+    # Validate state code against available states
+    if selected_state:
+        if selected_state not in states_data:
+            # Check if it's a case sensitivity issue
+            valid_state_codes = list(states_data.keys())
+            
+            # Try to get a close match if possible
+            matches = [code for code in valid_state_codes if code.upper() == selected_state.upper()]
+            if matches:
+                # Found a case-insensitive match
+                correct_state = matches[0]
+                st.info(f"Found state '{states_data[correct_state]['name']}' with code '{correct_state}' (case mismatch with '{selected_state}')")
+                # Redirect to the correct state code
+                st.query_params.state = correct_state
+                st.rerun()
+            else:
+                # No match at all - show message and clear
+                st.warning(f"State code '{selected_state}' is not valid. Please select from the dropdown.")
+                # Reset to national view
+                selected_state = ""
+                # Clear the invalid parameter from URL
+                st.query_params.clear()
+                
+    # Rest of the map code remains the same
 
     # --- Load household data --- 
     households_to_display = [] # Initialize empty
