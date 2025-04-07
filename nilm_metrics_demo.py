@@ -1488,6 +1488,21 @@ elif page == "Interactive Map":
             st.error(f"An unexpected error occurred loading data for state {state_code}: {e}")
             return []
 
+    # Load GeoJSON data for US states
+    @st.cache_data
+    def load_us_geojson():
+        try:
+            response = requests.get("https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json")
+            response.raise_for_status() # Raise an exception for bad status codes
+            us_states = response.json()
+            return us_states
+        except requests.exceptions.RequestException as e:
+            st.error(f"Error loading US state boundaries: {e}")
+            return None
+        except Exception as e:
+            st.error(f"An unexpected error occurred while processing GeoJSON: {e}")
+            return None
+
     # --- Add Map Generation and Display Logic ---
     # Create filter controls in sidebar
     st.sidebar.markdown("### Map Filters")
