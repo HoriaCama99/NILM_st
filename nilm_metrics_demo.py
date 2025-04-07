@@ -1443,10 +1443,12 @@ elif page == "Interactive Map":
     # Description
     st.markdown("""
     This map shows the geographic distribution of homes equipped with NILM-detected devices.
-    Use the dropdown below to select a state and view its individual homes with EV chargers, AC units, and solar panels.
+    **Click on a state** to zoom in and see individual homes with EV chargers, AC units, and solar panels.
     """)
     
-    # --- Define the data loading functions ---
+    # Create function to generate mock data for US states
+    # Cache the data generation
+
     # Cache the data generation
     @st.cache_data
     def generate_geo_data():
@@ -1493,7 +1495,7 @@ elif page == "Interactive Map":
             response = requests.get("https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json")
             response.raise_for_status() # Raise an exception for bad status codes
             us_states = response.json()
-            
+
             # --- Add state ID to properties for popup access ---
             if us_states and 'features' in us_states:
                 for feature in us_states['features']:
@@ -1508,32 +1510,9 @@ elif page == "Interactive Map":
         except Exception as e:
             st.error(f"An unexpected error occurred while processing GeoJSON: {e}")
             return None
-    
-    # --- HANDLE URL PARAMETERS FIRST ---
-    # Check URL parameters for state
-    params = st.query_params
-    state_param = params.get("state", [""])[0]
 
-    # Load state data right away so we can validate
-    with st.spinner("Loading state data..."):
-        states_data = generate_geo_data()
-        us_geojson = load_us_geojson()
-
-    # Handle the state parameter - but only clear it if it's definitely invalid
-    selected_state = ""  # Default to no state selected
-    if state_param:
-        if state_param in states_data:
-            # Valid state code found - use it
-            selected_state = state_param
-        else:
-            # Only clear if it's not a valid state code
-            st.warning(f"State code '{state_param}' is not valid. Please select a state from the dropdown.")
-            # Clear the parameter
-            params.clear()
-    
-    # At this point, selected_state is either a valid state code or an empty string
-    
-    # --- Create filter controls in sidebar ---
+    # --- Add Map Generation and Display Logic ---
+    # Create filter controls in sidebar
     st.sidebar.markdown("### Map Filters")
     show_ev = st.sidebar.checkbox("Show EV Chargers", value=True)
     show_ac = st.sidebar.checkbox("Show AC Units", value=True)
@@ -1561,7 +1540,43 @@ elif page == "Interactive Map":
         st.query_params.clear()
         st.rerun()
     
-    # --- Create the map ---
+    # Load data with a spinner
+    with st.spinner("Loading state data..."):
+        states_data = generate_geo_data() # Only expect state summaries now
+        us_geojson = load_us_geojson()
+    
+    # Get state from URL parameter if available
+    params = st.query_params
+    selected_state = params.get("state", [""])[0]
+
+    if selected_state and selected_state not in states_data:
+        st.warning(f"State code '{selected_state}' from URL not found in data. Showing national view.")
+        selected_state = ""
+
+    # --- Load household data --- 
+    households_to_display = [] # Initialize empty
+    if selected_state:
+        # Load data only for the selected state
+        if states_data:
+            with st.spinner(f"Loading household data for {states_data.get(selected_state, {}).get('name', selected_state)}..."):
+                 state_households = load_households_for_state(selected_state)
+                 households_to_display = state_households # Use this list for markers
+        else:
+            st.error("Could not load state summary data. Household data cannot be loaded.")
+    # *** REMOVED the block that loaded ALL households ***
+    else:
+        # No state selected, do not load any household data initially
+        pass
+
+    # Filter the loaded households (will be empty if no state selected) 
+    # based on sidebar checkboxes
+    filtered_households = [
+        h for h in households_to_display if
+        ((show_ev and h.get('has_ev', False)) or
+         (show_ac and h.get('has_ac', False)) or
+         (show_pv and h.get('has_pv', False)))
+    ]
+
     # Create map - ALWAYS center on US, zoom 4
     m = folium.Map(
         location=[39.8283, -98.5795],  # Center of US
@@ -1572,105 +1587,66 @@ elif page == "Interactive Map":
     # Add satellite view layer
     folium.TileLayer('Esri_WorldImagery', name='Satellite View', attr='Esri').add_to(m)
 
-    # First create the display elements BEFORE loading marker data
-    # Display the map container first
-    with st.spinner("Rendering map..."):
-        st.subheader("Interactive Energy Deployment Map")
-        
-        # Create columns for state selector and description
-        col1, col2 = st.columns([1, 3])
-        
-        with col1:
-            # Create a dropdown for state selection that works directly with Streamlit
-            if states_data:
-                # Build list of states with their full names
-                state_options = [("", "Select a state...")] + [(code, data['name']) for code, data in states_data.items()]
-                
-                # Create a formatter to show the full state name but return the code
-                def format_state(option):
-                    code, name = option
-                    return name
-                
-                # Get current selection from URL or default to empty
-                current_selection = selected_state if selected_state in states_data else ""
-                current_index = next((i for i, (code, _) in enumerate(state_options) if code == current_selection), 0)
-                
-                # Create the selectbox
-                selected_option = st.selectbox(
-                    "Select a state to view devices:",
-                    options=state_options,
-                    format_func=format_state,
-                    index=current_index
-                )
-                
-                # If selection changes, update URL parameter and trigger refresh
-                if selected_option[0] != selected_state:
-                    # Only set param if a state is actually selected
-                    if selected_option[0]:
-                        st.query_params.state = selected_option[0]
-                    else:
-                        # Clear the parameter if no state selected
-                        st.query_params.clear()
-                    st.rerun()
-            else:
-                st.error("Could not load state list. Please refresh the page.")
-        
-        with col2:
-            if selected_state:
-                 state_name = states_data.get(selected_state, {}).get('name', selected_state)
-                 st.caption(f"Showing devices for {state_name}. Use the dropdown to change state or clear selection.")
-            else:
-                 st.caption("Select a state from the dropdown to load device locations.")
-    
-    # NOW load the data for the selected state
-    households_to_display = [] # Initialize empty
-    if selected_state:
-        # Load data for the selected state
-        if states_data:
-            with st.spinner(f"Loading household data for {states_data.get(selected_state, {}).get('name', selected_state)}..."):
-                state_households = load_households_for_state(selected_state)
-                households_to_display = state_households # Use this list for markers
-        else:
-            st.error("Could not load state summary data. Household data cannot be loaded.")
-    
-    # Filter the loaded households based on sidebar checkboxes
-    filtered_households = [
-        h for h in households_to_display if
-        ((show_ev and h.get('has_ev', False)) or
-         (show_ac and h.get('has_ac', False)) or
-         (show_pv and h.get('has_pv', False)))
-    ]
-    
-    # Add state boundaries regardless of state selection 
+    # Add state boundaries regardless of state selection (if GeoJSON loaded)
     if us_geojson:
-        folium.GeoJson(
-            us_geojson,
-            style_function=lambda x: {
-                'fillColor': primary_purple if x['id'] != selected_state else '#ff7800',
-                'color': 'white',
-                'weight': 1,
-                'fillOpacity': 0.5 if x['id'] != selected_state else 0.7
-            },
-            highlight_function=lambda x: {
+        # Add state boundaries with click functionality
+        style_function = lambda x: {
+            'fillColor': primary_purple,
+            'color': 'white',
+            'weight': 1,
+            'fillOpacity': 0.5
+        }
+        highlight_function = lambda x: {
                 'fillColor': light_purple,
                 'color': 'white',
                 'weight': 3,
                 'fillOpacity': 0.7
-            },
+            }
+
+        # Custom popup function to create links
+        def create_state_popup(feature):
+            state_name = feature['properties']['name']
+            state_id = feature['id'] # Assuming the GeoJSON has state codes as 'id'
+            # Construct the URL - this assumes the app is running at the root
+            # If deployed in a subdirectory, this might need adjustment
+            link_url = f"?state={state_id}"
+            return f'<a href="{link_url}" target="_self">Click to load devices for: {state_name}</a>'
+
+        folium.GeoJson(
+            us_geojson,
+            style_function=style_function,
+            highlight_function=highlight_function,
             tooltip=folium.GeoJsonTooltip(
                 fields=['name'],
                 aliases=['State:'],
                 labels=True,
                 sticky=True
+            ),
+            popup=folium.features.GeoJsonPopup(
+                fields=['id', 'name'],
+                aliases=['', ''],
+                script="""
+                    function(feature) {
+                        var state_name = feature.properties.name;
+                        var state_id = feature.properties.id; 
+                        if (state_id) {
+                           var link_url = '?state=' + state_id;
+                           return '<a href="' + link_url + '" target="_self">Click to load devices for: ' + state_name + '</a>';
+                        } else {
+                           return 'State ID not found for ' + state_name;
+                        } 
+                    }
+                """,
+                parse_html=False,
+                max_width=300
             )
         ).add_to(m)
-    
-    # Add markers for the selected state
+
+    # Create marker cluster - Add markers ONLY if a state is selected
     if selected_state and filtered_households:
-        # Create marker cluster 
         marker_cluster = MarkerCluster(name=f"Devices in {selected_state}").add_to(m)
-        
-        # Add markers for each household
+
+        # Add markers for each household IN THE SELECTED STATE
         for house in filtered_households:
             # Determine marker icon based on devices
             icon_color = "gray" # Default
@@ -1680,11 +1656,19 @@ elif page == "Interactive Map":
                 icon_name = "plug"
             elif show_ac and house.get('has_ac'):
                 icon_color = "orange"
-                icon_name = "snowflake"
+                icon_name = "snowflake" # Changed for AC
             elif show_pv and house.get('has_pv'):
                 icon_color = "green"
                 icon_name = "sun"
-            
+            # If multiple are true & shown, prioritize EV > AC > PV
+            if show_ac and house.get('has_ac') and icon_color == "gray":
+                 icon_color = "orange"
+                 icon_name = "snowflake"
+            if show_pv and house.get('has_pv') and icon_color == "gray":
+                 icon_color = "green"
+                 icon_name = "sun"
+
+
             # Create popup content
             popup_content = f"""
             <div style="min-width: 200px;">
@@ -1696,7 +1680,7 @@ elif page == "Interactive Map":
                 <b>Daily Energy:</b> {house.get('energy_consumption', 'N/A')} kWh
             </div>
             """
-            
+
             # Add marker
             folium.Marker(
                 location=[house['lat'], house['lon']],
@@ -1704,8 +1688,8 @@ elif page == "Interactive Map":
                 icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa'),
                 tooltip=f"Home {house.get('id', 'N/A')}"
             ).add_to(marker_cluster)
-    
-    # Add legend
+
+    # Add legend (always visible)
     legend_html = '''
     <div style="position: fixed; bottom: 50px; right: 50px; 
                 background-color: white; padding: 10px; border-radius: 5px;
@@ -1726,18 +1710,21 @@ elif page == "Interactive Map":
     </div>
     '''
     m.get_root().html.add_child(folium.Element(legend_html))
-    
-    # Add Layer Control
+
+    # Add Layer Control to toggle layers
     folium.LayerControl().add_to(m)
-    
+
     # Display the map
-    with st.spinner("Rendering markers..."):
+    with st.spinner("Rendering map..."):
+        st.subheader("Interactive Energy Deployment Map")
         if selected_state:
-            st.write(f"Displaying {len(filtered_households)} markers for {states_data.get(selected_state, {}).get('name', selected_state)}")
+             st.caption(f"Showing devices for {states_data.get(selected_state,{}).get('name', selected_state)}. Click another state or use Refresh button.")
+        else:
+             st.caption("Click on a state to load device locations.")
         folium_static(m, width=1000, height=600)
         st.info("💡 **Tip:** Use the refresh button in the sidebar to clear state selection and reset the map view.")
 
-    # Add summary statistics (based on states_data or selected_state)
+    # Add summary statistics (logic remains the same, based on states_data or selected_state)
     if not selected_state:
         st.subheader("Portfolio Overview")
         
@@ -1836,23 +1823,19 @@ elif page == "Interactive Map":
         
         # Display data table
         st.subheader("Homes Data")
-        if filtered_households:
-            columns_to_show = ['id', 'energy_consumption', 'has_ev', 'has_ac', 'has_pv']
-            df = pd.DataFrame(filtered_households)[columns_to_show]
-            
-            # Rename columns for display
-            column_map = {
-                'id': 'Home ID',
-                'energy_consumption': 'Energy (kWh)',
-                'has_ev': 'EV Charger',
-                'has_ac': 'AC Unit',
-                'has_pv': 'Solar Panel'
-            }
-            df = df.rename(columns=column_map)
-            st.dataframe(df, use_container_width=True)
-        else:
-            st.info("No household data available for the selected filters.")
-    
+        columns_to_show = ['id', 'energy_consumption', 'has_ev', 'has_ac', 'has_pv']
+        df = pd.DataFrame(filtered_households)[columns_to_show]
+        
+        # Rename columns for display
+        column_map = {
+            'id': 'Home ID',
+            'energy_consumption': 'Energy (kWh)',
+            'has_ev': 'EV Charger',
+            'has_ac': 'AC Unit',
+            'has_pv': 'Solar Panel'
+        }
+        df = df.rename(columns=column_map)
+        st.dataframe(df, use_container_width=True)
     # --- End Map Generation Logic ---
 
     # Footer
@@ -1860,6 +1843,6 @@ elif page == "Interactive Map":
     st.markdown(f"""
     <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
         This interactive map shows the geographic distribution of homes with different smart devices.
-        Select a state from the dropdown to view device locations.
+        Click on a state to zoom in and explore homes with EV chargers, AC units, and solar panels.
     </div>
     """, unsafe_allow_html=True)
