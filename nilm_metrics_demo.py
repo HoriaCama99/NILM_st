@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 import random
 from datetime import datetime, timedelta
 import folium
-from streamlit_folium import folium_static
+from streamlit_folium import st_folium
 import json
 import geopandas as gpd
 from folium.plugins import MarkerCluster
@@ -1620,26 +1620,12 @@ elif page == "Interactive Map":
                 fields=['name'],
                 aliases=['State:'],
                 labels=True,
-                sticky=True
+                sticky=True,
+                style=("background-color: white; color: black; font-family: sans-serif; font-size: 12px; padding: 5px;") # Basic styling for tooltip
             ),
-            popup=folium.features.GeoJsonPopup(
-                fields=['id', 'name'],
-                aliases=['', ''],
-                script="""
-                    function(feature) {
-                        var state_name = feature.properties.name;
-                        var state_id = feature.properties.id; 
-                        if (state_id) {
-                           var link_url = '?state=' + state_id;
-                           return '<a href="' + link_url + '" target="_self">Click to load devices for: ' + state_name + '</a>';
-                        } else {
-                           return 'State ID not found for ' + state_name;
-                        } 
-                    }
-                """,
-                parse_html=False,
-                max_width=300
-            )
+            # REMOVED complex popup with Javascript link
+            # We will handle clicks via st_folium return value
+            popup=None # Can remove popup or keep a simple one: folium.Popup("Click to load data")
         ).add_to(m)
 
     # Create marker cluster - Add markers ONLY if a state is selected
@@ -1714,16 +1700,42 @@ elif page == "Interactive Map":
     # Add Layer Control to toggle layers
     folium.LayerControl().add_to(m)
 
-    # Display the map
+    # Display the map using st_folium and capture interactions
     with st.spinner("Rendering map..."):
         st.subheader("Interactive Energy Deployment Map")
         if selected_state:
              st.caption(f"Showing devices for {states_data.get(selected_state,{}).get('name', selected_state)}. Click another state or use Refresh button.")
         else:
              st.caption("Click on a state to load device locations.")
-        folium_static(m, width=1000, height=600)
+        
+        # Use st_folium instead of folium_static
+        # Configure it to return the feature when a GeoJSON object is clicked
+        map_output = st_folium(
+            m,
+            width=1000,
+            height=600,
+            geojson_click_feature=True, # Return clicked GeoJSON feature
+            key="folium_map" # Add a key for stability
+        )
+        
+        # Check if a GeoJSON feature was clicked
+        clicked_feature = map_output.get("geojson")
+        
+        # Added logic to handle the click event
+        if clicked_feature:
+            # Ensure 'id' exists in properties (added during GeoJSON loading)
+            if 'properties' in clicked_feature and 'id' in clicked_feature['properties']:
+                clicked_state_id = clicked_feature['properties']['id']
+                # Update query params only if the clicked state is different
+                if st.query_params.get("state", [""])[0] != clicked_state_id:
+                    st.query_params.state = clicked_state_id
+                    st.rerun()
+            else:
+                # This shouldn't happen if GeoJSON loading worked, but good to check
+                st.warning("Clicked state feature does not have an 'id' property.")
+    
         st.info("💡 **Tip:** Use the refresh button in the sidebar to clear state selection and reset the map view.")
-
+    
     # Add summary statistics (logic remains the same, based on states_data or selected_state)
     if not selected_state:
         st.subheader("Portfolio Overview")
