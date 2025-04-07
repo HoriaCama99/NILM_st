@@ -1540,30 +1540,45 @@ elif page == "Interactive Map":
     # Get state from URL parameter if available
     params = st.query_params
     selected_state = params.get("state", [""])[0]
-    
-    if selected_state not in states_data:
+
+    if selected_state and selected_state not in states_data:
+        st.warning(f"State code '{selected_state}' from URL not found in data. Showing national view.")
         selected_state = ""
-    
-    # --- Load household data ONLY if a state is selected ---
-    state_households = [] # Initialize as empty list BEFORE the check
+
+    # --- Load household data --- 
+    households_to_display = []
     if selected_state:
-        # Only call the loading function if we have a valid state key and states_data is not empty
+        # Load data only for the selected state
         if states_data:
             with st.spinner(f"Loading household data for {states_data.get(selected_state, {}).get('name', selected_state)}..."):
                  state_households = load_households_for_state(selected_state)
+                 households_to_display = state_households
         else:
-            # Handle case where states_data failed to load
             st.error("Could not load state summary data. Household data cannot be loaded.")
+    elif states_data: # No state selected, load ALL household data if state summaries loaded correctly
+        with st.spinner("Loading household data for all states... This might take a moment."):
+            all_households = []
+            total_states_to_load = len(states_data)
+            loaded_count = 0
+            for state_code in states_data.keys():
+                # Optional: Add progress feedback within the spinner
+                # st.spinner(f"Loading household data... ({loaded_count}/{total_states_to_load} states)") 
+                state_households = load_households_for_state(state_code)
+                all_households.extend(state_households)
+                loaded_count += 1
+            households_to_display = all_households
+    else:
+        # Handle case where states_data failed to load initially
+        st.error("Could not load state summary data. Map cannot be fully generated.")
 
-    # Filter the loaded households based on sidebar checkboxes
-    # Iterate over state_households (which is empty if no state is selected)
+    # Filter the loaded households (either all or single-state) based on sidebar checkboxes
     filtered_households = [
-        h for h in state_households if
+        h for h in households_to_display if
         ((show_ev and h.get('has_ev', False)) or
          (show_ac and h.get('has_ac', False)) or
          (show_pv and h.get('has_pv', False)))
     ]
-    
+
     # Create map
     if selected_state:
         state = states_data[selected_state]
