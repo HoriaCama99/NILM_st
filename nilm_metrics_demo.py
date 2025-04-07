@@ -1614,26 +1614,23 @@ elif page == "Interactive Map":
                 labels=True,
                 sticky=True
             ),
-            popup=folium.Popup(folium.Html(f'<p>Loading...</p>', script=True)).add_child(
-                folium.features.GeoJsonPopup(fields=['id', 'name'], aliases=['', ''], parse_html=False,
-                                            script=f"""
-                                                function(feature){{ 
-                                                    var state_name = feature.properties.name;
-                                                    var state_id = feature.id;
-                                                    var link_url = '?state=' + state_id;
-                                                    return('<a href="' + link_url + '" target="_self">Click to load devices for: ' + state_name + '</a>');
-                                                }}
-                                            """)
+            # Correctly assign GeoJsonPopup directly to the popup argument
+            popup=folium.features.GeoJsonPopup(
+                fields=['id', 'name'], # Use 'id' for state code, 'name' for display
+                aliases=['', ''], # No labels needed for these fields
+                # Use the script argument for dynamic link generation
+                script="""
+                    function(feature) {
+                        var state_name = feature.properties.name;
+                        var state_id = feature.id; // Assumes GeoJSON uses 'id' for state code (e.g., 'CA')
+                        var link_url = '?state=' + state_id;
+                        // Use target='_self' to reload in the same frame/tab
+                        return '<a href="' + link_url + '" target="_self">Click to load devices for: ' + state_name + '</a>';
+                    }
+                """,
+                parse_html=False, # Script generates HTML, no need to parse
+                max_width=300 # Optional: control popup width
             )
-            # --- Alternative using lambda (might be simpler if it works) ---
-            # popup=folium.GeoJsonPopup(
-            #     fields=['id', 'name'], # Need 'id' which should be the state code
-            #     aliases=['', 'State:'],
-            #     labels=False,
-            #     parse_html=True, # Important to parse the HTML link
-            #     # Use format_string which allows embedding fields
-            #     format_string=lambda x: f'<a href="?state={x['id']}" target="_self">Load {x['name']}</a>'
-            # )
         ).add_to(m)
 
     # Create marker cluster - Add markers ONLY if a state is selected
