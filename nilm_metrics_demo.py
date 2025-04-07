@@ -1635,8 +1635,8 @@ elif page == "Interactive Map":
                         // Basic check if state_id exists before creating link
                         if (state_id) {
                            var link_url = '?state=' + state_id;
-                           // Use target='_self' to reload in the same frame/tab
-                           return '<a href="' + link_url + '" target="_self">Click to load devices for: ' + state_name + '</a>';
+                           // Use target='_top' to reload the main window, breaking out of the iframe
+                           return '<a href="' + link_url + '" target="_top">Click to load devices for: ' + state_name + '</a>';
                         } else {
                            return 'State ID not found for ' + state_name;
                         } 
