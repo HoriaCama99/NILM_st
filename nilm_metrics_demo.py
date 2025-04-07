@@ -1738,14 +1738,15 @@ elif page == "Interactive Map":
                     # Strip leading/trailing whitespace/newlines to get the ID
                     clicked_state_id = id_substring.strip()
 
-                    # (Keep the debug prints for now to confirm the fix)
-                    st.write(f"Clicked Tooltip Content: '{clicked_tooltip_content}'") 
-                    st.write(f"Extracted State ID: '{clicked_state_id}'")
+                    # (Remove the debug prints now)
+                    # st.write(f"Clicked Tooltip Content: '{clicked_tooltip_content}'") 
+                    # st.write(f"Extracted State ID: '{clicked_state_id}'")
 
                     if clicked_state_id: # Ensure we extracted a non-empty string
                          # Update query params only if the clicked state is different and valid (e.g., 2 chars)
                          if len(clicked_state_id) == 2 and st.query_params.get("state", [""])[0] != clicked_state_id:
-                             st.query_params.state = clicked_state_id
+                             # Use dictionary syntax for query params
+                             st.query_params["state"] = clicked_state_id
                              st.rerun()
                          elif len(clicked_state_id) != 2:
                               st.warning(f"Extracted ID '{clicked_state_id}' is not two characters long.")
