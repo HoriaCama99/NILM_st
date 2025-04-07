@@ -1446,10 +1446,27 @@ elif page == "Interactive Map":
     **Click on a state** to zoom in and see individual homes with EV chargers, AC units, and solar panels.
     """)
     
-    # Create function to generate mock data for US states
-    # Cache the data generation
+    # --- Session State Initialization and Sync --- 
+    # Initialize session state if it doesn't exist, using URL param as default
+    if 'selected_state' not in st.session_state:
+        st.session_state.selected_state = st.query_params.get("state", [""])[0]
+        
+    # Sync session state if URL parameter changes (e.g., direct navigation)
+    url_state = st.query_params.get("state", [""])[0]
+    if url_state != st.session_state.selected_state:
+        st.session_state.selected_state = url_state
+        # No rerun needed here, Streamlit handles updates based on session state change
+        
+    # Check if the state code (now from session state) exists in the summary data
+    # Perform this check early
+    if st.session_state.selected_state and st.session_state.selected_state not in generate_geo_data(): # Assuming generate_geo_data returns the dict
+        st.warning(f"State code '{st.session_state.selected_state}' not found in data. Showing national view.")
+        st.session_state.selected_state = "" # Reset session state
+        if st.query_params.get("state"): # Clear invalid query param if present
+             del st.query_params["state"] 
+    # -------------------------------------------
 
-    # Cache the data generation
+    # Create function to generate mock data for US states
     @st.cache_data
     def generate_geo_data():
         """Load pre-generated state summary data from JSON."""
@@ -1545,25 +1562,26 @@ elif page == "Interactive Map":
         states_data = generate_geo_data() # Only expect state summaries now
         us_geojson = load_us_geojson()
     
-    # Get state from URL parameter if available
-    params = st.query_params
-    selected_state = params.get("state", [""])[0]
+    # Get state from URL parameter if available - **REMOVED this block, using session state now**
+    # params = st.query_params 
+    # selected_state = params.get("state", [""])[0]
+    # 
+    # if selected_state and selected_state not in states_data:
+    #     st.warning(f"State code '{selected_state}' from URL not found in data. Showing national view.")
+    #     selected_state = ""
 
-    if selected_state and selected_state not in states_data:
-        st.warning(f"State code '{selected_state}' from URL not found in data. Showing national view.")
-        selected_state = ""
-
-    # --- Load household data --- 
+    # --- Load household data based on SESSION STATE --- 
     households_to_display = [] # Initialize empty
-    if selected_state:
+    # Use st.session_state.selected_state here
+    if st.session_state.selected_state:
         # Load data only for the selected state
-        if states_data:
-            with st.spinner(f"Loading household data for {states_data.get(selected_state, {}).get('name', selected_state)}..."):
-                 state_households = load_households_for_state(selected_state)
+        current_states_data = generate_geo_data() # Get current data
+        if current_states_data: 
+            with st.spinner(f"Loading household data for {current_states_data.get(st.session_state.selected_state, {}).get('name', st.session_state.selected_state)}..."):
+                 state_households = load_households_for_state(st.session_state.selected_state)
                  households_to_display = state_households # Use this list for markers
         else:
             st.error("Could not load state summary data. Household data cannot be loaded.")
-    # *** REMOVED the block that loaded ALL households ***
     else:
         # No state selected, do not load any household data initially
         pass
@@ -1630,8 +1648,8 @@ elif page == "Interactive Map":
         ).add_to(m)
 
     # Create marker cluster - Add markers ONLY if a state is selected
-    if selected_state and filtered_households:
-        marker_cluster = MarkerCluster(name=f"Devices in {selected_state}").add_to(m)
+    if st.session_state.selected_state and filtered_households:
+        marker_cluster = MarkerCluster(name=f"Devices in {st.session_state.selected_state}").add_to(m)
 
         # Add markers for each household IN THE SELECTED STATE
         for house in filtered_households:
@@ -1704,8 +1722,12 @@ elif page == "Interactive Map":
     # Display the map using st_folium and capture interactions
     with st.spinner("Rendering map..."):
         st.subheader("Interactive Energy Deployment Map")
-        if selected_state:
-             st.caption(f"Showing devices for {states_data.get(selected_state,{}).get('name', selected_state)}. Click another state or use Refresh button.")
+        # Use st.session_state.selected_state for caption
+        if st.session_state.selected_state:
+             # Need to get state data again here for the name
+             current_states_data = generate_geo_data()
+             state_name = current_states_data.get(st.session_state.selected_state, {}).get('name', st.session_state.selected_state)
+             st.caption(f"Showing devices for {state_name}. Click another state or use Refresh button.")
         else:
              st.caption("Click on a state to load device locations.")
         
@@ -1719,9 +1741,8 @@ elif page == "Interactive Map":
             key="folium_map" # Add a key for stability
         )
         
-        # ---- Debugging Line Added ----
-        st.write("Map Interaction Output:", map_output) 
-        # ------------------------------
+        # Map Interaction Output: (Can remove this now if desired)
+        # st.write("Map Interaction Output:", map_output) 
 
         # Check if the tooltip of a GeoJSON feature was clicked
         clicked_tooltip_content = map_output.get("last_object_clicked_tooltip")
@@ -1743,10 +1764,14 @@ elif page == "Interactive Map":
                     # st.write(f"Extracted State ID: '{clicked_state_id}'")
 
                     if clicked_state_id: # Ensure we extracted a non-empty string
-                         # Update query params only if the clicked state is different and valid (e.g., 2 chars)
-                         if len(clicked_state_id) == 2 and st.query_params.get("state", [""])[0] != clicked_state_id:
-                             # Use dictionary syntax for query params
+                         # Update SESSION STATE and query params only if the clicked state is different and valid
+                         # Compare with st.session_state.selected_state
+                         if len(clicked_state_id) == 2 and st.session_state.selected_state != clicked_state_id:
+                             # Update session state FIRST
+                             st.session_state.selected_state = clicked_state_id
+                             # Then update query params to match
                              st.query_params["state"] = clicked_state_id
+                             # Rerun to ensure UI updates fully based on new session state
                              st.rerun()
                          elif len(clicked_state_id) != 2:
                               st.warning(f"Extracted ID '{clicked_state_id}' is not two characters long.")
@@ -1759,8 +1784,9 @@ elif page == "Interactive Map":
 
         st.info("💡 **Tip:** Use the refresh button in the sidebar to clear state selection and reset the map view.")
     
-    # Add summary statistics (logic remains the same, based on states_data or selected_state)
-    if not selected_state:
+    # Add summary statistics (logic needs to use st.session_state.selected_state)
+    # Use st.session_state.selected_state to decide which stats to show
+    if not st.session_state.selected_state:
         st.subheader("Portfolio Overview")
         
         total_homes = sum(states_data[state]['total_homes'] for state in states_data)
@@ -1838,10 +1864,14 @@ elif page == "Interactive Map":
         
         st.dataframe(pd.DataFrame(state_stats), use_container_width=True)
     
-    # Display statistics if a state is selected
-    if selected_state:
-        state = states_data[selected_state]
-        st.subheader(f"{state['name']} Statistics")
+    # Display statistics if a state is selected (use session state)
+    if st.session_state.selected_state:
+        # Need to get state data again here
+        current_states_data = generate_geo_data()
+        # Check again if state exists in case it was invalidated after session state init
+        if st.session_state.selected_state in current_states_data:
+             state = current_states_data[st.session_state.selected_state]
+             st.subheader(f"{state['name']} Statistics")
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -1856,21 +1886,23 @@ elif page == "Interactive Map":
             pv_pct = state['pv_homes']/state['total_homes']
             st.metric("Solar Panels", f"{state['pv_homes']:,}", f"{pv_pct:.1%}")
         
-        # Display data table
+        # Display data table (filtered_households is already based on session state)
         st.subheader("Homes Data")
         columns_to_show = ['id', 'energy_consumption', 'has_ev', 'has_ac', 'has_pv']
-        df = pd.DataFrame(filtered_households)[columns_to_show]
+        # Ensure filtered_households is defined (it should be from earlier)
+        if 'filtered_households' in locals():
+             df = pd.DataFrame(filtered_households)[columns_to_show]
         
-        # Rename columns for display
-        column_map = {
-            'id': 'Home ID',
-            'energy_consumption': 'Energy (kWh)',
-            'has_ev': 'EV Charger',
-            'has_ac': 'AC Unit',
-            'has_pv': 'Solar Panel'
-        }
-        df = df.rename(columns=column_map)
-        st.dataframe(df, use_container_width=True)
+             # Rename columns for display
+             column_map = {
+                 'id': 'Home ID',
+                 'energy_consumption': 'Energy (kWh)',
+                 'has_ev': 'EV Charger',
+                 'has_ac': 'AC Unit',
+                 'has_pv': 'Solar Panel'
+             }
+             df = df.rename(columns=column_map)
+             st.dataframe(df, use_container_width=True)
     # --- End Map Generation Logic ---
 
     # Footer
