@@ -1616,16 +1616,17 @@ elif page == "Interactive Map":
             us_geojson,
             style_function=style_function,
             highlight_function=highlight_function,
-            tooltip=folium.GeoJsonTooltip(
-                fields=['name'],
-                aliases=['State:'],
+            # Modify tooltip to include state ID easily parsable
+            tooltip=folium.features.GeoJsonTooltip(
+                fields=['name', 'id'], # Add 'id' field
+                aliases=['State:', 'ID:'], # Add alias for ID
                 labels=True,
                 sticky=True,
-                style=("background-color: white; color: black; font-family: sans-serif; font-size: 12px; padding: 5px;") # Basic styling for tooltip
+                # Format tooltip to make ID accessible
+                # Example: State: California | ID: CA
+                style=("background-color: white; color: black; font-family: sans-serif; font-size: 12px; padding: 5px;") 
             ),
-            # REMOVED complex popup with Javascript link
-            # We will handle clicks via st_folium return value
-            popup=None # Can remove popup or keep a simple one: folium.Popup("Click to load data")
+            popup=None # Keep popup None
         ).add_to(m)
 
     # Create marker cluster - Add markers ONLY if a state is selected
@@ -1714,26 +1715,31 @@ elif page == "Interactive Map":
             m,
             width=1000,
             height=600,
-            geojson_click_feature=True, # Return clicked GeoJSON feature
+            # REMOVED geojson_click_feature=True argument
             key="folium_map" # Add a key for stability
         )
         
-        # Check if a GeoJSON feature was clicked
-        clicked_feature = map_output.get("geojson")
+        # Check if the tooltip of a GeoJSON feature was clicked
+        clicked_popup_content = map_output.get("last_object_clicked_tooltip")
         
-        # Added logic to handle the click event
-        if clicked_feature:
-            # Ensure 'id' exists in properties (added during GeoJSON loading)
-            if 'properties' in clicked_feature and 'id' in clicked_feature['properties']:
-                clicked_state_id = clicked_feature['properties']['id']
-                # Update query params only if the clicked state is different
-                if st.query_params.get("state", [""])[0] != clicked_state_id:
-                    st.query_params.state = clicked_state_id
-                    st.rerun()
-            else:
-                # This shouldn't happen if GeoJSON loading worked, but good to check
-                st.warning("Clicked state feature does not have an 'id' property.")
-    
+        # Logic to handle the click event based on tooltip content
+        if clicked_popup_content:
+            # Attempt to parse the state ID from the tooltip content
+            # Assumes tooltip format like "... | ID: XX"
+            try:
+                parts = clicked_popup_content.split('|')
+                id_part = next((part for part in parts if 'ID:' in part), None)
+                if id_part:
+                    clicked_state_id = id_part.split('ID:')[1].strip()
+                    # Update query params only if the clicked state is different
+                    if st.query_params.get("state", [""])[0] != clicked_state_id:
+                        st.query_params.state = clicked_state_id
+                        st.rerun()
+                else:
+                    st.warning("Could not parse State ID from clicked tooltip.")
+            except Exception as e:
+                st.warning(f"Error parsing tooltip content: {e}")
+
         st.info("💡 **Tip:** Use the refresh button in the sidebar to clear state selection and reset the map view.")
     
     # Add summary statistics (logic remains the same, based on states_data or selected_state)
