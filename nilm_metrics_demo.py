@@ -1719,22 +1719,22 @@ elif page == "Interactive Map":
             key="folium_map" # Add a key for stability
         )
         
+        # ---- Debugging Line Added ----
+        st.write("Map Interaction Output:", map_output) 
+        # ------------------------------
+
         # Check if the tooltip of a GeoJSON feature was clicked
-        clicked_popup_content = map_output.get("last_object_clicked_tooltip")
+        clicked_tooltip_content = map_output.get("last_object_clicked_tooltip")
         
         # Logic to handle the click event based on tooltip content
-        if clicked_popup_content:
+        if clicked_tooltip_content:
             # Attempt to parse the state ID from the tooltip content
             # Assumes tooltip format like "... | ID: XX"
             try:
-                parts = clicked_popup_content.split('|')
+                parts = clicked_tooltip_content.split('|')
                 id_part = next((part for part in parts if 'ID:' in part), None)
                 if id_part:
                     clicked_state_id = id_part.split('ID:')[1].strip()
-                    # ---- Debugging Lines Added ----
-                    st.write(f"Clicked Tooltip Content: '{clicked_popup_content}'")
-                    st.write(f"Extracted State ID: '{clicked_state_id}'")
-                    # ------------------------------
                     # Update query params only if the clicked state is different
                     if st.query_params.get("state", [""])[0] != clicked_state_id:
                         st.query_params.state = clicked_state_id
