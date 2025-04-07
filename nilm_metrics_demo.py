@@ -1731,6 +1731,10 @@ elif page == "Interactive Map":
                 id_part = next((part for part in parts if 'ID:' in part), None)
                 if id_part:
                     clicked_state_id = id_part.split('ID:')[1].strip()
+                    # ---- Debugging Lines Added ----
+                    st.write(f"Clicked Tooltip Content: '{clicked_popup_content}'")
+                    st.write(f"Extracted State ID: '{clicked_state_id}'")
+                    # ------------------------------
                     # Update query params only if the clicked state is different
                     if st.query_params.get("state", [""])[0] != clicked_state_id:
                         st.query_params.state = clicked_state_id
