@@ -1503,6 +1503,12 @@ elif page == "Interactive Map":
             st.error(f"An unexpected error occurred while processing GeoJSON: {e}")
             return None
     # -------------------------------------
+    
+    # --- Load Static Data --- 
+    # Call the functions to load the data needed for the map
+    us_geojson = load_us_geojson()
+    # states_data is loaded within the session state check or later stats sections as needed
+    # ------------------------
 
     # Description
     st.markdown("""
