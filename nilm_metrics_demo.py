@@ -1452,40 +1452,116 @@ elif page == "Interactive Map":
     # Cache the data generation
     @st.cache_data
     def generate_geo_data():
-        """Load pre-generated state summary data from JSON."""
-        file_path = "map_data/states_summary.json"
-        try:
-            with open(file_path, 'r') as f:
-                states_data = json.load(f)
-            return states_data
-        except FileNotFoundError:
-            st.error(f"State summary file not found at {file_path}. Please run the data generation script.")
-            return {} # Return empty dict if file not found
-        except json.JSONDecodeError:
-            st.error(f"Error decoding JSON data for state summary from {file_path}.")
-            return {}
-        except Exception as e:
-            st.error(f"An unexpected error occurred loading state summary data: {e}")
-            return {}
+        # US states with coordinates (approximate centers) - all 50 states plus DC
+        states_data = {
+            'AL': {'name': 'Alabama', 'lat': 32.7794, 'lon': -86.8287, 'zoom': 7},
+            'AK': {'name': 'Alaska', 'lat': 64.0685, 'lon': -152.2782, 'zoom': 4},
+            'AZ': {'name': 'Arizona', 'lat': 34.2744, 'lon': -111.6602, 'zoom': 7},
+            'AR': {'name': 'Arkansas', 'lat': 34.8938, 'lon': -92.4426, 'zoom': 7},
+            'CA': {'name': 'California', 'lat': 36.7783, 'lon': -119.4179, 'zoom': 6},
+            'CO': {'name': 'Colorado', 'lat': 39.5501, 'lon': -105.7821, 'zoom': 7},
+            'CT': {'name': 'Connecticut', 'lat': 41.6219, 'lon': -72.7273, 'zoom': 8},
+            'DE': {'name': 'Delaware', 'lat': 38.9896, 'lon': -75.5050, 'zoom': 8},
+            'DC': {'name': 'District of Columbia', 'lat': 38.9072, 'lon': -77.0369, 'zoom': 10},
+            'FL': {'name': 'Florida', 'lat': 27.6648, 'lon': -81.5158, 'zoom': 6},
+            'GA': {'name': 'Georgia', 'lat': 32.6415, 'lon': -83.4426, 'zoom': 7},
+            'HI': {'name': 'Hawaii', 'lat': 20.2927, 'lon': -156.3737, 'zoom': 7},
+            'ID': {'name': 'Idaho', 'lat': 44.0682, 'lon': -114.7420, 'zoom': 6},
+            'IL': {'name': 'Illinois', 'lat': 40.0417, 'lon': -89.1965, 'zoom': 7},
+            'IN': {'name': 'Indiana', 'lat': 39.8942, 'lon': -86.2816, 'zoom': 7},
+            'IA': {'name': 'Iowa', 'lat': 42.0751, 'lon': -93.4960, 'zoom': 7},
+            'KS': {'name': 'Kansas', 'lat': 38.4937, 'lon': -98.3804, 'zoom': 7},
+            'KY': {'name': 'Kentucky', 'lat': 37.5347, 'lon': -85.3021, 'zoom': 7},
+            'LA': {'name': 'Louisiana', 'lat': 31.0689, 'lon': -91.9968, 'zoom': 7},
+            'ME': {'name': 'Maine', 'lat': 45.3695, 'lon': -69.2428, 'zoom': 7},
+            'MD': {'name': 'Maryland', 'lat': 39.0550, 'lon': -76.7909, 'zoom': 7},
+            'MA': {'name': 'Massachusetts', 'lat': 42.2596, 'lon': -71.8083, 'zoom': 8},
+            'MI': {'name': 'Michigan', 'lat': 44.3467, 'lon': -85.4102, 'zoom': 7},
+            'MN': {'name': 'Minnesota', 'lat': 46.2807, 'lon': -94.3053, 'zoom': 6},
+            'MS': {'name': 'Mississippi', 'lat': 32.7364, 'lon': -89.6678, 'zoom': 7},
+            'MO': {'name': 'Missouri', 'lat': 38.3566, 'lon': -92.4580, 'zoom': 7},
+            'MT': {'name': 'Montana', 'lat': 46.8797, 'lon': -110.3626, 'zoom': 6},
+            'NE': {'name': 'Nebraska', 'lat': 41.5378, 'lon': -99.7951, 'zoom': 7},
+            'NV': {'name': 'Nevada', 'lat': 39.3289, 'lon': -116.6312, 'zoom': 6},
+            'NH': {'name': 'New Hampshire', 'lat': 43.6805, 'lon': -71.5811, 'zoom': 7},
+            'NJ': {'name': 'New Jersey', 'lat': 40.1907, 'lon': -74.6728, 'zoom': 7},
+            'NM': {'name': 'New Mexico', 'lat': 34.4071, 'lon': -106.1126, 'zoom': 6},
+            'NY': {'name': 'New York', 'lat': 42.9538, 'lon': -75.5268, 'zoom': 7},
+            'NC': {'name': 'North Carolina', 'lat': 35.5557, 'lon': -79.3877, 'zoom': 7},
+            'ND': {'name': 'North Dakota', 'lat': 47.4501, 'lon': -100.4659, 'zoom': 7},
+            'OH': {'name': 'Ohio', 'lat': 40.2862, 'lon': -82.7937, 'zoom': 7},
+            'OK': {'name': 'Oklahoma', 'lat': 35.5889, 'lon': -97.4943, 'zoom': 7},
+            'OR': {'name': 'Oregon', 'lat': 43.9336, 'lon': -120.5583, 'zoom': 7},
+            'PA': {'name': 'Pennsylvania', 'lat': 40.8781, 'lon': -77.7996, 'zoom': 7},
+            'RI': {'name': 'Rhode Island', 'lat': 41.6762, 'lon': -71.5562, 'zoom': 9},
+            'SC': {'name': 'South Carolina', 'lat': 33.9169, 'lon': -80.8964, 'zoom': 7},
+            'SD': {'name': 'South Dakota', 'lat': 44.4443, 'lon': -100.2263, 'zoom': 7},
+            'TN': {'name': 'Tennessee', 'lat': 35.8580, 'lon': -86.3505, 'zoom': 7},
+            'TX': {'name': 'Texas', 'lat': 31.4757, 'lon': -99.3312, 'zoom': 6},
+            'UT': {'name': 'Utah', 'lat': 39.3055, 'lon': -111.6703, 'zoom': 7},
+            'VT': {'name': 'Vermont', 'lat': 44.0687, 'lon': -72.6658, 'zoom': 7},
+            'VA': {'name': 'Virginia', 'lat': 37.5215, 'lon': -78.8537, 'zoom': 7},
+            'WA': {'name': 'Washington', 'lat': 47.3826, 'lon': -120.4472, 'zoom': 7},
+            'WV': {'name': 'West Virginia', 'lat': 38.6409, 'lon': -80.6227, 'zoom': 7},
+            'WI': {'name': 'Wisconsin', 'lat': 44.6243, 'lon': -89.9941, 'zoom': 7},
+            'WY': {'name': 'Wyoming', 'lat': 42.9957, 'lon': -107.5512, 'zoom': 7}
+        }
 
-    # New cached function to **load pre-generated** households for a specific state
-    @st.cache_data
-    def generate_households_for_state(state_code, state_info):
-        """Load pre-generated mock household data for a specific state from JSON."""
-        file_path = f"map_data/households_{state_code}.json"
-        try:
-            with open(file_path, 'r') as f:
-                households = json.load(f)
+        # Generate stats for each state
+        for state_code in states_data:
+            state = states_data[state_code]
+            state['total_homes'] = random.randint(150, 500)
+            state['ev_homes'] = random.randint(30, int(state['total_homes'] * 0.3))
+            state['ac_homes'] = random.randint(int(state['total_homes'] * 0.5), int(state['total_homes'] * 0.9))
+            state['pv_homes'] = random.randint(20, int(state['total_homes'] * 0.25))
+
+        def generate_households(state_code, count=100):
+            """Generate mock household data within a state"""
+            state = states_data[state_code]
+            households = []
+
+            # Define the spread of points (in degrees)
+            lat_spread = 1.5
+            lon_spread = 1.5
+
+            for i in range(count):
+                # Randomly place homes around the state center
+                lat = state['lat'] + (random.random() - 0.5) * lat_spread
+                lon = state['lon'] + (random.random() - 0.5) * lon_spread
+
+                # Assign devices randomly but weighted by state percentages
+                has_ev = random.random() < (state['ev_homes'] / state['total_homes'])
+                has_ac = random.random() < (state['ac_homes'] / state['total_homes'])
+                has_pv = random.random() < (state['pv_homes'] / state['total_homes'])
+
+                # Ensure at least one device is present
+                if not (has_ev or has_ac or has_pv):
+                    device_type = random.choice(['ev', 'ac', 'pv'])
+                    if device_type == 'ev': has_ev = True
+                    elif device_type == 'ac': has_ac = True
+                    else: has_pv = True
+
+                household = {
+                    'id': f"{state_code}-{i+1}",
+                    'lat': lat,
+                    'lon': lon,
+                    'has_ev': has_ev,
+                    'has_ac': has_ac,
+                    'has_pv': has_pv,
+                    'energy_consumption': random.randint(20, 100),
+                    'state': state_code
+                }
+                households.append(household)
+
             return households
-        except FileNotFoundError:
-            st.error(f"Data file not found for state {state_code} at {file_path}. Please run the data generation script.")
-            return [] # Return empty list if file not found
-        except json.JSONDecodeError:
-            st.error(f"Error decoding JSON data for state {state_code} from {file_path}.")
-            return []
-        except Exception as e:
-            st.error(f"An unexpected error occurred loading data for state {state_code}: {e}")
-            return []
+
+        # Generate households for each state
+        all_households = []
+        for state_code in states_data:
+            state_households = generate_households(state_code, states_data[state_code]['total_homes'])
+            all_households.extend(state_households)
+
+        return states_data, all_households
 
     # Load GeoJSON data for US states
     @st.cache_data
@@ -1532,8 +1608,8 @@ elif page == "Interactive Map":
         st.rerun()
     
     # Load data with a spinner
-    with st.spinner("Loading state data..."):
-        states_data = generate_geo_data() # Only expect one return value now
+    with st.spinner("Loading map data..."):
+        states_data, all_households = generate_geo_data()
         us_geojson = load_us_geojson()
     
     # Get state from URL parameter if available
@@ -1543,20 +1619,13 @@ elif page == "Interactive Map":
     if selected_state not in states_data:
         selected_state = ""
     
-    # --- Generate/Load household data ONLY if a state is selected ---
-    state_households = [] # Initialize as empty list BEFORE the check
-    if selected_state:
-        # Only call the function if we have a valid state key
-        with st.spinner(f"Loading household data for {states_data[selected_state]['name']}..."):
-             state_households = generate_households_for_state(selected_state, states_data[selected_state])
-    
-    # Filter the loaded households based on sidebar checkboxes 
-    # Iterate over state_households (which is empty if no state is selected)
+    # Filter households by selected state and device types
     filtered_households = [
-        h for h in state_households if 
-        ((show_ev and h.get('has_ev', False)) or 
-         (show_ac and h.get('has_ac', False)) or 
-         (show_pv and h.get('has_pv', False)))
+        h for h in all_households if 
+        (not selected_state or h['state'] == selected_state) and
+        ((show_ev and h['has_ev']) or 
+         (show_ac and h['has_ac']) or 
+         (show_pv and h['has_pv']))
     ]
     
     # Create map
