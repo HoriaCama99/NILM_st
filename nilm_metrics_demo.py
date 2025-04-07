@@ -1546,32 +1546,22 @@ elif page == "Interactive Map":
         selected_state = ""
 
     # --- Load household data --- 
-    households_to_display = []
+    households_to_display = [] # Initialize empty
     if selected_state:
         # Load data only for the selected state
         if states_data:
             with st.spinner(f"Loading household data for {states_data.get(selected_state, {}).get('name', selected_state)}..."):
                  state_households = load_households_for_state(selected_state)
-                 households_to_display = state_households
+                 households_to_display = state_households # Use this list for markers
         else:
             st.error("Could not load state summary data. Household data cannot be loaded.")
-    elif states_data: # No state selected, load ALL household data if state summaries loaded correctly
-        with st.spinner("Loading household data for all states... This might take a moment."):
-            all_households = []
-            total_states_to_load = len(states_data)
-            loaded_count = 0
-            for state_code in states_data.keys():
-                # Optional: Add progress feedback within the spinner
-                # st.spinner(f"Loading household data... ({loaded_count}/{total_states_to_load} states)") 
-                state_households = load_households_for_state(state_code)
-                all_households.extend(state_households)
-                loaded_count += 1
-            households_to_display = all_households
+    # *** REMOVED the block that loaded ALL households ***
     else:
-        # Handle case where states_data failed to load initially
-        st.error("Could not load state summary data. Map cannot be fully generated.")
+        # No state selected, do not load any household data initially
+        pass
 
-    # Filter the loaded households (either all or single-state) based on sidebar checkboxes
+    # Filter the loaded households (will be empty if no state selected) 
+    # based on sidebar checkboxes
     filtered_households = [
         h for h in households_to_display if
         ((show_ev and h.get('has_ev', False)) or
@@ -1579,25 +1569,18 @@ elif page == "Interactive Map":
          (show_pv and h.get('has_pv', False)))
     ]
 
-    # Create map
-    if selected_state:
-        state = states_data[selected_state]
-        m = folium.Map(
-            location=[state['lat'], state['lon']], 
-            zoom_start=state['zoom'],
-            tiles="CartoDB positron"
-        )
-    else:
-        m = folium.Map(
-            location=[39.8283, -98.5795],  # Center of US
-            zoom_start=4,
-            tiles="CartoDB positron"
-        )
-    
+    # Create map - ALWAYS center on US, zoom 4
+    m = folium.Map(
+        location=[39.8283, -98.5795],  # Center of US
+        zoom_start=4,
+        tiles="CartoDB positron"
+    )
+
     # Add satellite view layer
     folium.TileLayer('Esri_WorldImagery', name='Satellite View', attr='Esri').add_to(m)
-    
-    if not selected_state and us_geojson:
+
+    # Add state boundaries regardless of state selection (if GeoJSON loaded)
+    if us_geojson:
         # Add state boundaries with click functionality
         style_function = lambda x: {
             'fillColor': primary_purple,
@@ -1605,65 +1588,102 @@ elif page == "Interactive Map":
             'weight': 1,
             'fillOpacity': 0.5
         }
-        
-        folium.GeoJson(
-            us_geojson,
-            style_function=style_function,
-            highlight_function=lambda x: {
+        highlight_function = lambda x: {
                 'fillColor': light_purple,
                 'color': 'white',
                 'weight': 3,
                 'fillOpacity': 0.7
-            },
+            }
+
+        # Custom popup function to create links
+        def create_state_popup(feature):
+            state_name = feature['properties']['name']
+            state_id = feature['id'] # Assuming the GeoJSON has state codes as 'id'
+            # Construct the URL - this assumes the app is running at the root
+            # If deployed in a subdirectory, this might need adjustment
+            link_url = f"?state={state_id}"
+            return f'<a href="{link_url}" target="_self">Click to load devices for: {state_name}</a>'
+
+        folium.GeoJson(
+            us_geojson,
+            style_function=style_function,
+            highlight_function=highlight_function,
             tooltip=folium.GeoJsonTooltip(
                 fields=['name'],
                 aliases=['State:'],
                 labels=True,
                 sticky=True
             ),
-            popup=folium.GeoJsonPopup(
-                fields=['name'],
-                aliases=['Click to view devices in:']
+            popup=folium.Popup(folium.Html(f'<p>Loading...</p>', script=True)).add_child(
+                folium.features.GeoJsonPopup(fields=['id', 'name'], aliases=['', ''], parse_html=False,
+                                            script=f"""
+                                                function(feature){{ 
+                                                    var state_name = feature.properties.name;
+                                                    var state_id = feature.id;
+                                                    var link_url = '?state=' + state_id;
+                                                    return('<a href="' + link_url + '" target="_self">Click to load devices for: ' + state_name + '</a>');
+                                                }}
+                                            """)
             )
+            # --- Alternative using lambda (might be simpler if it works) ---
+            # popup=folium.GeoJsonPopup(
+            #     fields=['id', 'name'], # Need 'id' which should be the state code
+            #     aliases=['', 'State:'],
+            #     labels=False,
+            #     parse_html=True, # Important to parse the HTML link
+            #     # Use format_string which allows embedding fields
+            #     format_string=lambda x: f'<a href="?state={x['id']}" target="_self">Load {x['name']}</a>'
+            # )
         ).add_to(m)
-    
-    # Create marker cluster for households
-    marker_cluster = MarkerCluster().add_to(m)
-    
-    # Add markers for each household
-    for house in filtered_households:
-        # Determine marker icon based on devices
-        if house['has_ev'] and show_ev:
-            icon_color = "blue"
-            icon_name = "plug"
-        elif house['has_pv'] and show_pv:
-            icon_color = "green"
-            icon_name = "sun"
-        else:
-            icon_color = "orange"
+
+    # Create marker cluster - Add markers ONLY if a state is selected
+    if selected_state and filtered_households:
+        marker_cluster = MarkerCluster(name=f"Devices in {selected_state}").add_to(m)
+
+        # Add markers for each household IN THE SELECTED STATE
+        for house in filtered_households:
+            # Determine marker icon based on devices
+            icon_color = "gray" # Default
             icon_name = "home"
-        
-        # Create popup content
-        popup_content = f"""
-        <div style="min-width: 200px;">
-            <h4>Home {house['id']}</h4>
-            <b>Devices:</b><br>
-            {'✓ EV Charger<br>' if house['has_ev'] else ''}
-            {'✓ AC Unit<br>' if house['has_ac'] else ''}
-            {'✓ Solar Panels<br>' if house['has_pv'] else ''}
-            <b>Daily Energy:</b> {house['energy_consumption']} kWh
-        </div>
-        """
-        
-        # Add marker
-        folium.Marker(
-            location=[house['lat'], house['lon']],
-            popup=folium.Popup(popup_content, max_width=300),
-            icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa'),
-            tooltip=f"Home {house['id']}"
-        ).add_to(marker_cluster)
-    
-    # Add legend
+            if show_ev and house.get('has_ev'):
+                icon_color = "blue"
+                icon_name = "plug"
+            elif show_ac and house.get('has_ac'):
+                icon_color = "orange"
+                icon_name = "snowflake" # Changed for AC
+            elif show_pv and house.get('has_pv'):
+                icon_color = "green"
+                icon_name = "sun"
+            # If multiple are true & shown, prioritize EV > AC > PV
+            if show_ac and house.get('has_ac') and icon_color == "gray":
+                 icon_color = "orange"
+                 icon_name = "snowflake"
+            if show_pv and house.get('has_pv') and icon_color == "gray":
+                 icon_color = "green"
+                 icon_name = "sun"
+
+
+            # Create popup content
+            popup_content = f"""
+            <div style="min-width: 200px;">
+                <h4>Home {house.get('id', 'N/A')}</h4>
+                <b>Devices:</b><br>
+                {'✓ EV Charger<br>' if house.get('has_ev') else ''}
+                {'✓ AC Unit<br>' if house.get('has_ac') else ''}
+                {'✓ Solar Panels<br>' if house.get('has_pv') else ''}
+                <b>Daily Energy:</b> {house.get('energy_consumption', 'N/A')} kWh
+            </div>
+            """
+
+            # Add marker
+            folium.Marker(
+                location=[house['lat'], house['lon']],
+                popup=folium.Popup(popup_content, max_width=300),
+                icon=folium.Icon(color=icon_color, icon=icon_name, prefix='fa'),
+                tooltip=f"Home {house.get('id', 'N/A')}"
+            ).add_to(marker_cluster)
+
+    # Add legend (always visible)
     legend_html = '''
     <div style="position: fixed; bottom: 50px; right: 50px; 
                 background-color: white; padding: 10px; border-radius: 5px;
@@ -1684,18 +1704,21 @@ elif page == "Interactive Map":
     </div>
     '''
     m.get_root().html.add_child(folium.Element(legend_html))
-    
+
     # Add Layer Control to toggle layers
     folium.LayerControl().add_to(m)
-    
-    # Display the map with a loading spinner
-    with st.spinner("Rendering map... This may take a moment for all states..."):
+
+    # Display the map
+    with st.spinner("Rendering map..."):
         st.subheader("Interactive Energy Deployment Map")
-        st.caption("Click on a state to see details or use the controls to filter by device type")
+        if selected_state:
+             st.caption(f"Showing devices for {states_data.get(selected_state,{}).get('name', selected_state)}. Click another state or use Refresh button.")
+        else:
+             st.caption("Click on a state to load device locations.")
         folium_static(m, width=1000, height=600)
-        st.info("💡 **Tip:** Use the refresh button in the sidebar to reset the map view if needed.")
-    
-    # Add summary statistics even if no state is selected
+        st.info("💡 **Tip:** Use the refresh button in the sidebar to clear state selection and reset the map view.")
+
+    # Add summary statistics (logic remains the same, based on states_data or selected_state)
     if not selected_state:
         st.subheader("Portfolio Overview")
         
