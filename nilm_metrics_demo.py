@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 import random
 from datetime import datetime, timedelta
 import folium
-from streamlit_folium import folium_static
+from streamlit_folium import st_folium # Changed from folium_static
 import json
 import geopandas as gpd
 from folium.plugins import MarkerCluster
@@ -1443,7 +1443,7 @@ elif page == "Interactive Map":
     # Description
     st.markdown("""
     This map shows the geographic distribution of homes equipped with NILM-detected devices.
-    **Click on a state** to zoom in and see individual homes with EV chargers, AC units, and solar panels.
+    **Click on a state** to load and display individual homes with EV chargers, AC units, and solar panels.
     """)
     
     # Create function to generate mock data for US states
@@ -1534,42 +1534,38 @@ elif page == "Interactive Map":
     </style>
     """, unsafe_allow_html=True)
     
-    # Add refresh button
+    # Initialize selected_state in session state if it doesn't exist
+    if 'selected_state' not in st.session_state:
+        st.session_state.selected_state = None
+
+    # Refresh button action - clear session state
     if st.sidebar.button("↻ Refresh Map View", use_container_width=True):
-        # Reset any state selection and reload the page
-        st.query_params.clear()
+        st.session_state.selected_state = None
         st.rerun()
     
-    # Load data with a spinner
-    with st.spinner("Loading state data..."):
-        states_data = generate_geo_data() # Only expect state summaries now
-        us_geojson = load_us_geojson()
-    
-    # Get state from URL parameter if available
-    params = st.query_params
-    selected_state = params.get("state", [""])[0]
+    # Load base data (states summary, geojson)
+    with st.spinner("Loading base map data..."):
+        states_data = generate_geo_data() # State summaries
+        us_geojson = load_us_geojson() # State boundaries with ID in properties
 
-    if selected_state and selected_state not in states_data:
-        st.warning(f"State code '{selected_state}' from URL not found in data. Showing national view.")
-        selected_state = ""
+    # Determine the currently selected state from session state
+    current_selected_state = st.session_state.selected_state
 
-    # --- Load household data --- 
-    households_to_display = [] # Initialize empty
-    if selected_state:
+    # --- Load household data based on selected state --- 
+    households_to_display = []
+    if current_selected_state:
         # Load data only for the selected state
         if states_data:
-            with st.spinner(f"Loading household data for {states_data.get(selected_state, {}).get('name', selected_state)}..."):
-                 state_households = load_households_for_state(selected_state)
-                 households_to_display = state_households # Use this list for markers
+            with st.spinner(f"Loading household data for {states_data.get(current_selected_state, {}).get('name', current_selected_state)}..."):
+                 state_households = load_households_for_state(current_selected_state)
+                 households_to_display = state_households
         else:
             st.error("Could not load state summary data. Household data cannot be loaded.")
-    # *** REMOVED the block that loaded ALL households ***
     else:
-        # No state selected, do not load any household data initially
+        # No state selected, no household data needed yet
         pass
 
-    # Filter the loaded households (will be empty if no state selected) 
-    # based on sidebar checkboxes
+    # Filter households (if any were loaded)
     filtered_households = [
         h for h in households_to_display if
         ((show_ev and h.get('has_ev', False)) or
@@ -1577,7 +1573,7 @@ elif page == "Interactive Map":
          (show_pv and h.get('has_pv', False)))
     ]
 
-    # Create map - ALWAYS center on US, zoom 4
+    # --- Create Folium Map --- 
     m = folium.Map(
         location=[39.8283, -98.5795],  # Center of US
         zoom_start=4,
@@ -1587,92 +1583,54 @@ elif page == "Interactive Map":
     # Add satellite view layer
     folium.TileLayer('Esri_WorldImagery', name='Satellite View', attr='Esri').add_to(m)
 
-    # Add state boundaries regardless of state selection (if GeoJSON loaded)
+    # Add state boundaries - REMOVE the interactive popup link
     if us_geojson:
-        # Add state boundaries with click functionality
         style_function = lambda x: {
             'fillColor': primary_purple,
             'color': 'white',
             'weight': 1,
-            'fillOpacity': 0.5
+            'fillOpacity': 0.5 if x['properties']['id'] != current_selected_state else 0.7 # Highlight selected
         }
         highlight_function = lambda x: {
                 'fillColor': light_purple,
                 'color': 'white',
                 'weight': 3,
-                'fillOpacity': 0.7
+                'fillOpacity': 0.8 # More opaque on hover
             }
-
-        # Custom popup function to create links
-        def create_state_popup(feature):
-            state_name = feature['properties']['name']
-            state_id = feature['id'] # Assuming the GeoJSON has state codes as 'id'
-            # Construct the URL - this assumes the app is running at the root
-            # If deployed in a subdirectory, this might need adjustment
-            link_url = f"?state={state_id}"
-            return f'<a href="{link_url}" target="_self">Click to load devices for: {state_name}</a>'
 
         folium.GeoJson(
             us_geojson,
+            name="States", # Give the layer a name for potential reference
             style_function=style_function,
             highlight_function=highlight_function,
-            tooltip=folium.GeoJsonTooltip(
+            tooltip=folium.features.GeoJsonTooltip(
                 fields=['name'],
                 aliases=['State:'],
-                labels=True,
                 sticky=True
             ),
-            # Correctly assign GeoJsonPopup directly to the popup argument
-            popup=folium.features.GeoJsonPopup(
-                fields=['id', 'name'], # Now 'id' should be found in properties
-                aliases=['', ''], # No labels needed for these fields
-                # Use the script argument for dynamic link generation
-                script="""
-                    function(feature) {
-                        var state_name = feature.properties.name;
-                        // Access the ID from properties now
-                        var state_id = feature.properties.id; 
-                        // Basic check if state_id exists before creating link
-                        if (state_id) {
-                           var link_url = '?state=' + state_id;
-                           // Use target='_top' to reload the main window, breaking out of the iframe
-                           return '<a href="' + link_url + '" target="_top">Click to load devices for: ' + state_name + '</a>';
-                        } else {
-                           return 'State ID not found for ' + state_name;
-                        } 
-                    }
-                """,
-                parse_html=False, # Script generates HTML, no need to parse
-                max_width=300 # Optional: control popup width
-            )
+            # NO POPUP LINK - interaction handled by st_folium return value
         ).add_to(m)
 
-    # Create marker cluster - Add markers ONLY if a state is selected
-    if selected_state and filtered_households:
-        marker_cluster = MarkerCluster(name=f"Devices in {selected_state}").add_to(m)
-
-        # Add markers for each household IN THE SELECTED STATE
+    # Add markers ONLY if a state is selected
+    if current_selected_state and filtered_households:
+        marker_cluster = MarkerCluster(name=f"Devices in {current_selected_state}").add_to(m)
+        # Ensure the entire block below is indented relative to the 'for' loop
         for house in filtered_households:
             # Determine marker icon based on devices
             icon_color = "gray" # Default
             icon_name = "home"
+            # Prioritize icon based on filter checkboxes AND presence
             if show_ev and house.get('has_ev'):
-                icon_color = "blue"
-                icon_name = "plug"
+                icon_color = "blue"; icon_name = "plug"
             elif show_ac and house.get('has_ac'):
-                icon_color = "orange"
-                icon_name = "snowflake" # Changed for AC
+                icon_color = "orange"; icon_name = "snowflake"
             elif show_pv and house.get('has_pv'):
-                icon_color = "green"
-                icon_name = "sun"
-            # If multiple are true & shown, prioritize EV > AC > PV
-            if show_ac and house.get('has_ac') and icon_color == "gray":
-                 icon_color = "orange"
-                 icon_name = "snowflake"
-            if show_pv and house.get('has_pv') and icon_color == "gray":
-                 icon_color = "green"
-                 icon_name = "sun"
-
+                icon_color = "green"; icon_name = "sun"
+            # Fallback if filters hide all specific icons but house is still shown
+            if icon_color == "gray" and (house.get('has_ev') or house.get('has_ac') or house.get('has_pv')):
+                 if house.get('has_ev'): icon_color = "blue"; icon_name = "plug"
+                 elif house.get('has_ac'): icon_color = "orange"; icon_name = "snowflake"
+                 elif house.get('has_pv'): icon_color = "green"; icon_name = "sun"
 
             # Create popup content
             popup_content = f"""
@@ -1716,131 +1674,173 @@ elif page == "Interactive Map":
     '''
     m.get_root().html.add_child(folium.Element(legend_html))
 
-    # Add Layer Control to toggle layers
+    # Add Layer Control
     folium.LayerControl().add_to(m)
 
-    # Display the map
-    with st.spinner("Rendering map..."):
-        st.subheader("Interactive Energy Deployment Map")
-        if selected_state:
-             st.caption(f"Showing devices for {states_data.get(selected_state,{}).get('name', selected_state)}. Click another state or use Refresh button.")
-        else:
-             st.caption("Click on a state to load device locations.")
-        folium_static(m, width=1000, height=600)
-        st.info("💡 **Tip:** Use the refresh button in the sidebar to clear state selection and reset the map view.")
+    # --- Display Map using st_folium and Handle Clicks --- 
+    st.subheader("Interactive Energy Deployment Map")
+    if current_selected_state:
+        st.caption(f"Showing devices for {states_data.get(current_selected_state,{}).get('name', current_selected_state)}. Click another state or use Refresh button.")
+    else:
+        st.caption("Click on a state to load device locations.")
 
-    # Add summary statistics (logic remains the same, based on states_data or selected_state)
-    if not selected_state:
+    # Use st_folium here
+    map_data = st_folium(
+        m,
+        width=1000,
+        height=600,
+        returned_objects=["last_object_clicked", "last_object_clicked_tooltip"]
+    )
+
+    # Process the returned data to see if a state was clicked
+    clicked_state_id = None
+    if map_data and map_data.get("last_object_clicked"):
+        clicked_data = map_data["last_object_clicked"]
+        if isinstance(clicked_data, dict) and 'properties' in clicked_data and 'id' in clicked_data['properties']:
+            clicked_state_id = clicked_data['properties']['id']
+        elif isinstance(clicked_data, dict) and 'id' in clicked_data:
+            clicked_state_id = clicked_data['id']
+
+    # If a valid state ID was clicked and it's different from the current state, update session state and rerun
+    if clicked_state_id and clicked_state_id != current_selected_state:
+        st.session_state.selected_state = clicked_state_id
+        # Note: It's often better to put st.rerun() at the very end of the script 
+        # if multiple conditions might trigger it, but here it's okay.
+        st.rerun()
+
+    st.info("💡 **Tip:** Use the refresh button in the sidebar to clear state selection and reset the map view.")
+
+    # --- Display Summary Statistics Sections (AFTER map display/interaction) --- 
+    # This whole block needs to be correctly indented at the same level as the map display code
+
+    # Add summary statistics (logic remains the same, based on st.session_state.selected_state)
+    # Ensure this section uses 'current_selected_state' variable defined above
+    if not current_selected_state:
+        # Portfolio Overview Section (Indented correctly)
         st.subheader("Portfolio Overview")
-        
-        total_homes = sum(states_data[state]['total_homes'] for state in states_data)
-        total_ev = sum(states_data[state]['ev_homes'] for state in states_data)
-        total_ac = sum(states_data[state]['ac_homes'] for state in states_data)
-        total_pv = sum(states_data[state]['pv_homes'] for state in states_data)
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total Homes", f"{total_homes:,}")
-        with col2:
-            st.metric("EV Chargers", f"{total_ev:,}", f"{total_ev/total_homes:.1%}")
-        with col3:
-            st.metric("AC Units", f"{total_ac:,}", f"{total_ac/total_homes:.1%}")
-        with col4:
-            st.metric("Solar Panels", f"{total_pv:,}", f"{total_pv/total_homes:.1%}")
-        
-        # Add device distribution bar chart
-        st.subheader("Device Distribution by State")
-        
-        # Get top 10 states for the visualization
-        top_states = sorted(
-            [(code, states_data[code]['name'], 
-              states_data[code]['ev_homes'] + states_data[code]['ac_homes'] + states_data[code]['pv_homes']) 
-             for code in states_data],
-            key=lambda x: x[2], reverse=True
-        )[:10]
-        
-        chart_data = []
-        for code, name, _ in top_states:
-            chart_data.extend([
-                {'State': name, 'Device': 'EV Chargers', 'Count': states_data[code]['ev_homes']},
-                {'State': name, 'Device': 'AC Units', 'Count': states_data[code]['ac_homes']},
-                {'State': name, 'Device': 'Solar Panels', 'Count': states_data[code]['pv_homes']}
-            ])
-        
-        fig = px.bar(
-            pd.DataFrame(chart_data),
-            x='State', y='Count', color='Device',
-            color_discrete_map={
-                'EV Chargers': 'blue',
-                'AC Units': 'orange',
-                'Solar Panels': 'green'
-            },
-            title='Top 10 States by Device Distribution',
-            barmode='group'
-        )
-        
-        fig.update_layout(
-            xaxis_title='State',
-            yaxis_title='Number of Devices',
-            legend_title='Device Type',
-            plot_bgcolor=white,
-            paper_bgcolor=white,
-            font=dict(color=dark_purple)
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-            
-        # Show state breakdown
-        st.subheader("State Breakdown")
-        state_stats = []
-        for code in states_data:
-            state = states_data[code]
-            state_stats.append({
-                "State": state['name'],
-                "Total Homes": state['total_homes'],
-                "EV Chargers": state['ev_homes'],
-                "AC Units": state['ac_homes'],
-                "Solar Panels": state['pv_homes'],
-                "EV %": f"{state['ev_homes']/state['total_homes']:.1%}",
-                "AC %": f"{state['ac_homes']/state['total_homes']:.1%}",
-                "Solar %": f"{state['pv_homes']/state['total_homes']:.1%}"
-            })
-        
-        st.dataframe(pd.DataFrame(state_stats), use_container_width=True)
-    
-    # Display statistics if a state is selected
-    if selected_state:
-        state = states_data[selected_state]
-        st.subheader(f"{state['name']} Statistics")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total Homes", f"{state['total_homes']:,}")
-        with col2:
-            ev_pct = state['ev_homes']/state['total_homes']
-            st.metric("EV Chargers", f"{state['ev_homes']:,}", f"{ev_pct:.1%}")
-        with col3:
-            ac_pct = state['ac_homes']/state['total_homes']
-            st.metric("AC Units", f"{state['ac_homes']:,}", f"{ac_pct:.1%}")
-        with col4:
-            pv_pct = state['pv_homes']/state['total_homes']
-            st.metric("Solar Panels", f"{state['pv_homes']:,}", f"{pv_pct:.1%}")
-        
-        # Display data table
-        st.subheader("Homes Data")
-        columns_to_show = ['id', 'energy_consumption', 'has_ev', 'has_ac', 'has_pv']
-        df = pd.DataFrame(filtered_households)[columns_to_show]
-        
-        # Rename columns for display
-        column_map = {
-            'id': 'Home ID',
-            'energy_consumption': 'Energy (kWh)',
-            'has_ev': 'EV Charger',
-            'has_ac': 'AC Unit',
-            'has_pv': 'Solar Panel'
-        }
-        df = df.rename(columns=column_map)
-        st.dataframe(df, use_container_width=True)
+        if states_data: # Check if state data loaded successfully
+            total_homes = sum(states_data[state].get('total_homes', 0) for state in states_data)
+            total_ev = sum(states_data[state].get('ev_homes', 0) for state in states_data)
+            total_ac = sum(states_data[state].get('ac_homes', 0) for state in states_data)
+            total_pv = sum(states_data[state].get('pv_homes', 0) for state in states_data)
+
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Homes", f"{total_homes:,}")
+            # Add checks for total_homes > 0 before calculating percentages
+            with col2:
+                ev_perc = (total_ev / total_homes * 100) if total_homes > 0 else 0
+                st.metric("EV Chargers", f"{total_ev:,}", f"{ev_perc:.1%}")
+            with col3:
+                ac_perc = (total_ac / total_homes * 100) if total_homes > 0 else 0
+                st.metric("AC Units", f"{total_ac:,}", f"{ac_perc:.1%}")
+            with col4:
+                pv_perc = (total_pv / total_homes * 100) if total_homes > 0 else 0
+                st.metric("Solar Panels", f"{total_pv:,}", f"{pv_perc:.1%}")
+
+            # Add device distribution bar chart
+            st.subheader("Device Distribution by State")
+            # Get top 10 states for the visualization (handle potential missing keys)
+            top_states_data = [
+                (code, data.get('name', 'N/A'), 
+                 data.get('ev_homes', 0) + data.get('ac_homes', 0) + data.get('pv_homes', 0))
+                for code, data in states_data.items()
+            ]
+            top_states = sorted(top_states_data, key=lambda x: x[2], reverse=True)[:10]
+
+            chart_data = []
+            for code, name, _ in top_states:
+                state_details = states_data.get(code, {})
+                chart_data.extend([
+                    {'State': name, 'Device': 'EV Chargers', 'Count': state_details.get('ev_homes', 0)},
+                    {'State': name, 'Device': 'AC Units', 'Count': state_details.get('ac_homes', 0)},
+                    {'State': name, 'Device': 'Solar Panels', 'Count': state_details.get('pv_homes', 0)}
+                ])
+
+            if chart_data: # Only show chart if data exists
+                fig = px.bar(
+                    pd.DataFrame(chart_data),
+                    x='State', y='Count', color='Device',
+                    color_discrete_map={
+                        'EV Chargers': 'blue',
+                        'AC Units': 'orange',
+                        'Solar Panels': 'green'
+                    },
+                    title='Top 10 States by Device Distribution',
+                    barmode='group'
+                )
+                fig.update_layout(
+                    xaxis_title='State',
+                    yaxis_title='Number of Devices',
+                    legend_title='Device Type',
+                    plot_bgcolor=white,
+                    paper_bgcolor=white,
+                    font=dict(color=dark_purple)
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.write("No device data available for chart.")
+
+            # Show state breakdown
+            st.subheader("State Breakdown")
+            state_stats = []
+            for code, data in states_data.items():
+                total_h = data.get('total_homes', 1) # Avoid division by zero
+                if total_h == 0: total_h = 1 # Ensure it's at least 1
+                state_stats.append({
+                    "State": data.get('name', 'N/A'),
+                    "Total Homes": data.get('total_homes', 0),
+                    "EV Chargers": data.get('ev_homes', 0),
+                    "AC Units": data.get('ac_homes', 0),
+                    "Solar Panels": data.get('pv_homes', 0),
+                    "EV %": f"{(data.get('ev_homes', 0) / total_h * 100):.1%}",
+                    "AC %": f"{(data.get('ac_homes', 0) / total_h * 100):.1%}",
+                    "Solar %": f"{(data.get('pv_homes', 0) / total_h * 100):.1%}"
+                })
+            st.dataframe(pd.DataFrame(state_stats), use_container_width=True)
+        else:
+            st.warning("State summary data could not be loaded. Cannot display portfolio overview.")
+
+    # Display statistics if a state is selected (Indented correctly)
+    elif current_selected_state:
+        if states_data and current_selected_state in states_data:
+            state = states_data[current_selected_state]
+            st.subheader(f"{state.get('name', current_selected_state)} Statistics")
+            total_h = state.get('total_homes', 1)
+            if total_h == 0: total_h = 1
+
+            col1, col2, col3, col4 = st.columns(4)
+            with col1: st.metric("Total Homes", f"{state.get('total_homes',0):,}")
+            with col2: ev_pct = (state.get('ev_homes',0) / total_h * 100); st.metric("EV Chargers", f"{state.get('ev_homes',0):,}", f"{ev_pct:.1%}")
+            with col3: ac_pct = (state.get('ac_homes',0) / total_h * 100); st.metric("AC Units", f"{state.get('ac_homes',0):,}", f"{ac_pct:.1%}")
+            with col4: pv_pct = (state.get('pv_homes',0) / total_h * 100); st.metric("Solar Panels", f"{state.get('pv_homes',0):,}", f"{pv_pct:.1%}")
+
+            # Display data table for the selected state's filtered households
+            if filtered_households:
+                st.subheader("Homes Data (Filtered)")
+                columns_to_show = ['id', 'energy_consumption', 'has_ev', 'has_ac', 'has_pv']
+                df_data = [{
+                    'id': h.get('id'),
+                    'energy_consumption': h.get('energy_consumption'),
+                    'has_ev': h.get('has_ev', False),
+                    'has_ac': h.get('has_ac', False),
+                    'has_pv': h.get('has_pv', False)
+                } for h in filtered_households]
+                df = pd.DataFrame(df_data)[columns_to_show]
+                column_map = {
+                    'id': 'Home ID',
+                    'energy_consumption': 'Energy (kWh)',
+                    'has_ev': 'EV Charger',
+                    'has_ac': 'AC Unit',
+                    'has_pv': 'Solar Panel'
+                }
+                df = df.rename(columns=column_map)
+                st.dataframe(df, use_container_width=True)
+            else:
+                st.write("No homes match the current filter criteria for this state.")
+        else:
+            st.warning(f"Could not retrieve statistics for state code: {current_selected_state}")
+
     # --- End Map Generation Logic ---
 
     # Footer
