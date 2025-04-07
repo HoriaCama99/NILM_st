@@ -1535,16 +1535,25 @@ elif page == "Interactive Map":
             lon = state['lon'] + (random.random() - 0.5) * lon_spread
 
             # Assign devices randomly but weighted by state percentages
-            has_ev = random.random() < (state['ev_homes'] / state['total_homes'])
-            has_ac = random.random() < (state['ac_homes'] / state['total_homes'])
-            has_pv = random.random() < (state['pv_homes'] / state['total_homes'])
+            # Use percentages directly from states_info for consistency
+            ev_prob = state['ev_homes'] / state['total_homes']
+            ac_prob = state['ac_homes'] / state['total_homes']
+            pv_prob = state['pv_homes'] / state['total_homes']
 
-            # Ensure at least one device is present
+            has_ev = random.random() < ev_prob
+            has_ac = random.random() < ac_prob
+            has_pv = random.random() < pv_prob
+
+            # Ensure at least one device is present if filters require it (simplification)
+            # This logic might need refinement depending on exact requirements
+            # For now, ensure *something* is true if needed by simple assignment
             if not (has_ev or has_ac or has_pv):
-                device_type = random.choice(['ev', 'ac', 'pv'])
-                if device_type == 'ev': has_ev = True
-                elif device_type == 'ac': has_ac = True
-                else: has_pv = True
+                 # If all are false, randomly set one based on probability as a fallback
+                 rand_choice = random.random()
+                 if rand_choice < ev_prob: has_ev = True
+                 elif rand_choice < ev_prob + ac_prob: has_ac = True
+                 else: has_pv = True
+
 
             household = {
                 'id': f"{state_code}-{i+1}",
@@ -1559,6 +1568,48 @@ elif page == "Interactive Map":
             households.append(household)
         
         return households
+        
+    # --- New Function: Generate Historical Data ---
+    @st.cache_data
+    def generate_historical_data_for_state(state_code, states_info, num_years=5):
+        """Generates simulated historical appliance adoption percentages for a state."""
+        if state_code not in states_info:
+            return pd.DataFrame()
+
+        state = states_info[state_code]
+        current_year = datetime.datetime.now().year
+        years = list(range(current_year - num_years + 1, current_year + 1))
+        
+        # Get current percentages
+        current_ev_pct = (state['ev_homes'] / state['total_homes']) * 100
+        current_ac_pct = (state['ac_homes'] / state['total_homes']) * 100
+        current_pv_pct = (state['pv_homes'] / state['total_homes']) * 100
+
+        data = []
+        
+        # Simulate historical data with upward trend (especially EV, PV) and noise
+        for year in years:
+            year_factor = (year - (current_year - num_years)) / num_years # 0 to 1 scale over years
+
+            # Simulate EV: lower start, strong growth + noise
+            ev_start_factor = 0.2 + random.uniform(-0.1, 0.1) # Start around 20% of current value
+            ev_pct = max(1, current_ev_pct * (ev_start_factor + (1 - ev_start_factor) * year_factor**1.5) + random.uniform(-2, 2))
+            data.append({'Year': year, 'Device': 'EV Chargers', 'Percentage': ev_pct})
+
+            # Simulate AC: higher start, slower growth + noise
+            ac_start_factor = 0.8 + random.uniform(-0.05, 0.05) # Start around 80% of current value
+            ac_pct = min(95, max(10, current_ac_pct * (ac_start_factor + (1 - ac_start_factor) * year_factor**0.8) + random.uniform(-3, 3)))
+            data.append({'Year': year, 'Device': 'AC Units', 'Percentage': ac_pct})
+
+            # Simulate PV: lower start, moderate growth + noise
+            pv_start_factor = 0.3 + random.uniform(-0.1, 0.1) # Start around 30% of current value
+            pv_pct = max(1, current_pv_pct * (pv_start_factor + (1 - pv_start_factor) * year_factor**1.2) + random.uniform(-1.5, 1.5))
+            data.append({'Year': year, 'Device': 'Solar Panels', 'Percentage': pv_pct})
+
+        hist_df = pd.DataFrame(data)
+        # Ensure percentages are within reasonable bounds (0-100)
+        hist_df['Percentage'] = hist_df['Percentage'].clip(0, 100)
+        return hist_df
 
     # Load GeoJSON data for US states
     @st.cache_data
@@ -1815,6 +1866,48 @@ elif page == "Interactive Map":
             st.dataframe(df, use_container_width=True, height=300) # Added height limit
         else:
              st.write("No data to display for the current filter selection.")
+
+        # --- Add Historical Trend Section ---
+        st.markdown("---") # Separator
+        st.subheader(f"Historical Appliance Trends for {state['name']}")
+        st.caption("Simulated adoption rates over the last 5 years.")
+
+        # Generate historical data
+        historical_df = generate_historical_data_for_state(selected_state_code, states_info, num_years=5)
+
+        if not historical_df.empty:
+            # Create line chart
+            fig_hist = px.line(
+                historical_df,
+                x='Year',
+                y='Percentage',
+                color='Device',
+                markers=True,
+                labels={'Percentage': 'Adoption Rate (%)', 'Device': 'Appliance Type'},
+                color_discrete_map={
+                        'EV Chargers': primary_purple, # Use existing color scheme
+                        'AC Units': green,
+                        'Solar Panels': cream # Or perhaps another distinct color like salmon? Let's use cream for now.
+                },
+                template='plotly_white' # Use a clean template
+            )
+
+            fig_hist.update_layout(
+                yaxis_range=[0, 100],
+                xaxis=dict(tickmode='linear'), # Ensure all years are shown
+                legend_title="Appliance Type",
+                paper_bgcolor=white,
+                plot_bgcolor=white,
+                font=dict(color=dark_purple)
+            )
+            
+            fig_hist.update_traces(marker=dict(size=8))
+
+            st.plotly_chart(fig_hist, use_container_width=True)
+        else:
+            st.warning("Could not generate historical data.")
+        # --- End Historical Trend Section ---
+
 
     else:
         # Optionally show overall stats or a message when no state is selected
