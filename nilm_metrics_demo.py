@@ -1443,12 +1443,10 @@ elif page == "Interactive Map":
     # Description
     st.markdown("""
     This map shows the geographic distribution of homes equipped with NILM-detected devices.
-    **Click on a state** to zoom in and see individual homes with EV chargers, AC units, and solar panels.
+    Use the dropdown below to select a state and view its individual homes with EV chargers, AC units, and solar panels.
     """)
     
-    # Create function to generate mock data for US states
-    # Cache the data generation
-
+    # --- Define the data loading functions ---
     # Cache the data generation
     @st.cache_data
     def generate_geo_data():
@@ -1495,7 +1493,7 @@ elif page == "Interactive Map":
             response = requests.get("https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json")
             response.raise_for_status() # Raise an exception for bad status codes
             us_states = response.json()
-
+            
             # --- Add state ID to properties for popup access ---
             if us_states and 'features' in us_states:
                 for feature in us_states['features']:
@@ -1510,9 +1508,29 @@ elif page == "Interactive Map":
         except Exception as e:
             st.error(f"An unexpected error occurred while processing GeoJSON: {e}")
             return None
+    
+    # --- HANDLE URL PARAMETERS FIRST ---
+    # Check URL parameters for state
+    params = st.query_params
+    state_param = params.get("state", [""])[0]
 
-    # --- Add Map Generation and Display Logic ---
-    # Create filter controls in sidebar
+    # Load state data right away so we can validate
+    with st.spinner("Loading state data..."):
+        states_data = generate_geo_data()
+        us_geojson = load_us_geojson()
+
+    # If there's an invalid state parameter, clear it immediately
+    if state_param and state_param not in states_data:
+        st.warning(f"State code '{state_param}' is not valid. State parameter has been cleared.")
+        # Clear the invalid parameter
+        params.clear()
+        # Force page rerun
+        st.rerun()
+        
+    # Now we know any state parameter in the URL is valid
+    selected_state = state_param
+    
+    # --- Create filter controls in sidebar ---
     st.sidebar.markdown("### Map Filters")
     show_ev = st.sidebar.checkbox("Show EV Chargers", value=True)
     show_ac = st.sidebar.checkbox("Show AC Units", value=True)
@@ -1540,40 +1558,6 @@ elif page == "Interactive Map":
         st.query_params.clear()
         st.rerun()
     
-    # Load data with a spinner
-    with st.spinner("Loading state data..."):
-        states_data = generate_geo_data() # Only expect state summaries now
-        us_geojson = load_us_geojson()
-    
-    # Get state from URL parameter if available
-    params = st.query_params
-    selected_state = params.get("state", [""])[0]
-
-    # Validate state code against available states
-    if selected_state:
-        if selected_state not in states_data:
-            # Check if it's a case sensitivity issue
-            valid_state_codes = list(states_data.keys())
-            
-            # Try to get a close match if possible
-            matches = [code for code in valid_state_codes if code.upper() == selected_state.upper()]
-            if matches:
-                # Found a case-insensitive match
-                correct_state = matches[0]
-                st.info(f"Found state '{states_data[correct_state]['name']}' with code '{correct_state}' (case mismatch with '{selected_state}')")
-                # Redirect to the correct state code
-                st.query_params.state = correct_state
-                st.rerun()
-            else:
-                # No match at all - show message and clear
-                st.warning(f"State code '{selected_state}' is not valid. Please select from the dropdown.")
-                # Reset to national view
-                selected_state = ""
-                # Clear the invalid parameter from URL
-                st.query_params.clear()
-                
-    # Rest of the map code remains the same
-
     # --- Load household data --- 
     households_to_display = [] # Initialize empty
     if selected_state:
