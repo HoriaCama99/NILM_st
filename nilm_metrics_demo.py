@@ -1440,33 +1440,8 @@ elif page == "Interactive Map":
     st.title("NILM Deployment Map")
     st.subheader("Geographic Distribution of Homes with Smart Devices")
     
-    # Description
-    st.markdown("""
-    This map shows the geographic distribution of homes equipped with NILM-detected devices.
-    **Click on a state** to zoom in and see individual homes with EV chargers, AC units, and solar panels.
-    """)
-    
-    # --- Session State Initialization and Sync --- 
-    # Initialize session state if it doesn't exist, using URL param as default
-    if 'selected_state' not in st.session_state:
-        st.session_state.selected_state = st.query_params.get("state", [""])[0]
-        
-    # Sync session state if URL parameter changes (e.g., direct navigation)
-    url_state = st.query_params.get("state", [""])[0]
-    if url_state != st.session_state.selected_state:
-        st.session_state.selected_state = url_state
-        # No rerun needed here, Streamlit handles updates based on session state change
-        
-    # Check if the state code (now from session state) exists in the summary data
-    # Perform this check early
-    if st.session_state.selected_state and st.session_state.selected_state not in generate_geo_data(): # Assuming generate_geo_data returns the dict
-        st.warning(f"State code '{st.session_state.selected_state}' not found in data. Showing national view.")
-        st.session_state.selected_state = "" # Reset session state
-        if st.query_params.get("state"): # Clear invalid query param if present
-             del st.query_params["state"] 
-    # -------------------------------------------
-
-    # Create function to generate mock data for US states
+    # --- Define Helper Functions First ---
+    # Cache the data generation
     @st.cache_data
     def generate_geo_data():
         """Load pre-generated state summary data from JSON."""
@@ -1527,48 +1502,36 @@ elif page == "Interactive Map":
         except Exception as e:
             st.error(f"An unexpected error occurred while processing GeoJSON: {e}")
             return None
+    # -------------------------------------
 
-    # --- Add Map Generation and Display Logic ---
-    # Create filter controls in sidebar
-    st.sidebar.markdown("### Map Filters")
-    show_ev = st.sidebar.checkbox("Show EV Chargers", value=True)
-    show_ac = st.sidebar.checkbox("Show AC Units", value=True)
-    show_pv = st.sidebar.checkbox("Show Solar Panels", value=True)
+    # Description
+    st.markdown("""
+    This map shows the geographic distribution of homes equipped with NILM-detected devices.
+    **Click on a state** to zoom in and see individual homes with EV chargers, AC units, and solar panels.
+    """)
     
-    # Add custom styling for the refresh button
-    st.sidebar.markdown("""
-    <style>
-    div[data-testid="stButton"] button {
-        background-color: #515D9A !important;
-        color: black !important;
-        font-weight: bold !important;
-        border: 1px solid darkgray !important;
-    }
-    div[data-testid="stButton"] button:hover {
-        background-color: #B8BCF3 !important;
-        color: black !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Add refresh button
-    if st.sidebar.button("↻ Refresh Map View", use_container_width=True):
-        # Reset any state selection and reload the page
-        st.query_params.clear()
-        st.rerun()
-    
-    # Load data with a spinner
-    with st.spinner("Loading state data..."):
-        states_data = generate_geo_data() # Only expect state summaries now
-        us_geojson = load_us_geojson()
-    
-    # Get state from URL parameter if available - **REMOVED this block, using session state now**
-    # params = st.query_params 
-    # selected_state = params.get("state", [""])[0]
-    # 
-    # if selected_state and selected_state not in states_data:
-    #     st.warning(f"State code '{selected_state}' from URL not found in data. Showing national view.")
-    #     selected_state = ""
+    # --- Session State Initialization and Sync --- 
+    # Initialize session state if it doesn't exist, using URL param as default
+    if 'selected_state' not in st.session_state:
+        st.session_state.selected_state = st.query_params.get("state", [""])[0]
+        
+    # Sync session state if URL parameter changes (e.g., direct navigation)
+    url_state = st.query_params.get("state", [""])[0]
+    if url_state != st.session_state.selected_state:
+        st.session_state.selected_state = url_state
+        # No rerun needed here, Streamlit handles updates based on session state change
+        
+    # Check if the state code (now from session state) exists in the summary data
+    # Perform this check early
+    if st.session_state.selected_state and st.session_state.selected_state not in generate_geo_data(): # Assuming generate_geo_data returns the dict
+        st.warning(f"State code '{st.session_state.selected_state}' not found in data. Showing national view.")
+        st.session_state.selected_state = "" # Reset session state
+        if st.query_params.get("state"): # Clear invalid query param if present
+             del st.query_params["state"] 
+    # -------------------------------------------
+
+    # Create function to generate mock data for US states - **MOVED ABOVE**
+    # Cache the data generation - **MOVED ABOVE**
 
     # --- Load household data based on SESSION STATE --- 
     households_to_display = [] # Initialize empty
