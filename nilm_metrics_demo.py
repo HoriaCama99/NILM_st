@@ -1495,6 +1495,14 @@ elif page == "Interactive Map":
             response = requests.get("https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json")
             response.raise_for_status() # Raise an exception for bad status codes
             us_states = response.json()
+
+            # --- Add state ID to properties for popup access ---
+            if us_states and 'features' in us_states:
+                for feature in us_states['features']:
+                    if 'id' in feature and 'properties' in feature:
+                        feature['properties']['id'] = feature['id']
+            # ----------------------------------------------------
+
             return us_states
         except requests.exceptions.RequestException as e:
             st.error(f"Error loading US state boundaries: {e}")
@@ -1616,16 +1624,22 @@ elif page == "Interactive Map":
             ),
             # Correctly assign GeoJsonPopup directly to the popup argument
             popup=folium.features.GeoJsonPopup(
-                fields=['id', 'name'], # Use 'id' for state code, 'name' for display
+                fields=['id', 'name'], # Now 'id' should be found in properties
                 aliases=['', ''], # No labels needed for these fields
                 # Use the script argument for dynamic link generation
                 script="""
                     function(feature) {
                         var state_name = feature.properties.name;
-                        var state_id = feature.id; // Assumes GeoJSON uses 'id' for state code (e.g., 'CA')
-                        var link_url = '?state=' + state_id;
-                        // Use target='_self' to reload in the same frame/tab
-                        return '<a href="' + link_url + '" target="_self">Click to load devices for: ' + state_name + '</a>';
+                        // Access the ID from properties now
+                        var state_id = feature.properties.id; 
+                        // Basic check if state_id exists before creating link
+                        if (state_id) {
+                           var link_url = '?state=' + state_id;
+                           // Use target='_self' to reload in the same frame/tab
+                           return '<a href="' + link_url + '" target="_self">Click to load devices for: ' + state_name + '</a>';
+                        } else {
+                           return 'State ID not found for ' + state_name;
+                        } 
                     }
                 """,
                 parse_html=False, # Script generates HTML, no need to parse
