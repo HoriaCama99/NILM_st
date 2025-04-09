@@ -367,7 +367,7 @@ if page == "Sample Output":
 
         # Select and order columns for display
         columns_to_display = [
-            'customer id', # Ensure customer id is included
+            'dataid', # Corrected column name
             'used_window_start', 
             'used_window_stop', 
             'grid (kWh)', 
@@ -376,10 +376,11 @@ if page == "Sample Output":
             'air conditioning (kWh)', 
             'water heater (kWh)'
         ]
-        # Ensure columns exist before selecting
-        columns_to_display = [col for col in columns_to_display if col in filtered_df.columns]
+        # Ensure columns exist before selecting - REMOVING THIS CHECK (already removed)
+        # columns_to_display = [col for col in columns_to_display if col in filtered_df.columns]
 
         # Display filtered dataframe with record count
+        # Assuming 'dataid' and other columns now exist in filtered_df
         st.dataframe(filtered_df[columns_to_display], use_container_width=True)
         st.caption(f"Showing {len(filtered_df)} of {len(df)} homes")
 
