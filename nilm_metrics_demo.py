@@ -265,18 +265,58 @@ if page == "Sample Output":
     
     # Try to load the sample data CSV
     try:
-        df = pd.read_csv('disagg_sample.csv')
+        df_orig = pd.read_csv('disagg_sample.csv')
+        df = df_orig.copy() # Work with a copy
+
+        # --- Data Transformation ---
+        appliances = {
+            "ev": "ev charging (kWh)",
+            "ac": "air conditioning (kWh)",
+            "pv": "solar production (kWh)", # Note: PV is production, handled slightly differently later
+            "water heater": "water heater (kWh)"
+        }
         
+        for prefix, kwh_col in appliances.items():
+            detected_col = f"{prefix} detected"
+            if detected_col in df.columns and kwh_col in df.columns:
+                # Set kWh to -1 if not detected (except for PV, where 0 production is valid)
+                if prefix != 'pv':
+                    df[kwh_col] = df.apply(lambda row: -1 if row[detected_col] == 0 else row[kwh_col], axis=1)
+                # Drop the detected column
+                df = df.drop(columns=[detected_col])
+
+        # Add placeholder date columns (e.g., representing the analysis period)
+        # Generate a plausible date range for each row (e.g., first/last day of a previous month)
+        analysis_dates = []
+        current_date = datetime.date.today()
+        for _ in range(len(df)):
+            # Simulate analysis done sometime in the last 6 months
+            analysis_month_offset = random.randint(1, 6)
+            analysis_end_date = current_date - pd.DateOffset(months=analysis_month_offset)
+            analysis_start_date = analysis_end_date.replace(day=1)
+            analysis_end_date = analysis_start_date + pd.offsets.MonthEnd(0)
+            analysis_dates.append({
+                "used_window_start": analysis_start_date.strftime('%Y-%m'),
+                "used_window_stop": analysis_end_date.strftime('%Y-%m')
+            })
+        
+        date_df = pd.DataFrame(analysis_dates)
+        df['used_window_start'] = date_df['used_window_start']
+        df['used_window_stop'] = date_df['used_window_stop']
+
+        # --- End Data Transformation ---
+
         st.markdown("""
         This dashboard presents a sample output from our energy disaggregation model, which analyzes household 
         energy consumption data and identifies specific appliance usage patterns.
 
-        ### Key Assumptions:
-        - Sample represents output for multiple homes with diverse energy profiles
-        - Values reflect monthly average energy consumption in kWh
-        - Detection flags (0/1) indicate presence of each appliance
-        - Grid consumption represents total household electricity usage
-        - Model confidence levels are not shown in this simplified output
+        ### Key Information:
+        - Sample represents output for multiple homes with diverse energy profiles.
+        - Values reflect monthly average energy consumption (or production for PV) in kWh.
+        - **A value of -1 indicates the appliance was not detected or not present.**
+        - Grid consumption represents total household electricity usage.
+        - `used_window_start` / `used_window_stop` show the analysis period (Month-Year).
+        - Model confidence levels are not shown in this simplified output.
         """)
 
         # Add interactive filtering directly with the first dataframe
@@ -297,31 +337,49 @@ if page == "Sample Output":
         with filter_cols[3]:
             wh_filter = st.selectbox("Water Heater", ["Any", "Present", "Not Present"])
 
-        # Apply filters
+        # Apply filters based on kWh values
         filtered_df = df.copy()
 
         if ev_filter == "Present":
-            filtered_df = filtered_df[filtered_df['ev detected'] == 1]
+            filtered_df = filtered_df[filtered_df['ev charging (kWh)'] > 0]
         elif ev_filter == "Not Present":
-            filtered_df = filtered_df[filtered_df['ev detected'] == 0]
+            filtered_df = filtered_df[filtered_df['ev charging (kWh)'] == -1]
 
         if ac_filter == "Present":
-            filtered_df = filtered_df[filtered_df['ac detected'] == 1]
+            filtered_df = filtered_df[filtered_df['air conditioning (kWh)'] > 0]
         elif ac_filter == "Not Present":
-            filtered_df = filtered_df[filtered_df['ac detected'] == 0]
+            filtered_df = filtered_df[filtered_df['air conditioning (kWh)'] == -1]
 
+        # For PV, 'Present' means production > 0, 'Not Present' could mean detected=0 OR production=0
+        # Let's adjust: 'Present' means PV detected (original logic was pv detected=1), 'Not Present' means pv detected=0
+        # We need the original detected column info for this filter. Let's use df_orig temporarily.
         if pv_filter == "Present":
-            filtered_df = filtered_df[filtered_df['pv detected'] == 1]
+             filtered_df = filtered_df[df_orig['pv detected'] == 1]
         elif pv_filter == "Not Present":
-            filtered_df = filtered_df[filtered_df['pv detected'] == 0]
+             filtered_df = filtered_df[df_orig['pv detected'] == 0]
+        # If pv_filter is 'Any', no PV filtering is applied to filtered_df
 
         if wh_filter == "Present":
-            filtered_df = filtered_df[filtered_df['water heater detected'] == 1]
+            filtered_df = filtered_df[filtered_df['water heater (kWh)'] > 0]
         elif wh_filter == "Not Present":
-            filtered_df = filtered_df[filtered_df['water heater detected'] == 0]
+            filtered_df = filtered_df[filtered_df['water heater (kWh)'] == -1]
+
+        # Select and order columns for display
+        columns_to_display = [
+            'customer id', 
+            'used_window_start', 
+            'used_window_stop', 
+            'grid (kWh)', 
+            'solar production (kWh)', 
+            'ev charging (kWh)', 
+            'air conditioning (kWh)', 
+            'water heater (kWh)'
+        ]
+        # Ensure columns exist before selecting
+        columns_to_display = [col for col in columns_to_display if col in filtered_df.columns]
 
         # Display filtered dataframe with record count
-        st.dataframe(filtered_df, use_container_width=True)
+        st.dataframe(filtered_df[columns_to_display], use_container_width=True)
         st.caption(f"Showing {len(filtered_df)} of {len(df)} homes")
 
         # Create two columns for the interactive plots
@@ -330,12 +388,13 @@ if page == "Sample Output":
         with col1:
             st.subheader("Appliance Presence in Housing Portfolio")
             
-            # Calculate presence percentages
+            # Calculate presence percentages based on kWh > 0 (using original detected for PV)
+            num_filtered_homes = len(filtered_df)
             appliance_presence = {
-                'EV Charging': filtered_df['ev detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
-                'Air Conditioning': filtered_df['ac detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
-                'Solar PV': filtered_df['pv detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0,
-                'Water Heater': filtered_df['water heater detected'].sum() / len(filtered_df) * 100 if len(filtered_df) > 0 else 0
+                'EV Charging': (filtered_df['ev charging (kWh)'] > 0).sum() / num_filtered_homes * 100 if num_filtered_homes > 0 else 0,
+                'Air Conditioning': (filtered_df['air conditioning (kWh)'] > 0).sum() / num_filtered_homes * 100 if num_filtered_homes > 0 else 0,
+                'Solar PV': (df_orig.loc[filtered_df.index, 'pv detected'] == 1).sum() / num_filtered_homes * 100 if num_filtered_homes > 0 else 0, # Use original detection for PV presence
+                'Water Heater': (filtered_df['water heater (kWh)'] > 0).sum() / num_filtered_homes * 100 if num_filtered_homes > 0 else 0
             }
             
             # Create interactive bar chart using Plotly with team colors
@@ -382,25 +441,28 @@ if page == "Sample Output":
                 - **EV Charging**: Indicates electric vehicle ownership
                 - **Water Heater**: Least commonly detected in this sample
                 
-                Detection is based on energy signature patterns identified by the disaggregation model.
+                Presence is determined by positive energy consumption (kWh > 0) or detection (for PV).
                 """)
 
         with col2:
             st.subheader("Total Energy Distribution by Type")
             
-            # Calculate disaggregated appliance total
-            disaggregated_total = (filtered_df['ev charging (kWh)'].sum() + 
-                                  filtered_df['air conditioning (kWh)'].sum() + 
-                                  filtered_df['water heater (kWh)'].sum())
-            
+            # Calculate disaggregated appliance total (only sum positive kWh values)
+            ev_total = filtered_df[filtered_df['ev charging (kWh)'] > 0]['ev charging (kWh)'].sum()
+            ac_total = filtered_df[filtered_df['air conditioning (kWh)'] > 0]['air conditioning (kWh)'].sum()
+            wh_total = filtered_df[filtered_df['water heater (kWh)'] > 0]['water heater (kWh)'].sum()
+            disaggregated_total = ev_total + ac_total + wh_total
+
             # Calculate "Other Consumption" by subtracting known appliances from grid total
-            other_consumption = filtered_df['grid (kWh)'].sum() - disaggregated_total
+            # Note: PV production is not subtracted here, assuming 'grid (kWh)' is net consumption
+            grid_total = filtered_df['grid (kWh)'].sum()
+            other_consumption = grid_total - disaggregated_total
             other_consumption = max(0, other_consumption)  # Ensure it's not negative
             
             energy_totals = {
-                'EV Charging': filtered_df['ev charging (kWh)'].sum(),
-                'Air Conditioning': filtered_df['air conditioning (kWh)'].sum(),
-                'Water Heater': filtered_df['water heater (kWh)'].sum(),
+                'EV Charging': ev_total,
+                'Air Conditioning': ac_total,
+                'Water Heater': wh_total,
                 'Other Consumption': other_consumption
             }
             
@@ -440,12 +502,12 @@ if page == "Sample Output":
             # Add interactive details
             with st.expander("About Energy Distribution"):
                 st.markdown("""
-                    This chart shows how the total energy consumption is distributed across different appliance types.
+                    This chart shows how the total energy consumption is distributed across different detected appliance types.
                 
-                - **Air Conditioning**: Typically accounts for significant consumption
-                - **EV Charging**: Can be a major energy consumer when present
-                - **Water Heater**: Generally smaller portion of total energy use
-                    - **Other Consumption**: Remaining grid usage not attributed to the three main appliances
+                - **Air Conditioning**: Typically accounts for significant consumption when present.
+                - **EV Charging**: Can be a major energy consumer when present.
+                - **Water Heater**: Generally smaller portion of total energy use when present.
+                    - **Other Consumption**: Remaining grid usage not attributed to the three main *detected* appliances.
                 
                 Understanding this distribution helps identify the highest impact areas for efficiency improvements.
                 """)
@@ -488,26 +550,26 @@ if page == "Sample Output":
 
         with metric_col3:
             st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            pv_homes = filtered_df[filtered_df['pv detected'] == 1]
+            pv_homes = filtered_df[df_orig.loc[filtered_df.index, 'pv detected'] == 1] # Filter based on original detection
             pv_avg = pv_homes['solar production (kWh)'].mean() if len(pv_homes) > 0 else 0
             st.metric(
                 label="Avg. Solar Production",
                 value=f"{pv_avg:.1f} kWh",
-                help="Average solar production for homes with PV systems"
+                help="Average solar production for homes where PV systems were detected"
             )
             st.markdown("</div>", unsafe_allow_html=True)
 
         with metric_col4:
             st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            # Percentage of consumption identified by model
+            # Percentage of consumption identified by model (using recalculated disaggregated_total)
             total_grid = filtered_df['grid (kWh)'].sum()
-            total_identified = disaggregated_total
+            total_identified = disaggregated_total # Already calculated sum of positive kWh
             pct_identified = (total_identified / total_grid * 100) if total_grid > 0 else 0
             
             st.metric(
                 label="Consumption Identified",
                 value=f"{pct_identified:.1f}%",
-                help="Percentage of total grid consumption attributed to specific appliances"
+                help="Percentage of total grid consumption attributed to detected EV, AC, and Water Heater"
             )
             st.markdown("</div>", unsafe_allow_html=True)
 
