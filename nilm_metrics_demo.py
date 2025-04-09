@@ -296,8 +296,9 @@ if page == "Sample Output":
             analysis_start_date = analysis_end_date.replace(day=1)
             analysis_end_date = analysis_start_date + pd.offsets.MonthEnd(0)
             analysis_dates.append({
-                "used_window_start": analysis_start_date.strftime('%Y-%m'),
-                "used_window_stop": analysis_end_date.strftime('%Y-%m')
+                # Format as Month Name YYYY
+                "used_window_start": analysis_start_date.strftime('%B %Y'),
+                "used_window_stop": analysis_end_date.strftime('%B %Y')
             })
         
         date_df = pd.DataFrame(analysis_dates)
@@ -366,7 +367,7 @@ if page == "Sample Output":
 
         # Select and order columns for display
         columns_to_display = [
-            'customer id', 
+            'customer id', # Ensure customer id is included
             'used_window_start', 
             'used_window_stop', 
             'grid (kWh)', 
