@@ -16,6 +16,7 @@ import plotly.subplots as sp
 from PIL import Image
 import datetime
 import requests
+import pytz as dtlib
 
 # Hide the default Streamlit navigation menu
 st.set_page_config(
@@ -262,183 +263,207 @@ selected_model = "V6" # Default model
 if page == "Sample Output":
     # Sample Output page code goes here
     st.title("Energy Disaggregation Model: Output Structure Example")
-    
+
     # Define function to convert date string to Unix timestamp string (start of day/month)
     def to_unix_timestamp_string(date_str):
+        """Converts various date string formats to a Unix timestamp string (start of day/month, UTC)."""
+        if pd.isna(date_str):
+            return None
         try:
-            # Assuming date_str is in a format pandas can parse (e.g., YYYY-MM-DD or similar)
             dt = pd.to_datetime(date_str)
-            # For reference month, get the timestamp of the first day of the month UTC
-            # Convert to UTC first to ensure consistency regardless of system timezone
-            dt_utc = dt.tz_localize(None).tz_localize('UTC') 
+            dt_utc = dt.tz_localize(None).tz_localize(dtlib.timezone.utc)
             dt_month_start_utc = dt_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             return str(int(dt_month_start_utc.timestamp()))
         except Exception as e:
-            # st.warning(f"Could not convert date '{date_str}' to timestamp: {e}")
             return None # Handle parsing errors gracefully
 
-    # Try to load the new sample data CSV
     try:
-        csv_path = 'dissag_output_v2.csv' 
+        # --- Load Data --- 
+        # IMPORTANT: Adjust file paths as needed
+        metadata_csv_path = 'dissag_output_v2.csv' 
+        consumption_csv_path = 'disagg_sample.csv'
+        
         try:
-            df = pd.read_csv(csv_path)
-            # st.write("Successfully loaded CSV:", df.head()) # Debug: Check loaded data
+            df_metadata = pd.read_csv(metadata_csv_path)
+            # st.write("Metadata CSV loaded:", df_metadata.head()) # Debug
         except FileNotFoundError:
-            st.error(f"Error: The file '{csv_path}' was not found. Please update the path in the code or upload the file.")
-            st.stop() # Stop execution if file not found
+            st.error(f"Error: Metadata file '{metadata_csv_path}' not found.")
+            st.stop()
         except Exception as e:
-            st.error(f"Error reading CSV file '{csv_path}': {e}")
+            st.error(f"Error reading metadata CSV '{metadata_csv_path}': {e}")
+            st.stop()
+
+        try:
+            df_consumption = pd.read_csv(consumption_csv_path)
+            # st.write("Consumption CSV loaded:", df_consumption.head()) # Debug
+        except FileNotFoundError:
+            st.error(f"Error: Consumption file '{consumption_csv_path}' not found.")
+            st.stop()
+        except Exception as e:
+            st.error(f"Error reading consumption CSV '{consumption_csv_path}': {e}")
             st.stop()
 
         st.markdown("""
-        This page shows the restructured output format with two tables derived from the model results.
+        This page shows the restructured output format using data merged from two sources.
         Dates are represented as Unix timestamp strings (UTC, start of day/month).
         """)
 
-        # --- Data Transformation ---
-
-        # 1. Rename columns (handle missing columns gracefully)
-        rename_map = {
-            'dataid': 'meterid',
-            'start_date_disagg_window': 'window_start',
-            'end_date_disagg_window': 'window_stop',
-            'start_date_output_window': 'reference_month' # Use start date for reference month
+        # --- Prepare Metadata (df_metadata) --- 
+        meta_rename_map = {
+            'dataid': 'meterid', # EXPECTED key in new file
+            'start_date_disagg_window': 'window_start_str', 
+            'end_date_disagg_window': 'window_stop_str',
+            'start_date_output_window': 'reference_month_str'
         }
-        actual_rename_map = {k: v for k, v in rename_map.items() if k in df.columns}
-        df = df.rename(columns=actual_rename_map)
-        # st.write("Data after renaming:", df.head()) # Debug: Check renaming
-
-        # Check if essential columns exist after renaming
-        required_cols_after_rename = ['meterid', 'window_start', 'window_stop', 'reference_month']
-        missing_required = [col for col in required_cols_after_rename if col not in df.columns]
-        if missing_required:
-            st.error(f"Error: The following essential columns are missing after renaming (check CSV headers and rename_map): {missing_required}")
+        actual_meta_rename = {k: v for k, v in meta_rename_map.items() if k in df_metadata.columns}
+        df_metadata = df_metadata.rename(columns=actual_meta_rename)
+        
+        required_meta_cols = ['meterid', 'window_start_str', 'window_stop_str', 'reference_month_str']
+        missing_meta = [col for col in required_meta_cols if col not in df_metadata.columns]
+        if missing_meta:
+            st.error(f"Error: Metadata CSV '{metadata_csv_path}' is missing required columns (after potential rename): {missing_meta}. Expected original names: {list(meta_rename_map.keys())}")
             st.stop()
             
-        # Keep original grid column if it exists
-        grid_col_original = 'grid (kWh)' # Assuming this is the name in the CSV
-        if grid_col_original not in df.columns:
-             grid_col_original = 'grid' # Try alternative common name
-             if grid_col_original not in df.columns:
-                 st.warning("Could not find 'grid (kWh)' or 'grid' column. Grid values will be missing from Table 2.")
-                 grid_col_original = None
+        # Convert dates to timestamps
+        df_metadata['window_start_ts'] = df_metadata['window_start_str'].apply(to_unix_timestamp_string)
+        df_metadata['window_stop_ts'] = df_metadata['window_stop_str'].apply(to_unix_timestamp_string)
+        df_metadata['reference_month_ts'] = df_metadata['reference_month_str'].apply(to_unix_timestamp_string)
         
-        # Identify appliance kWh columns from the original CSV structure (adjust names as needed)
-        appliance_kwh_cols_original = {
-            'ev charging (kWh)': 'a', # a = EV
-            'solar production (kWh)': 'b', # b = PV
-            'air conditioning (kWh)': 'c', # c = AC
-            'water heater (kWh)': 'd'  # d = WH
+        # Keep only necessary metadata columns
+        df_metadata = df_metadata[['meterid', 'window_start_ts', 'window_stop_ts', 'reference_month_ts']]
+        if df_metadata.isnull().values.any():
+             st.warning("Warning: Some dates in metadata could not be converted to timestamps.")
+        # st.write("Prepared Metadata:", df_metadata.head()) # Debug
+             
+        # --- Prepare Consumption Data (df_consumption) ---
+        # EXPECTED key in old file (maps to dataid/meterid in new file)
+        consum_id_col = 'customer id' 
+        if consum_id_col not in df_consumption.columns:
+             st.error(f"Error: Consumption CSV '{consumption_csv_path}' is missing the identifier column '{consum_id_col}'. Cannot merge data.")
+             st.stop()
+        df_consumption = df_consumption.rename(columns={consum_id_col: 'meterid'})
+        
+        # Identify grid column
+        grid_col = 'grid (kWh)'
+        if grid_col not in df_consumption.columns:
+             grid_col = 'grid'
+             if grid_col not in df_consumption.columns:
+                 st.warning(f"Consumption CSV '{consumption_csv_path}' missing grid column ('grid (kWh)' or 'grid'). Grid values will be omitted.")
+                 grid_col = None
+                 
+        # Identify appliance columns
+        appliance_map = {
+            'ev charging (kWh)': 'a', 
+            'solar production (kWh)': 'b', 
+            'air conditioning (kWh)': 'c', 
+            'water heater (kWh)': 'd'  
         }
-        value_vars = [col for col in appliance_kwh_cols_original.keys() if col in df.columns]
-        if not value_vars:
-            st.error("Error: Could not find any expected appliance kWh columns (e.g., 'ev charging (kWh)', 'solar production (kWh)', etc.) in the CSV. Cannot create breakdown table.")
-            st.stop()
-        # st.write("Appliance columns found:", value_vars) # Debug
+        appliance_cols = [col for col in appliance_map.keys() if col in df_consumption.columns]
+        if not appliance_cols:
+             st.error(f"Error: Consumption CSV '{consumption_csv_path}' is missing expected appliance kWh columns (e.g., 'ev charging (kWh)').")
+             st.stop()
+             
+        # Keep only necessary consumption columns
+        cols_to_keep = ['meterid'] + appliance_cols
+        if grid_col: 
+            cols_to_keep.append(grid_col)
+        df_consumption = df_consumption[cols_to_keep]
+        # st.write("Prepared Consumption Data:", df_consumption.head()) # Debug
 
-        # 2. Convert dates to Unix timestamp strings
-        date_cols_to_convert = ['window_start', 'window_stop', 'reference_month']
-        for col in date_cols_to_convert:
-            if col in df.columns:
-                # st.write(f"Converting column: {col}") # Debug
-                df[col] = df[col].apply(to_unix_timestamp_string)
-                if df[col].isnull().any():
-                    st.warning(f"Warning: Some values in column '{col}' could not be converted to timestamps. They will appear as empty.")
-            # else: # Already checked above
-            #      st.warning(f"Date column '{col}' not found for timestamp conversion.")
-        # st.write("Data after date conversion:", df.head()) # Debug
-
-        # --- Create Table 1: Meter Information ---
-        st.subheader("Table 1: Meter Information")
-        meter_info_cols = ['meterid', 'window_start', 'window_stop']
-        # All these columns were checked earlier, so should exist
+        # --- Merge Data --- 
         try:
-            meter_info_df = df[meter_info_cols].drop_duplicates(subset=['meterid']).reset_index(drop=True)
-            meter_info_df['interval'] = "15 min"
+            df_merged = pd.merge(df_metadata, df_consumption, on='meterid', how='inner')
+        except Exception as e:
+             st.error(f"Error merging metadata and consumption data on 'meterid': {e}")
+             st.stop()
+             
+        if df_merged.empty:
+             st.warning("Warning: No matching 'meterid's found between the two CSV files. Cannot display merged data.")
+             st.stop()
+        # st.write("Merged Data:", df_merged.head()) # Debug
+             
+        # --- Create Table 1: Meter Information --- 
+        st.subheader("Table 1: Meter Information")
+        meter_info_cols = ['meterid', 'window_start_ts', 'window_stop_ts']
+        try:
+            # Select columns *before* drop_duplicates
+            meter_info_df = df_merged[meter_info_cols].drop_duplicates(subset=['meterid']).reset_index(drop=True)
+            meter_info_df['interval'] = "15 min" 
+            # Rename timestamp columns for display
+            meter_info_df = meter_info_df.rename(columns={'window_start_ts':'window_start', 'window_stop_ts':'window_stop'})
             st.dataframe(meter_info_df, use_container_width=True)
         except KeyError as e:
-            st.error(f"Error creating Meter Info table. Missing column: {e}. Please check CSV headers and renaming logic.")
+            st.error(f"Error creating Meter Info table (KeyError): {e}. This might indicate missing columns post-merge.")
         except Exception as e:
             st.error(f"An unexpected error occurred creating Meter Info table: {e}")
             st.exception(e)
             
-        # --- Create Table 2: Appliance Breakdown ---
+        # --- Create Table 2: Appliance Breakdown --- 
         st.subheader("Table 2: Appliance Breakdown")
-        
-        id_vars = ['meterid', 'reference_month']
-        if grid_col_original and grid_col_original in df.columns: # Add grid column if found and exists
-             id_vars.append(grid_col_original)
-        else:
-             # If grid column is missing, we need to add a placeholder or handle it
-             # For simplicity, we proceed without it, but warn the user
-             if not grid_col_original:
-                 pass # Already warned user above
-             elif grid_col_original not in df.columns:
-                 st.warning(f"Grid column '{grid_col_original}' not found before melting. It will be omitted from Table 2.")
-                 grid_col_original = None # Ensure it's not used later
-                 
-        # Ensure id_vars exist in the dataframe before melting
-        id_vars_exist = [var for var in id_vars if var in df.columns]
-        if 'meterid' not in id_vars_exist or 'reference_month' not in id_vars_exist:
-             # This check might be redundant due to earlier checks, but keep for safety
-             st.error("Cannot create Appliance Breakdown table because 'meterid' or 'reference_month' are missing.")
+        id_vars_melt = ['meterid', 'reference_month_ts']
+        if grid_col and grid_col in df_merged.columns: 
+             id_vars_melt.append(grid_col)
+             
+        value_vars_melt = [col for col in appliance_cols if col in df_merged.columns]
+        if not value_vars_melt:
+             st.warning("Warning: No appliance columns found in the merged data. Cannot create breakdown table.")
              st.stop()
-
+             
         try:
-            # Melt the dataframe
+            # Melt the merged dataframe
             appliance_breakdown_df = pd.melt(
-                df, 
-                id_vars=id_vars_exist,
-                value_vars=value_vars, 
+                df_merged, 
+                id_vars=id_vars_melt,
+                value_vars=value_vars_melt, 
                 var_name='original_appliance_col', 
                 value_name='Consumption (kWh)'
             )
-            # st.write("Data after melting:", appliance_breakdown_df.head()) # Debug
-
-            # Filter out non-detected/zero consumption appliances
-            # Convert to numeric first, coercing errors to NaN, then fillna with 0
+            
+            # Filter out non-positive consumption
             appliance_breakdown_df['Consumption (kWh)'] = pd.to_numeric(appliance_breakdown_df['Consumption (kWh)'], errors='coerce').fillna(0)
             appliance_breakdown_df = appliance_breakdown_df[appliance_breakdown_df['Consumption (kWh)'] > 0].reset_index(drop=True)
-            # st.write("Data after filtering > 0 kWh:", appliance_breakdown_df.head()) # Debug
 
-            # Map original appliance column names to codes
-            appliance_code_map = {k: v for k, v in appliance_kwh_cols_original.items() if k in value_vars}
-            appliance_breakdown_df['appliance_type'] = appliance_breakdown_df['original_appliance_col'].map(appliance_code_map)
-            
-            # Select and rename final columns
-            final_breakdown_cols_map = {
-                'meterid': 'meterid',
-                'appliance_type': 'appliance_type',
-                # Only include grid if it existed
-                **({grid_col_original: 'grid'} if grid_col_original in appliance_breakdown_df.columns else {}),
-                'Consumption (kWh)': 'Consumption (kWh)',
-                'reference_month': 'reference_month'
-            }
-            
-            final_columns_ordered = ['meterid', 'appliance_type']
-            if grid_col_original in appliance_breakdown_df.columns: final_columns_ordered.append('grid')
-            final_columns_ordered.extend(['Consumption (kWh)', 'reference_month'])
-            
-            # Select the columns based on the map keys, then rename
-            appliance_breakdown_df = appliance_breakdown_df[list(final_breakdown_cols_map.keys())]
-            appliance_breakdown_df = appliance_breakdown_df.rename(columns=final_breakdown_cols_map)
-            # Reorder columns
-            appliance_breakdown_df = appliance_breakdown_df[final_columns_ordered]
-
-            # Display the table
-            st.dataframe(appliance_breakdown_df, use_container_width=True)
+            if appliance_breakdown_df.empty:
+                 st.info("No positive appliance consumption data found in the merged dataset.")
+            else:
+                # Map appliance codes
+                appliance_code_map = {k: v for k, v in appliance_map.items() if k in value_vars_melt}
+                appliance_breakdown_df['appliance_type'] = appliance_breakdown_df['original_appliance_col'].map(appliance_code_map)
+                
+                # Select, rename, and reorder final columns
+                final_cols = ['meterid', 'appliance_type']
+                final_rename_map = {'reference_month_ts': 'reference_month'}
+                
+                if grid_col and grid_col in appliance_breakdown_df.columns:
+                    final_cols.append(grid_col) # Add the original grid column name first
+                    final_rename_map[grid_col] = 'grid' # Add its renaming
+                
+                final_cols.extend(['Consumption (kWh)', 'reference_month_ts'])
+                
+                # Select the necessary columns
+                appliance_breakdown_df = appliance_breakdown_df[final_cols]
+                # Rename the columns
+                appliance_breakdown_df = appliance_breakdown_df.rename(columns=final_rename_map)
+                
+                # Define final order based on renamed columns
+                final_order = ['meterid', 'appliance_type']
+                if 'grid' in appliance_breakdown_df.columns:
+                     final_order.append('grid')
+                final_order.extend(['Consumption (kWh)', 'reference_month']) 
+                appliance_breakdown_df = appliance_breakdown_df[final_order]
+                
+                st.dataframe(appliance_breakdown_df, use_container_width=True)
 
         except KeyError as e:
-            st.error(f"Error processing Appliance Breakdown table. Missing column: {e}. Check melting/mapping logic.")
+            st.error(f"Error processing Appliance Breakdown table (KeyError): {e}. Check melting/mapping/renaming logic.")
             st.exception(e)
         except Exception as e:
             st.error(f"An unexpected error occurred creating Appliance Breakdown table: {e}")
-            st.exception(e) # Show traceback for debugging
+            st.exception(e)
 
     except Exception as e:
-        # Catch potential errors during the whole process (e.g., loading, initial renaming)
         st.error(f"An unexpected error occurred on the Sample Output page: {e}")
-        st.exception(e) # Show traceback for debugging
+        st.exception(e)
 
 elif page == "Performance Metrics":
     # Performance Metrics page
@@ -943,7 +968,7 @@ elif page == "Performance Metrics":
             <small>
             <strong>Best DPSPerc:</strong> {best_dpsperc_display} ({trend_df.loc[trend_df['Model'] == best_dpsperc_display, 'DPSPerc (%)'].values[0]:.2f}%)<br>
             <strong>Best FPR:</strong> {best_fpr_display} ({trend_df.loc[trend_df['Model'] == best_fpr_display, 'FPR (%)'].values[0]:.2f}%)<br>
-            <strong>Best TECA:</strong> {best_teca_display} ({trend_df.loc[trend_df['Model'] == best_teca_display, 'TECA (%)'].values[0]:.2f}%) 
+            <strong>Best TECA:</strong> {best_teca_display} ({trend_df.loc[trend_df['Model'] == best_teca_display, 'TECA (%)'].values[0]:.2f}%)
             </small>
         </div>
         """, unsafe_allow_html=True)
