@@ -405,74 +405,220 @@ if page == "Sample Output":
             st.exception(e)
             
         # --- Create Table 2: Appliance Breakdown --- 
-        st.subheader("Table 2: Appliance Breakdown")
+        # (Melt and prepare data FIRST, then calculate plots/metrics)
         id_vars_melt = ['meterid', 'reference_month_ts']
         if grid_col and grid_col in df_merged.columns: 
              id_vars_melt.append(grid_col)
              
         value_vars_melt = [col for col in appliance_cols if col in df_merged.columns]
         if not value_vars_melt:
-             st.warning("Warning: No appliance columns found in the merged data. Cannot create breakdown table.")
-             st.stop()
-             
-        try:
-            # Melt the merged dataframe
-            appliance_breakdown_df = pd.melt(
-                df_merged, 
-                id_vars=id_vars_melt,
-                value_vars=value_vars_melt, 
-                var_name='original_appliance_col', 
-                value_name='Consumption (kWh)'
-            )
+             st.warning("Warning: No appliance columns found in the merged data. Cannot create breakdown table or plots.")
+             # Optionally stop, or allow proceeding without breakdown/plots
+             appliance_breakdown_df = pd.DataFrame() # Create empty df
+             # Set flags or default values for plot data if needed
+        else:
+            try:
+                # Melt the merged dataframe
+                appliance_breakdown_df = pd.melt(
+                    df_merged, 
+                    id_vars=id_vars_melt,
+                    value_vars=value_vars_melt, 
+                    var_name='original_appliance_col', 
+                    value_name='Consumption (kWh)'
+                )
+                
+                # Convert consumption to numeric, handle errors/NaNs
+                appliance_breakdown_df['Consumption (kWh)'] = pd.to_numeric(appliance_breakdown_df['Consumption (kWh)'], errors='coerce').fillna(0)
             
-            # Convert consumption to numeric, handle errors/NaNs
-            appliance_breakdown_df['Consumption (kWh)'] = pd.to_numeric(appliance_breakdown_df['Consumption (kWh)'], errors='coerce').fillna(0)
-            
-            # **CHANGE:** Set non-positive consumption to -1 instead of filtering
-            appliance_breakdown_df.loc[appliance_breakdown_df['Consumption (kWh)'] <= 0, 'Consumption (kWh)'] = -1
-            
-            # Remove the check for empty dataframe after filtering, as we now include non-detected
-            # if appliance_breakdown_df.empty:
-            #      st.info("No positive appliance consumption data found in the merged dataset.")
-            # else:
-            # Map appliance codes (this block should run regardless of empty check)
-            appliance_code_map = {k: v for k, v in appliance_map.items() if k in value_vars_melt}
-            appliance_breakdown_df['appliance_type'] = appliance_breakdown_df['original_appliance_col'].map(appliance_code_map)
-            
-            # Select, rename, and reorder final columns
-            final_cols = ['meterid', 'appliance_type']
-            final_rename_map = {'reference_month_ts': 'reference_month'}
-            
-            if grid_col and grid_col in appliance_breakdown_df.columns:
-                final_cols.append(grid_col) # Add the original grid column name first
-                final_rename_map[grid_col] = 'grid' # Add its renaming
-            
-            final_cols.extend(['Consumption (kWh)', 'reference_month_ts'])
-            
-            # Select the necessary columns
-            # Make sure all columns in final_cols actually exist before selecting
-            final_cols_exist = [c for c in final_cols if c in appliance_breakdown_df.columns]
-            appliance_breakdown_df = appliance_breakdown_df[final_cols_exist]
-            # Rename the columns that were selected
-            appliance_breakdown_df = appliance_breakdown_df.rename(columns=final_rename_map)
-            
-            # Define final order based on renamed columns
-            final_order = ['meterid', 'appliance_type']
-            if 'grid' in appliance_breakdown_df.columns:
-                    final_order.append('grid')
-            final_order.extend(['Consumption (kWh)', 'reference_month']) 
-            # Ensure all columns in final_order exist before reordering
-            final_order_exist = [c for c in final_order if c in appliance_breakdown_df.columns]
-            appliance_breakdown_df = appliance_breakdown_df[final_order_exist]
-            
-            st.dataframe(appliance_breakdown_df, use_container_width=True)
+            except Exception as e:
+                 st.error(f"Error during melting or initial processing for Table 2: {e}")
+                 appliance_breakdown_df = pd.DataFrame() # Ensure it exists but is empty on error
 
-        except KeyError as e:
-            st.error(f"Error processing Appliance Breakdown table (KeyError): {e}. Check melting/mapping/renaming logic.")
-            st.exception(e)
-        except Exception as e:
-            st.error(f"An unexpected error occurred creating Appliance Breakdown table: {e}")
-            st.exception(e)
+        # --- Calculate Data for Plots and Metrics --- (Using df_merged and appliance_breakdown_df)
+        total_unique_meters = df_merged['meterid'].nunique()
+        appliance_presence = {}
+        energy_totals = {}
+        avg_grid = 0
+        avg_pv_prod = 0
+        pct_identified = 0
+        total_identified = 0
+        total_grid = 0
+
+        if not appliance_breakdown_df.empty and total_unique_meters > 0:
+            # Create appliance type code column early for calculations
+            appliance_code_map_calc = {k: v for k, v in appliance_map.items() if k in value_vars_melt}
+            appliance_breakdown_df['appliance_type'] = appliance_breakdown_df['original_appliance_col'].map(appliance_code_map_calc)
+            
+            # Filter for positive consumption for calculations
+            positive_consumption_df = appliance_breakdown_df[appliance_breakdown_df['Consumption (kWh)'] > 0]
+            
+            # Calculate Presence (% of unique meters having the appliance with >0 kWh)
+            presence_counts = positive_consumption_df.groupby('appliance_type')['meterid'].nunique()
+            appliance_presence = { # Map codes back to full names for plot labels
+                'EV Charging': (presence_counts.get('a', 0) / total_unique_meters) * 100,
+                'Solar PV': (presence_counts.get('b', 0) / total_unique_meters) * 100,
+                'Air Conditioning': (presence_counts.get('c', 0) / total_unique_meters) * 100,
+                'Water Heater': (presence_counts.get('d', 0) / total_unique_meters) * 100,
+            }
+
+            # Calculate Energy Totals (Sum of positive kWh for EV, AC, WH)
+            energy_sum_by_type = positive_consumption_df.groupby('appliance_type')['Consumption (kWh)'].sum()
+            ev_total = energy_sum_by_type.get('a', 0)
+            ac_total = energy_sum_by_type.get('c', 0)
+            wh_total = energy_sum_by_type.get('d', 0)
+            total_identified = ev_total + ac_total + wh_total
+            
+            # Calculate Total Grid (Sum unique grid values per meter/month or just sum column if appropriate)
+            # Assuming grid value is per meter/month in the original merged data
+            if grid_col and grid_col in df_merged.columns:
+                # Sum unique grid values per meter/month combination if needed
+                # For simplicity, summing the column in df_merged (might overcount if multiple rows per meter/month before melt)
+                # A safer approach would be df_merged[[unique_key_cols, grid_col]].drop_duplicates()[grid_col].sum()
+                # Let's assume for now df_merged has one row per meter/month before melt for grid value
+                total_grid = pd.to_numeric(df_merged[grid_col], errors='coerce').fillna(0).sum()
+                avg_grid = pd.to_numeric(df_merged[grid_col], errors='coerce').mean() 
+            else: 
+                total_grid = 0 # Grid column missing
+                avg_grid = 0
+
+            other_consumption = max(0, total_grid - total_identified)
+            energy_totals = {
+                'EV Charging': ev_total,
+                'Air Conditioning': ac_total,
+                'Water Heater': wh_total,
+                'Other Consumption': other_consumption
+            }
+            
+            # Calculate Avg PV Production (Avg positive kWh for PV)
+            pv_prod = positive_consumption_df[positive_consumption_df['appliance_type'] == 'b']['Consumption (kWh)']
+            avg_pv_prod = pv_prod.mean() if not pv_prod.empty else 0
+            
+            # Calculate % Consumption Identified
+            pct_identified = (total_identified / total_grid * 100) if total_grid > 0 else 0
+        else:
+             st.info("No appliance data found to calculate plots and metrics.")
+
+        # --- Display Plots and Metrics --- (Re-introducing)
+        st.markdown("### Visualization and Key Metrics")
+        plot_col1, plot_col2 = st.columns(2)
+
+        with plot_col1:
+            st.subheader("Appliance Presence")
+            if appliance_presence:
+                fig1 = px.bar(
+                    x=list(appliance_presence.keys()),
+                    y=list(appliance_presence.values()),
+                    labels={'x': 'Appliance Type', 'y': 'Percentage of Homes (%)'},
+                    color=list(appliance_presence.keys()),
+                    color_discrete_map={
+                            'EV Charging': primary_purple, 'Air Conditioning': green,
+                            'Solar PV': cream, 'Water Heater': salmon
+                    },
+                    text=[f"{val:.1f}%" for val in appliance_presence.values()]
+                )
+                fig1.update_layout(
+                    showlegend=False, yaxis_range=[0, 100],
+                    margin=dict(l=20, r=20, t=30, b=20),
+                    paper_bgcolor=white, plot_bgcolor=white, font=dict(color=dark_purple)
+                )
+                fig1.update_traces(textposition='outside', textfont=dict(color=dark_purple))
+                fig1.update_xaxes(showgrid=False, tickfont=dict(color=dark_purple))
+                fig1.update_yaxes(showgrid=True, gridcolor=light_purple, tickfont=dict(color=dark_purple))
+                st.plotly_chart(fig1, use_container_width=True)
+            else:
+                st.caption("Presence data not available.")
+
+        with plot_col2:
+            st.subheader("Total Energy Distribution")
+            if energy_totals and sum(energy_totals.values()) > 0:
+                fig2 = px.pie(
+                    values=list(energy_totals.values()),
+                    names=list(energy_totals.keys()),
+                    color=list(energy_totals.keys()),
+                    color_discrete_map={
+                            'EV Charging': primary_purple, 'Air Conditioning': green,
+                            'Water Heater': salmon, 'Other Consumption': light_purple
+                    },
+                    hole=0.4
+                )
+                fig2.update_layout(
+                    legend_title="Energy Type", margin=dict(l=20, r=20, t=30, b=20),
+                    paper_bgcolor=white, plot_bgcolor=white, font=dict(color=dark_purple),
+                    legend=dict(font=dict(color=dark_purple))
+                )
+                fig2.update_traces(
+                    textinfo='percent+label', hovertemplate='%{label}<br>%{value:.1f} kWh<br>%{percent}',
+                    textfont=dict(color=dark_gray) # Darker text for contrast
+                )
+                st.plotly_chart(fig2, use_container_width=True)
+            else:
+                 st.caption("Energy distribution data not available.")
+
+        # Key Metrics Section
+        st.subheader("Key Metrics")
+        metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+        with metric_col1:
+            st.metric(label="Total Homes", value=f"{total_unique_meters:,}")
+        with metric_col2:
+            st.metric(label="Avg. Grid Consumption", value=f"{avg_grid:.1f} kWh")
+        with metric_col3:
+            st.metric(label="Avg. Solar Production (PV)", value=f"{avg_pv_prod:.1f} kWh", help="Average production for homes with detected PV (>0 kWh)")
+        with metric_col4:
+            st.metric(label="Consumption Identified", value=f"{pct_identified:.1f}%", help="% of total grid kWh attributed to detected EV, AC, and WH")
+
+        # --- Prepare and Display Table 2 --- 
+        st.subheader("Table 2: Appliance Breakdown")
+        if not appliance_breakdown_df.empty:
+            try:
+                # Set non-positive consumption to -1 (if not already done, depends on calculation flow)
+                appliance_breakdown_df.loc[appliance_breakdown_df['Consumption (kWh)'] <= 0, 'Consumption (kWh)'] = -1
+                
+                # Ensure appliance_type column exists (calculated above)
+                if 'appliance_type' not in appliance_breakdown_df.columns:
+                     # Recalculate if it was lost somehow
+                     appliance_code_map_disp = {k: v for k, v in appliance_map.items() if k in value_vars_melt}
+                     appliance_breakdown_df['appliance_type'] = appliance_breakdown_df['original_appliance_col'].map(appliance_code_map_disp)
+                
+                # Select, rename, and reorder final columns for display
+                final_display_cols = ['meterid', 'appliance_type']
+                final_display_rename_map = {'reference_month_ts': 'reference_month'}
+                
+                # Check if grid column exists in the breakdown df before adding
+                # Use the original name before potential renaming in map
+                grid_col_in_breakdown = grid_col if grid_col and grid_col in appliance_breakdown_df.columns else None
+                if grid_col_in_breakdown:
+                    final_display_cols.append(grid_col_in_breakdown) 
+                    final_display_rename_map[grid_col_in_breakdown] = 'grid (kWh)' # RENAME to include (kWh)
+                
+                final_display_cols.extend(['Consumption (kWh)', 'reference_month_ts'])
+                
+                # Select only the necessary columns that exist
+                final_display_cols_exist = [c for c in final_display_cols if c in appliance_breakdown_df.columns]
+                display_df = appliance_breakdown_df[final_display_cols_exist].copy() # Work on a copy
+                
+                # Rename the selected columns
+                display_df = display_df.rename(columns=final_display_rename_map)
+                
+                # Define final order based on RENAMED columns
+                final_display_order = ['meterid', 'appliance_type']
+                if 'grid (kWh)' in display_df.columns: # Check using the new name
+                    final_display_order.append('grid (kWh)')
+                final_display_order.extend(['Consumption (kWh)', 'reference_month']) 
+                
+                # Ensure all columns in final order exist before reordering
+                final_display_order_exist = [c for c in final_display_order if c in display_df.columns]
+                display_df = display_df[final_display_order_exist]
+                
+                st.dataframe(display_df, use_container_width=True)
+                
+                # Add legend for appliance codes
+                st.caption("Appliance Type Codes: a = EV Charging, b = Solar PV, c = Air Conditioning, d = Water Heater")
+
+            except Exception as e:
+                st.error(f"An error occurred preparing Table 2 for display: {e}")
+                st.exception(e)
+        else:
+             st.info("No data available for Appliance Breakdown Table.")
 
     except Exception as e:
         st.error(f"An unexpected error occurred on the Sample Output page: {e}")
