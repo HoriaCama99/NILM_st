@@ -337,7 +337,7 @@ if page == "Sample Output":
              
         # --- Prepare Consumption Data (df_consumption) ---
         # EXPECTED key in old file (maps to dataid/meterid in new file)
-        consum_id_col = 'customer id' 
+        consum_id_col = 'dataid' 
         if consum_id_col not in df_consumption.columns:
              st.error(f"Error: Consumption CSV '{consumption_csv_path}' is missing the identifier column '{consum_id_col}'. Cannot merge data.")
              st.stop()
