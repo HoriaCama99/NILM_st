@@ -279,8 +279,7 @@ if page == "Sample Output":
 
     # Try to load the new sample data CSV
     try:
-        # IMPORTANT: Replace 'disagg_output_v2.csv' with the actual path to your new file
-        csv_path = 'disagg_output_v2.csv' 
+        csv_path = 'dissag_output_v2.csv' 
         try:
             df = pd.read_csv(csv_path)
             # st.write("Successfully loaded CSV:", df.head()) # Debug: Check loaded data
