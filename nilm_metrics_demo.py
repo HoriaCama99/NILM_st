@@ -261,331 +261,185 @@ selected_model = "V6" # Default model
 
 if page == "Sample Output":
     # Sample Output page code goes here
-    st.title("Energy Disaggregation Model: Sample Output")
+    st.title("Energy Disaggregation Model: Output Structure Example")
     
-    # Try to load the sample data CSV
+    # Define function to convert date string to Unix timestamp string (start of day/month)
+    def to_unix_timestamp_string(date_str):
+        try:
+            # Assuming date_str is in a format pandas can parse (e.g., YYYY-MM-DD or similar)
+            dt = pd.to_datetime(date_str)
+            # For reference month, get the timestamp of the first day of the month UTC
+            # Convert to UTC first to ensure consistency regardless of system timezone
+            dt_utc = dt.tz_localize(None).tz_localize('UTC') 
+            dt_month_start_utc = dt_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            return str(int(dt_month_start_utc.timestamp()))
+        except Exception as e:
+            # st.warning(f"Could not convert date '{date_str}' to timestamp: {e}")
+            return None # Handle parsing errors gracefully
+
+    # Try to load the new sample data CSV
     try:
-        df_orig = pd.read_csv('disagg_sample.csv')
-        df = df_orig.copy() # Work with a copy
-
-        # --- Data Transformation ---
-        appliances = {
-            "ev": "ev charging (kWh)",
-            "ac": "air conditioning (kWh)",
-            "pv": "solar production (kWh)", # Note: PV is production, handled slightly differently later
-            "water heater": "water heater (kWh)"
-        }
-        
-        for prefix, kwh_col in appliances.items():
-            detected_col = f"{prefix} detected"
-            if detected_col in df.columns and kwh_col in df.columns:
-                # Set kWh to -1 if not detected (except for PV, where 0 production is valid)
-                if prefix != 'pv':
-                    df[kwh_col] = df.apply(lambda row: -1 if row[detected_col] == 0 else row[kwh_col], axis=1)
-                # Drop the detected column
-                df = df.drop(columns=[detected_col])
-
-        # Add placeholder date columns (e.g., representing the analysis period)
-        # Generate a plausible date range for each row (e.g., first/last day of a previous month)
-        analysis_dates = []
-        current_date = datetime.date.today()
-        for _ in range(len(df)):
-            # Simulate analysis done sometime in the last 6 months
-            analysis_month_offset = random.randint(1, 6)
-            analysis_end_date = current_date - pd.DateOffset(months=analysis_month_offset)
-            analysis_start_date = analysis_end_date.replace(day=1)
-            analysis_end_date = analysis_start_date + pd.offsets.MonthEnd(0)
-            analysis_dates.append({
-                # Format as Month Name YYYY
-                "used_window_start": analysis_start_date.strftime('%B %Y'),
-                "used_window_stop": analysis_end_date.strftime('%B %Y')
-            })
-        
-        date_df = pd.DataFrame(analysis_dates)
-        df['used_window_start'] = date_df['used_window_start']
-        df['used_window_stop'] = date_df['used_window_stop']
-
-        # --- End Data Transformation ---
+        # IMPORTANT: Replace 'disagg_output_v2.csv' with the actual path to your new file
+        csv_path = 'disagg_output_v2.csv' 
+        try:
+            df = pd.read_csv(csv_path)
+            # st.write("Successfully loaded CSV:", df.head()) # Debug: Check loaded data
+        except FileNotFoundError:
+            st.error(f"Error: The file '{csv_path}' was not found. Please update the path in the code or upload the file.")
+            st.stop() # Stop execution if file not found
+        except Exception as e:
+            st.error(f"Error reading CSV file '{csv_path}': {e}")
+            st.stop()
 
         st.markdown("""
-        This dashboard presents a sample output from our energy disaggregation model, which analyzes household 
-        energy consumption data and identifies specific appliance usage patterns.
-
-        ### Key Information:
-        - Sample represents output for multiple homes with diverse energy profiles.
-        - Values reflect monthly average energy consumption (or production for PV) in kWh.
-        - **A value of -1 indicates the appliance was not detected or not present.**
-        - Grid consumption represents total household electricity usage.
-        - `used_window_start` / `used_window_stop` show the analysis period (Month-Year).
-        - Model confidence levels are not shown in this simplified output.
+        This page shows the restructured output format with two tables derived from the model results.
+        Dates are represented as Unix timestamp strings (UTC, start of day/month).
         """)
 
-        # Add interactive filtering directly with the first dataframe
-        st.subheader("Sample Model Output with Interactive Filtering")
+        # --- Data Transformation ---
 
-        # Add filter controls in a more compact format
-        filter_cols = st.columns(4)
+        # 1. Rename columns (handle missing columns gracefully)
+        rename_map = {
+            'dataid': 'meterid',
+            'start_date_disagg_window': 'window_start',
+            'end_date_disagg_window': 'window_stop',
+            'start_date_output_window': 'reference_month' # Use start date for reference month
+        }
+        actual_rename_map = {k: v for k, v in rename_map.items() if k in df.columns}
+        df = df.rename(columns=actual_rename_map)
+        # st.write("Data after renaming:", df.head()) # Debug: Check renaming
 
-        with filter_cols[0]:
-            ev_filter = st.selectbox("EV Charging", ["Any", "Present", "Not Present"])
-
-        with filter_cols[1]:
-            ac_filter = st.selectbox("Air Conditioning", ["Any", "Present", "Not Present"])
-
-        with filter_cols[2]:
-            pv_filter = st.selectbox("Solar PV", ["Any", "Present", "Not Present"])
-
-        with filter_cols[3]:
-            wh_filter = st.selectbox("Water Heater", ["Any", "Present", "Not Present"])
-
-        # Apply filters based on kWh values
-        filtered_df = df.copy()
-
-        if ev_filter == "Present":
-            filtered_df = filtered_df[filtered_df['ev charging (kWh)'] > 0]
-        elif ev_filter == "Not Present":
-            filtered_df = filtered_df[filtered_df['ev charging (kWh)'] == -1]
-
-        if ac_filter == "Present":
-            filtered_df = filtered_df[filtered_df['air conditioning (kWh)'] > 0]
-        elif ac_filter == "Not Present":
-            filtered_df = filtered_df[filtered_df['air conditioning (kWh)'] == -1]
-
-        # For PV, 'Present' means production > 0, 'Not Present' could mean detected=0 OR production=0
-        # Let's adjust: 'Present' means PV detected (original logic was pv detected=1), 'Not Present' means pv detected=0
-        # We need the original detected column info for this filter. Let's use df_orig temporarily.
-        if pv_filter == "Present":
-             filtered_df = filtered_df[df_orig['pv detected'] == 1]
-        elif pv_filter == "Not Present":
-             filtered_df = filtered_df[df_orig['pv detected'] == 0]
-        # If pv_filter is 'Any', no PV filtering is applied to filtered_df
-
-        if wh_filter == "Present":
-            filtered_df = filtered_df[filtered_df['water heater (kWh)'] > 0]
-        elif wh_filter == "Not Present":
-            filtered_df = filtered_df[filtered_df['water heater (kWh)'] == -1]
-
-        # Select and order columns for display
-        columns_to_display = [
-            'dataid', # Corrected column name
-            'used_window_start', 
-            'used_window_stop', 
-            'grid (kWh)', 
-            'solar production (kWh)', 
-            'ev charging (kWh)', 
-            'air conditioning (kWh)', 
-            'water heater (kWh)'
-        ]
-        # Ensure columns exist before selecting - REMOVING THIS CHECK (already removed)
-        # columns_to_display = [col for col in columns_to_display if col in filtered_df.columns]
-
-        # Display filtered dataframe with record count
-        # Assuming 'dataid' and other columns now exist in filtered_df
-        st.dataframe(filtered_df[columns_to_display], use_container_width=True)
-        st.caption(f"Showing {len(filtered_df)} of {len(df)} homes")
-
-        # Create two columns for the interactive plots
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.subheader("Appliance Presence in Housing Portfolio")
+        # Check if essential columns exist after renaming
+        required_cols_after_rename = ['meterid', 'window_start', 'window_stop', 'reference_month']
+        missing_required = [col for col in required_cols_after_rename if col not in df.columns]
+        if missing_required:
+            st.error(f"Error: The following essential columns are missing after renaming (check CSV headers and rename_map): {missing_required}")
+            st.stop()
             
-            # Calculate presence percentages based on kWh > 0 (using original detected for PV)
-            num_filtered_homes = len(filtered_df)
-            appliance_presence = {
-                'EV Charging': (filtered_df['ev charging (kWh)'] > 0).sum() / num_filtered_homes * 100 if num_filtered_homes > 0 else 0,
-                'Air Conditioning': (filtered_df['air conditioning (kWh)'] > 0).sum() / num_filtered_homes * 100 if num_filtered_homes > 0 else 0,
-                'Solar PV': (df_orig.loc[filtered_df.index, 'pv detected'] == 1).sum() / num_filtered_homes * 100 if num_filtered_homes > 0 else 0, # Use original detection for PV presence
-                'Water Heater': (filtered_df['water heater (kWh)'] > 0).sum() / num_filtered_homes * 100 if num_filtered_homes > 0 else 0
+        # Keep original grid column if it exists
+        grid_col_original = 'grid (kWh)' # Assuming this is the name in the CSV
+        if grid_col_original not in df.columns:
+             grid_col_original = 'grid' # Try alternative common name
+             if grid_col_original not in df.columns:
+                 st.warning("Could not find 'grid (kWh)' or 'grid' column. Grid values will be missing from Table 2.")
+                 grid_col_original = None
+        
+        # Identify appliance kWh columns from the original CSV structure (adjust names as needed)
+        appliance_kwh_cols_original = {
+            'ev charging (kWh)': 'a', # a = EV
+            'solar production (kWh)': 'b', # b = PV
+            'air conditioning (kWh)': 'c', # c = AC
+            'water heater (kWh)': 'd'  # d = WH
+        }
+        value_vars = [col for col in appliance_kwh_cols_original.keys() if col in df.columns]
+        if not value_vars:
+            st.error("Error: Could not find any expected appliance kWh columns (e.g., 'ev charging (kWh)', 'solar production (kWh)', etc.) in the CSV. Cannot create breakdown table.")
+            st.stop()
+        # st.write("Appliance columns found:", value_vars) # Debug
+
+        # 2. Convert dates to Unix timestamp strings
+        date_cols_to_convert = ['window_start', 'window_stop', 'reference_month']
+        for col in date_cols_to_convert:
+            if col in df.columns:
+                # st.write(f"Converting column: {col}") # Debug
+                df[col] = df[col].apply(to_unix_timestamp_string)
+                if df[col].isnull().any():
+                    st.warning(f"Warning: Some values in column '{col}' could not be converted to timestamps. They will appear as empty.")
+            # else: # Already checked above
+            #      st.warning(f"Date column '{col}' not found for timestamp conversion.")
+        # st.write("Data after date conversion:", df.head()) # Debug
+
+        # --- Create Table 1: Meter Information ---
+        st.subheader("Table 1: Meter Information")
+        meter_info_cols = ['meterid', 'window_start', 'window_stop']
+        # All these columns were checked earlier, so should exist
+        try:
+            meter_info_df = df[meter_info_cols].drop_duplicates(subset=['meterid']).reset_index(drop=True)
+            meter_info_df['interval'] = "15 min"
+            st.dataframe(meter_info_df, use_container_width=True)
+        except KeyError as e:
+            st.error(f"Error creating Meter Info table. Missing column: {e}. Please check CSV headers and renaming logic.")
+        except Exception as e:
+            st.error(f"An unexpected error occurred creating Meter Info table: {e}")
+            st.exception(e)
+            
+        # --- Create Table 2: Appliance Breakdown ---
+        st.subheader("Table 2: Appliance Breakdown")
+        
+        id_vars = ['meterid', 'reference_month']
+        if grid_col_original and grid_col_original in df.columns: # Add grid column if found and exists
+             id_vars.append(grid_col_original)
+        else:
+             # If grid column is missing, we need to add a placeholder or handle it
+             # For simplicity, we proceed without it, but warn the user
+             if not grid_col_original:
+                 pass # Already warned user above
+             elif grid_col_original not in df.columns:
+                 st.warning(f"Grid column '{grid_col_original}' not found before melting. It will be omitted from Table 2.")
+                 grid_col_original = None # Ensure it's not used later
+                 
+        # Ensure id_vars exist in the dataframe before melting
+        id_vars_exist = [var for var in id_vars if var in df.columns]
+        if 'meterid' not in id_vars_exist or 'reference_month' not in id_vars_exist:
+             # This check might be redundant due to earlier checks, but keep for safety
+             st.error("Cannot create Appliance Breakdown table because 'meterid' or 'reference_month' are missing.")
+             st.stop()
+
+        try:
+            # Melt the dataframe
+            appliance_breakdown_df = pd.melt(
+                df, 
+                id_vars=id_vars_exist,
+                value_vars=value_vars, 
+                var_name='original_appliance_col', 
+                value_name='Consumption (kWh)'
+            )
+            # st.write("Data after melting:", appliance_breakdown_df.head()) # Debug
+
+            # Filter out non-detected/zero consumption appliances
+            # Convert to numeric first, coercing errors to NaN, then fillna with 0
+            appliance_breakdown_df['Consumption (kWh)'] = pd.to_numeric(appliance_breakdown_df['Consumption (kWh)'], errors='coerce').fillna(0)
+            appliance_breakdown_df = appliance_breakdown_df[appliance_breakdown_df['Consumption (kWh)'] > 0].reset_index(drop=True)
+            # st.write("Data after filtering > 0 kWh:", appliance_breakdown_df.head()) # Debug
+
+            # Map original appliance column names to codes
+            appliance_code_map = {k: v for k, v in appliance_kwh_cols_original.items() if k in value_vars}
+            appliance_breakdown_df['appliance_type'] = appliance_breakdown_df['original_appliance_col'].map(appliance_code_map)
+            
+            # Select and rename final columns
+            final_breakdown_cols_map = {
+                'meterid': 'meterid',
+                'appliance_type': 'appliance_type',
+                # Only include grid if it existed
+                **({grid_col_original: 'grid'} if grid_col_original in appliance_breakdown_df.columns else {}),
+                'Consumption (kWh)': 'Consumption (kWh)',
+                'reference_month': 'reference_month'
             }
             
-            # Create interactive bar chart using Plotly with team colors
-            fig1 = px.bar(
-                x=list(appliance_presence.keys()),
-                y=list(appliance_presence.values()),
-                labels={'x': 'Appliance Type', 'y': 'Percentage of Homes (%)'},
-                color=list(appliance_presence.keys()),
-                color_discrete_map={
-                        'EV Charging': primary_purple,
-                        'Air Conditioning': green,
-                        'Solar PV': cream,
-                        'Water Heater': salmon
-                },
-                text=[f"{val:.1f}%" for val in appliance_presence.values()]
-            )
+            final_columns_ordered = ['meterid', 'appliance_type']
+            if grid_col_original in appliance_breakdown_df.columns: final_columns_ordered.append('grid')
+            final_columns_ordered.extend(['Consumption (kWh)', 'reference_month'])
             
-            # Update layout with team colors - now with white background
-            fig1.update_layout(
-                showlegend=False,
-                xaxis_title="Appliance Type",
-                yaxis_title="Percentage of Homes (%)",
-                yaxis_range=[0, 100],
-                margin=dict(l=20, r=20, t=30, b=20),
-                    paper_bgcolor=white,
-                    plot_bgcolor=white,
-                    font=dict(color=dark_purple)
-            )
-            
-            fig1.update_traces(textposition='outside', textfont=dict(color=dark_purple))
-            fig1.update_xaxes(showgrid=False, gridcolor=light_purple, tickfont=dict(color=dark_purple))
-            fig1.update_yaxes(showgrid=True, gridcolor=light_purple, tickfont=dict(color=dark_purple))
-            
-            # Display the plot
-            st.plotly_chart(fig1, use_container_width=True)
-            
-            # Add interactive details
-            with st.expander("About Appliance Presence"):
-                st.markdown("""
-                This chart shows the percentage of homes in the sample where each appliance type was detected.
-                
-                - **Air Conditioning**: Most commonly detected appliance
-                - **Solar PV**: Shows significant renewable adoption
-                - **EV Charging**: Indicates electric vehicle ownership
-                - **Water Heater**: Least commonly detected in this sample
-                
-                Presence is determined by positive energy consumption (kWh > 0) or detection (for PV).
-                """)
+            # Select the columns based on the map keys, then rename
+            appliance_breakdown_df = appliance_breakdown_df[list(final_breakdown_cols_map.keys())]
+            appliance_breakdown_df = appliance_breakdown_df.rename(columns=final_breakdown_cols_map)
+            # Reorder columns
+            appliance_breakdown_df = appliance_breakdown_df[final_columns_ordered]
 
-        with col2:
-            st.subheader("Total Energy Distribution by Type")
-            
-            # Calculate disaggregated appliance total (only sum positive kWh values)
-            ev_total = filtered_df[filtered_df['ev charging (kWh)'] > 0]['ev charging (kWh)'].sum()
-            ac_total = filtered_df[filtered_df['air conditioning (kWh)'] > 0]['air conditioning (kWh)'].sum()
-            wh_total = filtered_df[filtered_df['water heater (kWh)'] > 0]['water heater (kWh)'].sum()
-            disaggregated_total = ev_total + ac_total + wh_total
+            # Display the table
+            st.dataframe(appliance_breakdown_df, use_container_width=True)
 
-            # Calculate "Other Consumption" by subtracting known appliances from grid total
-            # Note: PV production is not subtracted here, assuming 'grid (kWh)' is net consumption
-            grid_total = filtered_df['grid (kWh)'].sum()
-            other_consumption = grid_total - disaggregated_total
-            other_consumption = max(0, other_consumption)  # Ensure it's not negative
-            
-            energy_totals = {
-                'EV Charging': ev_total,
-                'Air Conditioning': ac_total,
-                'Water Heater': wh_total,
-                'Other Consumption': other_consumption
-            }
-            
-            # Create interactive pie chart using Plotly with team colors
-            fig2 = px.pie(
-                values=list(energy_totals.values()),
-                names=list(energy_totals.keys()),
-                color=list(energy_totals.keys()),
-                color_discrete_map={
-                        'EV Charging': primary_purple,
-                        'Air Conditioning': green,
-                        'Water Heater': salmon,
-                        'Other Consumption': light_purple
-                },
-                hole=0.4
-            )
-            
-            # Update layout with team colors - now with white background
-            fig2.update_layout(
-                legend_title="Energy Type",
-                margin=dict(l=20, r=20, t=30, b=20),
-                    paper_bgcolor=white,
-                    plot_bgcolor=white,
-                    font=dict(color=dark_purple),
-                    legend=dict(font=dict(color=dark_purple))
-            )
-            
-            fig2.update_traces(
-                textinfo='percent+label',
-                    hovertemplate='%{label}<br>%{value:.1f} kWh<br>%{percent}',
-                    textfont=dict(color=dark_gray)  # Darker text for better contrast
-            )
-            
-            # Display the plot
-            st.plotly_chart(fig2, use_container_width=True)
-            
-            # Add interactive details
-            with st.expander("About Energy Distribution"):
-                st.markdown("""
-                    This chart shows how the total energy consumption is distributed across different detected appliance types.
-                
-                - **Air Conditioning**: Typically accounts for significant consumption when present.
-                - **EV Charging**: Can be a major energy consumer when present.
-                - **Water Heater**: Generally smaller portion of total energy use when present.
-                    - **Other Consumption**: Remaining grid usage not attributed to the three main *detected* appliances.
-                
-                Understanding this distribution helps identify the highest impact areas for efficiency improvements.
-                """)
+        except KeyError as e:
+            st.error(f"Error processing Appliance Breakdown table. Missing column: {e}. Check melting/mapping logic.")
+            st.exception(e)
+        except Exception as e:
+            st.error(f"An unexpected error occurred creating Appliance Breakdown table: {e}")
+            st.exception(e) # Show traceback for debugging
 
-        # Add summary metrics
-        st.markdown(f"""
-        <style>
-            .metric-container {{
-                background-color: {primary_purple};
-                border-radius: 10px;
-                padding: 15px 15px;
-                margin: 10px 0;
-                border: 2px solid {primary_purple};
-            }}
-        </style>
-        """, unsafe_allow_html=True)
-
-        st.subheader("Key Metrics")
-        metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-
-        with metric_col1:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            st.metric(
-                label="Total Homes",
-                value=len(filtered_df),
-                delta=f"{len(filtered_df) - len(df)}" if len(filtered_df) != len(df) else None,
-                help="Number of households in the filtered dataset"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with metric_col2:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            avg_grid = filtered_df['grid (kWh)'].mean() if len(filtered_df) > 0 else 0
-            st.metric(
-                label="Avg. Grid Consumption",
-                value=f"{avg_grid:.1f} kWh",
-                help="Average total electricity consumption per home"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with metric_col3:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            pv_homes = filtered_df[df_orig.loc[filtered_df.index, 'pv detected'] == 1] # Filter based on original detection
-            pv_avg = pv_homes['solar production (kWh)'].mean() if len(pv_homes) > 0 else 0
-            st.metric(
-                label="Avg. Solar Production",
-                value=f"{pv_avg:.1f} kWh",
-                help="Average solar production for homes where PV systems were detected"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with metric_col4:
-            st.markdown("<div class='metric-container'>", unsafe_allow_html=True)
-            # Percentage of consumption identified by model (using recalculated disaggregated_total)
-            total_grid = filtered_df['grid (kWh)'].sum()
-            total_identified = disaggregated_total # Already calculated sum of positive kWh
-            pct_identified = (total_identified / total_grid * 100) if total_grid > 0 else 0
-            
-            st.metric(
-                label="Consumption Identified",
-                value=f"{pct_identified:.1f}%",
-                help="Percentage of total grid consumption attributed to detected EV, AC, and Water Heater"
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        # Add footer with primary purple color
-        st.markdown("---")
-        st.markdown(f"""
-        <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
-            This sample output demonstrates the type of insights available from the disaggregation model. 
-            In a full deployment, thousands of households would be analyzed to provide statistically significant patterns and trends.
-        </div>
-        """, unsafe_allow_html=True)
     except Exception as e:
-        st.error(f"Error loading sample data: {e}")
-        st.info("Please make sure the 'disagg_sample.csv' file is in the same directory as this script.")
+        # Catch potential errors during the whole process (e.g., loading, initial renaming)
+        st.error(f"An unexpected error occurred on the Sample Output page: {e}")
+        st.exception(e) # Show traceback for debugging
 
 elif page == "Performance Metrics":
     # Performance Metrics page
@@ -776,7 +630,7 @@ elif page == "Performance Metrics":
     """)
 
     # Main content area for Performance Metrics page
-    st.subheader(f"Model: {selected_model} ({model_dates[selected_model]})")
+    st.subheader(f"Model: {selected_model} ({model_dates[selected_model]})" )
 
     # Key metrics display section - now in a 2-column layout
     metrics_col, trend_col = st.columns([1, 1])
@@ -1090,7 +944,7 @@ elif page == "Performance Metrics":
             <small>
             <strong>Best DPSPerc:</strong> {best_dpsperc_display} ({trend_df.loc[trend_df['Model'] == best_dpsperc_display, 'DPSPerc (%)'].values[0]:.2f}%)<br>
             <strong>Best FPR:</strong> {best_fpr_display} ({trend_df.loc[trend_df['Model'] == best_fpr_display, 'FPR (%)'].values[0]:.2f}%)<br>
-            <strong>Best TECA:</strong> {best_teca_display} ({trend_df.loc[trend_df['Model'] == best_teca_display, 'TECA (%)'].values[0]:.2f}%)
+            <strong>Best TECA:</strong> {best_teca_display} ({trend_df.loc[trend_df['Model'] == best_teca_display, 'TECA (%)'].values[0]:.2f}%) 
             </small>
         </div>
         """, unsafe_allow_html=True)
@@ -1148,7 +1002,7 @@ elif page == "Performance Metrics":
     # Apply styling with custom formatting for percentages
     styled_df = sample_df[['Device Type', 'Negative Class (%)', 'Positive Class (%)']].style\
         .format({'Negative Class (%)': '{:.2f}%', 'Positive Class (%)': '{:.2f}%'})\
-        .applymap(highlight_class_imbalance, subset=['Negative Class (%)', 'Positive Class (%)'])\
+        .applymap(highlight_class_imbalance, subset=['Negative Class (%)', 'Positive Class (%)']) \
         .set_properties(**{'text-align': 'center', 'font-size': '1rem', 'border-color': light_purple})
 
     st.table(styled_df)
