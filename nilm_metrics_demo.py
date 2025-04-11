@@ -270,8 +270,12 @@ if page == "Sample Output":
         if pd.isna(date_str):
             return None
         try:
+            # Assuming date_str is in a format pandas can parse (e.g., YYYY-MM-DD or similar)
             dt = pd.to_datetime(date_str)
-            dt_utc = dt.tz_localize(None).tz_localize(dtlib.timezone.utc)
+            # Convert to UTC first to ensure consistency
+            # Use the string 'UTC' for localization
+            dt_utc = dt.tz_localize(None).tz_localize('UTC') 
+            # For reference month or window start/stop, get the timestamp of the first day of the month UTC
             dt_month_start_utc = dt_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             return str(int(dt_month_start_utc.timestamp()))
         except Exception as e:
