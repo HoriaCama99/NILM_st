@@ -275,6 +275,8 @@ if page == "Sample Output":
             dt_month_start_utc = dt_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             return str(int(dt_month_start_utc.timestamp()))
         except Exception as e:
+            # Add warning to help debug problematic date values
+            st.warning(f"Could not convert date '{date_str}' to timestamp: {e}") 
             return None # Handle parsing errors gracefully
 
     try:
@@ -419,40 +421,47 @@ if page == "Sample Output":
                 value_name='Consumption (kWh)'
             )
             
-            # Filter out non-positive consumption
+            # Convert consumption to numeric, handle errors/NaNs
             appliance_breakdown_df['Consumption (kWh)'] = pd.to_numeric(appliance_breakdown_df['Consumption (kWh)'], errors='coerce').fillna(0)
-            appliance_breakdown_df = appliance_breakdown_df[appliance_breakdown_df['Consumption (kWh)'] > 0].reset_index(drop=True)
-
-            if appliance_breakdown_df.empty:
-                 st.info("No positive appliance consumption data found in the merged dataset.")
-            else:
-                # Map appliance codes
-                appliance_code_map = {k: v for k, v in appliance_map.items() if k in value_vars_melt}
-                appliance_breakdown_df['appliance_type'] = appliance_breakdown_df['original_appliance_col'].map(appliance_code_map)
-                
-                # Select, rename, and reorder final columns
-                final_cols = ['meterid', 'appliance_type']
-                final_rename_map = {'reference_month_ts': 'reference_month'}
-                
-                if grid_col and grid_col in appliance_breakdown_df.columns:
-                    final_cols.append(grid_col) # Add the original grid column name first
-                    final_rename_map[grid_col] = 'grid' # Add its renaming
-                
-                final_cols.extend(['Consumption (kWh)', 'reference_month_ts'])
-                
-                # Select the necessary columns
-                appliance_breakdown_df = appliance_breakdown_df[final_cols]
-                # Rename the columns
-                appliance_breakdown_df = appliance_breakdown_df.rename(columns=final_rename_map)
-                
-                # Define final order based on renamed columns
-                final_order = ['meterid', 'appliance_type']
-                if 'grid' in appliance_breakdown_df.columns:
-                     final_order.append('grid')
-                final_order.extend(['Consumption (kWh)', 'reference_month']) 
-                appliance_breakdown_df = appliance_breakdown_df[final_order]
-                
-                st.dataframe(appliance_breakdown_df, use_container_width=True)
+            
+            # **CHANGE:** Set non-positive consumption to -1 instead of filtering
+            appliance_breakdown_df.loc[appliance_breakdown_df['Consumption (kWh)'] <= 0, 'Consumption (kWh)'] = -1
+            
+            # Remove the check for empty dataframe after filtering, as we now include non-detected
+            # if appliance_breakdown_df.empty:
+            #      st.info("No positive appliance consumption data found in the merged dataset.")
+            # else:
+            # Map appliance codes (this block should run regardless of empty check)
+            appliance_code_map = {k: v for k, v in appliance_map.items() if k in value_vars_melt}
+            appliance_breakdown_df['appliance_type'] = appliance_breakdown_df['original_appliance_col'].map(appliance_code_map)
+            
+            # Select, rename, and reorder final columns
+            final_cols = ['meterid', 'appliance_type']
+            final_rename_map = {'reference_month_ts': 'reference_month'}
+            
+            if grid_col and grid_col in appliance_breakdown_df.columns:
+                final_cols.append(grid_col) # Add the original grid column name first
+                final_rename_map[grid_col] = 'grid' # Add its renaming
+            
+            final_cols.extend(['Consumption (kWh)', 'reference_month_ts'])
+            
+            # Select the necessary columns
+            # Make sure all columns in final_cols actually exist before selecting
+            final_cols_exist = [c for c in final_cols if c in appliance_breakdown_df.columns]
+            appliance_breakdown_df = appliance_breakdown_df[final_cols_exist]
+            # Rename the columns that were selected
+            appliance_breakdown_df = appliance_breakdown_df.rename(columns=final_rename_map)
+            
+            # Define final order based on renamed columns
+            final_order = ['meterid', 'appliance_type']
+            if 'grid' in appliance_breakdown_df.columns:
+                    final_order.append('grid')
+            final_order.extend(['Consumption (kWh)', 'reference_month']) 
+            # Ensure all columns in final_order exist before reordering
+            final_order_exist = [c for c in final_order if c in appliance_breakdown_df.columns]
+            appliance_breakdown_df = appliance_breakdown_df[final_order_exist]
+            
+            st.dataframe(appliance_breakdown_df, use_container_width=True)
 
         except KeyError as e:
             st.error(f"Error processing Appliance Breakdown table (KeyError): {e}. Check melting/mapping/renaming logic.")
