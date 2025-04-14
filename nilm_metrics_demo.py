@@ -357,12 +357,12 @@ if page == "Sample Output":
                  st.warning(f"Consumption CSV '{consumption_csv_path}' missing grid column ('grid (kWh)' or 'grid'). Grid values will be omitted.")
                  grid_col = None
                  
-        # Identify appliance columns
+        # Identify appliance columns and map to DESCRIPTIVE CODES
         appliance_map = {
-            'ev charging (kWh)': 'a', 
-            'solar production (kWh)': 'b', 
-            'air conditioning (kWh)': 'c', 
-            'water heater (kWh)': 'd'  
+            'ev charging (kWh)': 'ev', 
+            'solar production (kWh)': 'pv', 
+            'air conditioning (kWh)': 'ac', 
+            'water heater (kWh)': 'wh'  
         }
         appliance_cols = [col for col in appliance_map.keys() if col in df_consumption.columns]
         if not appliance_cols:
@@ -455,17 +455,17 @@ if page == "Sample Output":
             # Calculate Presence (% of unique meters having the appliance with >0 kWh)
             presence_counts = positive_consumption_df.groupby('appliance_type')['meterid'].nunique()
             appliance_presence = { # Map codes back to full names for plot labels
-                'EV Charging': (presence_counts.get('a', 0) / total_unique_meters) * 100,
-                'Solar PV': (presence_counts.get('b', 0) / total_unique_meters) * 100,
-                'Air Conditioning': (presence_counts.get('c', 0) / total_unique_meters) * 100,
-                'Water Heater': (presence_counts.get('d', 0) / total_unique_meters) * 100,
+                'EV Charging': (presence_counts.get('ev', 0) / total_unique_meters) * 100,
+                'Solar PV': (presence_counts.get('pv', 0) / total_unique_meters) * 100,
+                'Air Conditioning': (presence_counts.get('ac', 0) / total_unique_meters) * 100,
+                'Water Heater': (presence_counts.get('wh', 0) / total_unique_meters) * 100,
             }
 
             # Calculate Energy Totals (Sum of positive kWh for EV, AC, WH)
             energy_sum_by_type = positive_consumption_df.groupby('appliance_type')['Consumption (kWh)'].sum()
-            ev_total = energy_sum_by_type.get('a', 0)
-            ac_total = energy_sum_by_type.get('c', 0)
-            wh_total = energy_sum_by_type.get('d', 0)
+            ev_total = energy_sum_by_type.get('ev', 0)
+            ac_total = energy_sum_by_type.get('ac', 0)
+            wh_total = energy_sum_by_type.get('wh', 0)
             total_identified = ev_total + ac_total + wh_total
             
             # Calculate Total Grid (Sum unique grid values per meter/month or just sum column if appropriate)
@@ -490,7 +490,7 @@ if page == "Sample Output":
             }
             
             # Calculate Avg PV Production (Avg positive kWh for PV)
-            pv_prod = positive_consumption_df[positive_consumption_df['appliance_type'] == 'b']['Consumption (kWh)']
+            pv_prod = positive_consumption_df[positive_consumption_df['appliance_type'] == 'pv']['Consumption (kWh)']
             avg_pv_prod = pv_prod.mean() if not pv_prod.empty else 0
             
             # Calculate % Consumption Identified
@@ -573,11 +573,9 @@ if page == "Sample Output":
                 # Set non-positive consumption to -1 (if not already done, depends on calculation flow)
                 appliance_breakdown_df.loc[appliance_breakdown_df['Consumption (kWh)'] <= 0, 'Consumption (kWh)'] = -1
                 
-                # Ensure appliance_type column exists (calculated above)
-                if 'appliance_type' not in appliance_breakdown_df.columns:
-                     # Recalculate if it was lost somehow
-                     appliance_code_map_disp = {k: v for k, v in appliance_map.items() if k in value_vars_melt}
-                     appliance_breakdown_df['appliance_type'] = appliance_breakdown_df['original_appliance_col'].map(appliance_code_map_disp)
+                # Map original appliance column names to NEW codes ('ev', 'pv', etc.)
+                appliance_code_map = {k: v for k, v in appliance_map.items() if k in value_vars_melt}
+                appliance_breakdown_df['appliance_type'] = appliance_breakdown_df['original_appliance_col'].map(appliance_code_map)
                 
                 # Select, rename, and reorder final columns for display
                 final_display_cols = ['meterid', 'appliance_type']
@@ -611,8 +609,8 @@ if page == "Sample Output":
                 
                 st.dataframe(display_df, use_container_width=True)
                 
-                # Add legend for appliance codes
-                st.caption("Appliance Type Codes: a = EV Charging, b = Solar PV, c = Air Conditioning, d = Water Heater")
+                # Update legend for new appliance codes
+                st.caption("Appliance Type Codes: ev = EV Charging, pv = Solar PV, ac = Air Conditioning, wh = Water Heater")
 
             except Exception as e:
                 st.error(f"An error occurred preparing Table 2 for display: {e}")
@@ -2014,9 +2012,7 @@ elif page == "Interactive Map":
         # Optionally show overall stats or a message when no state is selected
         st.subheader("Portfolio Overview")
         st.info("Select a state from the dropdown above to view detailed statistics and household data.")
-        # You could potentially calculate and display aggregate stats here if needed
-        # total_homes = sum(info['total_homes'] for info in states_info.values())
-        # ... etc ...
+
 
     # --- End Map Generation Logic ---
 
