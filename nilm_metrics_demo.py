@@ -652,9 +652,16 @@ if page == "Sample Output":
                 # Map original appliance column names to NEW codes ('ev', 'pv', etc.)
                 appliance_code_map = {k: v for k, v in appliance_map.items() if k in value_vars_melt}
                 appliance_breakdown_df['appliance_type'] = appliance_breakdown_df['original_appliance_col'].map(appliance_code_map)
-                
+
+                # Add direction column based on appliance type
+                appliance_breakdown_df['direction'] = np.where(
+                    appliance_breakdown_df['appliance_type'] == 'pv',
+                    'negative', # PV generates
+                    'positive'  # Others consume
+                )
+
                 # Select, rename, and reorder final columns for display
-                final_display_cols = ['meterid', 'appliance_type']
+                final_display_cols = ['meterid', 'appliance_type', 'direction'] # Added direction
                 final_display_rename_map = {'reference_month_ts': 'reference_month'}
                 
                 # Check if grid column exists in the breakdown df before adding
@@ -674,7 +681,7 @@ if page == "Sample Output":
                 display_df = display_df.rename(columns=final_display_rename_map)
                 
                 # Define final order based on RENAMED columns
-                final_display_order = ['meterid', 'appliance_type']
+                final_display_order = ['meterid', 'appliance_type', 'direction'] # Added direction
                 if 'grid (kWh)' in display_df.columns: # Check using the new name
                     final_display_order.append('grid (kWh)')
                 final_display_order.extend(['Consumption (kWh)', 'reference_month']) 
