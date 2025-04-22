@@ -274,38 +274,32 @@ if page == "Sample Output":
             dt = pd.to_datetime(date_str)
             # Convert to UTC first to ensure consistency
             # Use the string 'UTC' for localization
-            dt_utc = dt.tz_localize(None).tz_localize('UTC')
+            dt_utc = dt.tz_localize(None).tz_localize('UTC') 
             # For reference month or window start/stop, get the timestamp of the first day of the month UTC
-            # Let's adjust this to use the ACTUAL day, not just the start of the month, for window start/stop
-            # Heuristic check if it's meant to be month start - NEEDS REVIEW based on actual column names/intent
-            # Simple approach: treat all as start of the given day UTC
-            dt_start_utc = dt_utc.replace(hour=0, minute=0, second=0, microsecond=0) # Start of the specific day UTC
-
-            # Original logic that forced start of month:
-            # if 'month' in date_str.lower(): # Heuristic check if it's meant to be month start
-            #      dt_start_utc = dt_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            # else:
-            #      dt_start_utc = dt_utc.replace(hour=0, minute=0, second=0, microsecond=0) # Start of the specific day
-
-            return str(int(dt_start_utc.timestamp()))
+            dt_month_start_utc = dt_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            return str(int(dt_month_start_utc.timestamp()))
         except Exception as e:
             # Add warning to help debug problematic date values
-            st.warning(f"Could not convert date '{date_str}' to timestamp: {e}")
+            st.warning(f"Could not convert date '{date_str}' to timestamp: {e}") 
             return None # Handle parsing errors gracefully
 
-    # Define function to convert Unix timestamp string to readable date
-    def unix_ts_to_readable_date(ts_str):
-        """Converts a Unix timestamp string to a YYYY-MM-DD date string (UTC)."""
-        if pd.isna(ts_str) or ts_str is None:
-            return None
+    # Define function to format Unix timestamp string to readable date
+    def format_unix_timestamp(ts_str, date_format="%Y-%m-%d"):
+        """Converts a Unix timestamp string back to a formatted date string (UTC)."""
+        if pd.isna(ts_str):
+            return "N/A" # Or None, or empty string
         try:
-            # Convert string timestamp to float/int, then to datetime
-            timestamp = float(ts_str)
-            dt_object_utc = datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
-            return dt_object_utc.strftime('%Y-%m-%d')
+            # Convert string timestamp to float/int, then to datetime (assuming UTC)
+            dt_object = pd.to_datetime(float(ts_str), unit='s', utc=True)
+            return dt_object.strftime(date_format)
         except (ValueError, TypeError) as e:
-            st.warning(f"Could not convert timestamp '{ts_str}' to readable date: {e}")
-            return None # Handle conversion errors gracefully
+            # Handle cases where conversion fails (e.g., non-numeric string)
+            # st.warning(f"Could not format timestamp '{ts_str}': {e}")
+            return "Invalid Date"
+        except Exception as e:
+            # Catch any other unexpected errors during formatting
+            # st.warning(f"Unexpected error formatting timestamp '{ts_str}': {e}")
+            return "Error"
 
     try:
         # --- Load Data --- 
@@ -335,7 +329,7 @@ if page == "Sample Output":
 
         st.markdown("""
         This page shows the restructured output format using data merged from two sources.
-        Dates are represented as Unix timestamp strings (UTC, start of day/month).
+        Start/Stop dates are displayed as YYYY-MM-DD, and the Reference Month is displayed as Month YYYY.
         """)
 
         # --- Prepare Metadata (df_metadata) --- 
@@ -373,17 +367,13 @@ if page == "Sample Output":
              st.stop()
         df_consumption = df_consumption.rename(columns={consum_id_col: 'meterid'})
         
-        # Identify grid column and ensure it's numeric
+        # Identify grid column
         grid_col = 'grid (kWh)'
         if grid_col not in df_consumption.columns:
              grid_col = 'grid'
              if grid_col not in df_consumption.columns:
                  st.warning(f"Consumption CSV '{consumption_csv_path}' missing grid column ('grid (kWh)' or 'grid'). Grid values will be omitted.")
                  grid_col = None
-             else:
-                 df_consumption[grid_col] = pd.to_numeric(df_consumption[grid_col], errors='coerce').fillna(0)
-        else:
-            df_consumption[grid_col] = pd.to_numeric(df_consumption[grid_col], errors='coerce').fillna(0)
                  
         # Identify appliance columns and map to DESCRIPTIVE CODES
         appliance_map = {
@@ -425,6 +415,11 @@ if page == "Sample Output":
             meter_info_df['interval'] = "15 min" 
             # Rename timestamp columns for display
             meter_info_df = meter_info_df.rename(columns={'window_start_ts':'window_start', 'window_stop_ts':'window_stop'})
+
+            # Format timestamp columns before displaying
+            meter_info_df['window_start'] = meter_info_df['window_start'].apply(lambda ts: format_unix_timestamp(ts, "%Y-%m-%d"))
+            meter_info_df['window_stop'] = meter_info_df['window_stop'].apply(lambda ts: format_unix_timestamp(ts, "%Y-%m-%d"))
+
             st.dataframe(meter_info_df, use_container_width=True)
         except KeyError as e:
             st.error(f"Error creating Meter Info table (KeyError): {e}. This might indicate missing columns post-merge.")
@@ -598,44 +593,55 @@ if page == "Sample Output":
         st.subheader("Table 2: Appliance Breakdown")
         if not appliance_breakdown_df.empty:
             try:
-                # Set non-positive consumption to NaN or 0 for display?
-                # Let's keep 0 for now. We can represent negative PV separately if needed.
-                # appliance_breakdown_df.loc[appliance_breakdown_df['Consumption (kWh)'] <= 0, 'Consumption (kWh)'] = 0 # Or np.nan
- 
-                # Ensure columns exist and select/reorder
-                final_display_cols = ['meterid', 'reference_month', 'appliance_type', 'direction', 'Consumption (kWh)']
-                # Include grid column if it was added during the melt/concat phase
-                # if 'grid (kWh)' in appliance_breakdown_df.columns:
-                #      final_display_cols.insert(2, 'grid (kWh)') # Insert grid after reference_month
- 
-                 # Select only the necessary columns that exist
-                display_df = appliance_breakdown_df[[col for col in final_display_cols if col in appliance_breakdown_df.columns]].copy()
- 
-                 # Optional: Rename columns for better display
-                display_rename_map = {
-                     'meterid': 'Meter ID',
-                     'reference_month': 'Reference Month',
-                     'appliance_type': 'Appliance Type',
-                     'direction': 'Direction',
-                     'Consumption (kWh)': 'Consumption (kWh)'
-                 }
-                display_df = display_df.rename(columns=display_rename_map)
- 
-                 # Sort for better readability
-                display_df = display_df.sort_values(by=['Meter ID', 'Reference Month', 'Appliance Type']).reset_index(drop=True)
- 
-                 # Format consumption values
-                if 'Consumption (kWh)' in display_df.columns:
-                      display_df['Consumption (kWh)'] = display_df['Consumption (kWh)'].map('{:.2f}'.format)
- 
+                # Set non-positive consumption to -1 (if not already done, depends on calculation flow)
+                appliance_breakdown_df.loc[appliance_breakdown_df['Consumption (kWh)'] <= 0, 'Consumption (kWh)'] = -1
+                
+                # Map original appliance column names to NEW codes ('ev', 'pv', etc.)
+                appliance_code_map = {k: v for k, v in appliance_map.items() if k in value_vars_melt}
+                appliance_breakdown_df['appliance_type'] = appliance_breakdown_df['original_appliance_col'].map(appliance_code_map)
+                
+                # Select, rename, and reorder final columns for display
+                final_display_cols = ['meterid', 'appliance_type']
+                final_display_rename_map = {'reference_month_ts': 'reference_month'}
+                
+                # Check if grid column exists in the breakdown df before adding
+                # Use the original name before potential renaming in map
+                grid_col_in_breakdown = grid_col if grid_col and grid_col in appliance_breakdown_df.columns else None
+                if grid_col_in_breakdown:
+                    final_display_cols.append(grid_col_in_breakdown) 
+                    final_display_rename_map[grid_col_in_breakdown] = 'grid (kWh)' # RENAME to include (kWh)
+                
+                final_display_cols.extend(['Consumption (kWh)', 'reference_month_ts'])
+                
+                # Select only the necessary columns that exist
+                final_display_cols_exist = [c for c in final_display_cols if c in appliance_breakdown_df.columns]
+                display_df = appliance_breakdown_df[final_display_cols_exist].copy() # Work on a copy
+                
+                # Rename the selected columns
+                display_df = display_df.rename(columns=final_display_rename_map)
+                
+                # Define final order based on RENAMED columns
+                final_display_order = ['meterid', 'appliance_type']
+                if 'grid (kWh)' in display_df.columns: # Check using the new name
+                    final_display_order.append('grid (kWh)')
+                final_display_order.extend(['Consumption (kWh)', 'reference_month']) 
+                
+                # Ensure all columns in final order exist before reordering
+                final_display_order_exist = [c for c in final_display_order if c in display_df.columns]
+                display_df = display_df[final_display_order_exist]
+                
+                # Format reference_month timestamp before displaying
+                if 'reference_month' in display_df.columns:
+                    display_df['reference_month'] = display_df['reference_month'].apply(lambda ts: format_unix_timestamp(ts, "%B %Y"))
+
                 st.dataframe(display_df, use_container_width=True)
- 
-                 # Update legend for new appliance codes
-                st.caption("Appliance Type Codes: ev = EV Charging, pv = Solar PV, ac = Air Conditioning, wh = Water Heater, grid = Total Grid Import, other = Unidentified Consumption")
-                st.caption("Direction: positive = Consuming Power, negative = Generating Power (PV)")
- 
+                
+                # Update legend for new appliance codes
+                st.caption("Appliance Type Codes: ev = EV Charging, pv = Solar PV, ac = Air Conditioning, wh = Water Heater")
+
             except Exception as e:
-                  st.error(f"An error occurred preparing Table 2 for display: {e}")
+                st.error(f"An error occurred preparing Table 2 for display: {e}")
+                st.exception(e)
         else:
              st.info("No data available for Appliance Breakdown Table.")
 
