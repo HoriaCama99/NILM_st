@@ -264,6 +264,35 @@ if page == "Sample Output":
     # Sample Output page code goes here
     st.title("Energy Disaggregation Model: Output Structure Example")
 
+    # Define function to convert date string to Unix timestamp string (start of day/month)
+    def to_unix_timestamp_string(date_str):
+        """Converts various date string formats to a Unix timestamp string (start of day/month, UTC)."""
+        if pd.isna(date_str):
+            return None
+        try:
+            # Assuming date_str is in a format pandas can parse (e.g., YYYY-MM-DD or similar)
+            dt = pd.to_datetime(date_str)
+            # Convert to UTC first to ensure consistency
+            # Use the string 'UTC' for localization
+            dt_utc = dt.tz_localize(None).tz_localize('UTC')
+            # For reference month or window start/stop, get the timestamp of the first day of the month UTC
+            # Let's adjust this to use the ACTUAL day, not just the start of the month, for window start/stop
+            # Heuristic check if it's meant to be month start - NEEDS REVIEW based on actual column names/intent
+            # Simple approach: treat all as start of the given day UTC
+            dt_start_utc = dt_utc.replace(hour=0, minute=0, second=0, microsecond=0) # Start of the specific day UTC
+
+            # Original logic that forced start of month:
+            # if 'month' in date_str.lower(): # Heuristic check if it's meant to be month start
+            #      dt_start_utc = dt_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            # else:
+            #      dt_start_utc = dt_utc.replace(hour=0, minute=0, second=0, microsecond=0) # Start of the specific day
+
+            return str(int(dt_start_utc.timestamp()))
+        except Exception as e:
+            # Add warning to help debug problematic date values
+            st.warning(f"Could not convert date '{date_str}' to timestamp: {e}")
+            return None # Handle parsing errors gracefully
+
     # Define function to convert Unix timestamp string to readable date
     def unix_ts_to_readable_date(ts_str):
         """Converts a Unix timestamp string to a YYYY-MM-DD date string (UTC)."""
