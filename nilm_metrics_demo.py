@@ -2093,6 +2093,5 @@ elif page == "Interactive Map":
     st.markdown(f"""
     <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
         Use the dropdown to select a state and explore homes with EV chargers, AC units, and solar panels.
-        Map data is randomly generated for demonstration purposes.
     </div>
     """, unsafe_allow_html=True)
