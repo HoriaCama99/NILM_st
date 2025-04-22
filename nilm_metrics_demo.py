@@ -406,6 +406,59 @@ if page == "Sample Output":
              st.stop()
         # st.write("Merged Data:", df_merged.head()) # Debug
              
+        # --- QC: Adjust Appliance Consumption to Not Exceed Grid --- 
+        st.info("Applying QC: Scaling down appliance consumption if sum exceeds grid value.")
+
+        # Identify consuming appliance columns (based on the original map keys, excluding pv)
+        consuming_appliance_cols_orig = [k for k, v in appliance_map.items() if v != 'pv' and k in df_merged.columns]
+
+        # Ensure grid column and consuming columns are numeric, fill NA/errors with 0
+        if grid_col and grid_col in df_merged.columns:
+            df_merged[grid_col] = pd.to_numeric(df_merged[grid_col], errors='coerce').fillna(0)
+            grid_available = True
+        else:
+            grid_available = False
+            st.warning("Grid column missing, cannot perform consumption QC scaling.")
+
+        if grid_available and consuming_appliance_cols_orig:
+            for col in consuming_appliance_cols_orig:
+                df_merged[col] = pd.to_numeric(df_merged[col], errors='coerce').fillna(0)
+
+            # Calculate total identified consumption (excluding PV)
+            df_merged['total_consumption_identified'] = df_merged[consuming_appliance_cols_orig].sum(axis=1)
+
+            # Calculate scaling factor where sum > grid and grid > 0
+            condition = (df_merged['total_consumption_identified'] > df_merged[grid_col]) & (df_merged[grid_col] > 0)
+            df_merged['scaling_factor'] = 1.0 # Default to 1 (no scaling)
+            # Use np.where for safe division
+            df_merged['scaling_factor'] = np.where(
+                condition,
+                df_merged[grid_col] / df_merged['total_consumption_identified'],
+                1.0
+            )
+
+            # Apply scaling factor to consuming appliances
+            scaled_count = 0
+            for col in consuming_appliance_cols_orig:
+                 original_sum = df_merged[col].sum() # For tracking changes
+                 df_merged[col] = df_merged[col] * df_merged['scaling_factor']
+                 if (df_merged[col].sum() != original_sum): # Basic check if scaling happened
+                      scaled_count += 1
+
+            # Handle cases where grid <= 0: set consumption to 0
+            zero_grid_condition = df_merged[grid_col] <= 0
+            for col in consuming_appliance_cols_orig:
+                df_merged[col] = np.where(zero_grid_condition, 0, df_merged[col])
+
+            if scaled_count > 0:
+                 st.caption(f"QC applied: Consumption values scaled down for entries where sum exceeded grid.")
+
+            # Drop temporary columns
+            df_merged = df_merged.drop(columns=['total_consumption_identified', 'scaling_factor'])
+
+        elif not consuming_appliance_cols_orig:
+             st.warning("No consuming appliance columns found (excluding PV). QC scaling skipped.")
+
         # --- Create Table 1: Meter Information --- 
         st.subheader("Table 1: Meter Information")
         meter_info_cols = ['meterid', 'window_start_ts', 'window_stop_ts']
