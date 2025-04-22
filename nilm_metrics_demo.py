@@ -353,8 +353,8 @@ if page == "Sample Output":
                  grid_col = None
              else:
                  df_consumption[grid_col] = pd.to_numeric(df_consumption[grid_col], errors='coerce').fillna(0)
-         else:
-             df_consumption[grid_col] = pd.to_numeric(df_consumption[grid_col], errors='coerce').fillna(0)
+        else:
+            df_consumption[grid_col] = pd.to_numeric(df_consumption[grid_col], errors='coerce').fillna(0)
                  
         # Identify appliance columns and map to DESCRIPTIVE CODES
         appliance_map = {
@@ -580,32 +580,32 @@ if page == "Sample Output":
                 #      final_display_cols.insert(2, 'grid (kWh)') # Insert grid after reference_month
  
                  # Select only the necessary columns that exist
-                 display_df = appliance_breakdown_df[[col for col in final_display_cols if col in appliance_breakdown_df.columns]].copy()
+                display_df = appliance_breakdown_df[[col for col in final_display_cols if col in appliance_breakdown_df.columns]].copy()
  
                  # Optional: Rename columns for better display
-                 display_rename_map = {
+                display_rename_map = {
                      'meterid': 'Meter ID',
                      'reference_month': 'Reference Month',
                      'appliance_type': 'Appliance Type',
                      'direction': 'Direction',
                      'Consumption (kWh)': 'Consumption (kWh)'
                  }
-                 display_df = display_df.rename(columns=display_rename_map)
+                display_df = display_df.rename(columns=display_rename_map)
  
                  # Sort for better readability
-                 display_df = display_df.sort_values(by=['Meter ID', 'Reference Month', 'Appliance Type']).reset_index(drop=True)
+                display_df = display_df.sort_values(by=['Meter ID', 'Reference Month', 'Appliance Type']).reset_index(drop=True)
  
                  # Format consumption values
-                 if 'Consumption (kWh)' in display_df.columns:
+                if 'Consumption (kWh)' in display_df.columns:
                       display_df['Consumption (kWh)'] = display_df['Consumption (kWh)'].map('{:.2f}'.format)
  
-                  st.dataframe(display_df, use_container_width=True)
+                st.dataframe(display_df, use_container_width=True)
  
                  # Update legend for new appliance codes
-                 st.caption("Appliance Type Codes: ev = EV Charging, pv = Solar PV, ac = Air Conditioning, wh = Water Heater, grid = Total Grid Import, other = Unidentified Consumption")
-                 st.caption("Direction: positive = Consuming Power, negative = Generating Power (PV)")
+                st.caption("Appliance Type Codes: ev = EV Charging, pv = Solar PV, ac = Air Conditioning, wh = Water Heater, grid = Total Grid Import, other = Unidentified Consumption")
+                st.caption("Direction: positive = Consuming Power, negative = Generating Power (PV)")
  
-              except Exception as e:
+            except Exception as e:
                   st.error(f"An error occurred preparing Table 2 for display: {e}")
         else:
              st.info("No data available for Appliance Breakdown Table.")
