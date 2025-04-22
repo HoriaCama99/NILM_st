@@ -1545,9 +1545,63 @@ elif page == "Interactive Map":
     **Use the dropdown below** to select a state and view individual homes with EV chargers, AC units, and solar panels.
     """)
     
+    # --- Load Real Household Data ---
+    @st.cache_data
+    def load_household_data(csv_path='customer_device_mapping_with_coords.csv'):
+        """Loads household data from the specified CSV file."""
+        try:
+            df = pd.read_csv(csv_path)
+
+            # Rename columns for consistency (add 'state' if needed)
+            rename_map = {
+                'custid': 'id',
+                'latitude': 'lat',
+                'longitude': 'lon',
+                'state': 'state' # Ensure the state column is mapped if named differently
+            }
+            df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+
+            # Check for essential columns (including state)
+            # Allow ac_value, pv_value, ev_value to be missing, default to 0
+            required_core_cols = ['id', 'lat', 'lon', 'state']
+            value_cols = ['ac_value', 'pv_value', 'ev_value']
+            missing_core_cols = [col for col in required_core_cols if col not in df.columns]
+            if missing_core_cols:
+                st.error(f"Error: CSV '{csv_path}' is missing required core columns: {missing_core_cols}")
+                return pd.DataFrame() # Return empty DataFrame
+
+            # Ensure value columns exist, fill missing with 0
+            for val_col in value_cols:
+                if val_col not in df.columns:
+                    st.warning(f"Warning: Column '{val_col}' not found in CSV. Assuming 0 for all entries.")
+                    df[val_col] = 0
+                else:
+                    # Ensure they are numeric, fill non-numeric/NaN with 0
+                    df[val_col] = pd.to_numeric(df[val_col], errors='coerce').fillna(0)
+
+
+            # Create boolean flags for device presence
+            df['has_ac'] = df['ac_value'] > 0
+            df['has_pv'] = df['pv_value'] > 0
+            df['has_ev'] = df['ev_value'] > 0
+
+            # Select and return relevant columns
+            final_cols = ['id', 'lat', 'lon', 'state', 'has_ev', 'has_ac', 'has_pv']
+            # Include original value columns if needed for popups, etc.
+            # final_cols.extend(['ac_value', 'pv_value', 'ev_value'])
+            return df[[col for col in final_cols if col in df.columns]]
+
+        except FileNotFoundError:
+            st.error(f"Error: Household data file '{csv_path}' not found.")
+            return pd.DataFrame()
+        except Exception as e:
+            st.error(f"Error loading or processing household data from '{csv_path}': {e}")
+            return pd.DataFrame()
+
+
     # --- Refactored Data Generation ---
-    
-    # Cache state information (coordinates, name, zoom)
+
+    # Cache state information (coordinates, name, zoom) - Keep for map centering
     @st.cache_data
     def get_states_info():
         # US states with coordinates (approximate centers) - all 50 states plus DC
@@ -1604,111 +1658,12 @@ elif page == "Interactive Map":
             'WI': {'name': 'Wisconsin', 'lat': 44.6243, 'lon': -89.9941, 'zoom': 7},
             'WY': {'name': 'Wyoming', 'lat': 42.9957, 'lon': -107.5512, 'zoom': 7}
         }
-        # Generate stats for each state (needed for filtering/tooltips later if desired)
-        for state_code in states_data:
-            state = states_data[state_code]
-            state['total_homes'] = random.randint(150, 500) # Keep for potential stats display
-            state['ev_homes'] = random.randint(30, int(state['total_homes'] * 0.3))
-            state['ac_homes'] = random.randint(int(state['total_homes'] * 0.5), int(state['total_homes'] * 0.9))
-            state['pv_homes'] = random.randint(20, int(state['total_homes'] * 0.25))
+        # Remove mock stats generation from here
         return states_data
-        
-    # Cache household generation per state
-    @st.cache_data
-    def generate_households_for_state(state_code, states_info):
-        """Generate mock household data within a specific state"""
-        if state_code not in states_info:
-            return []
-            
-        state = states_info[state_code]
-        households = []
-        count = state['total_homes'] # Use the pre-calculated total homes
 
-        # Define the spread of points (in degrees)
-        lat_spread = 1.5
-        lon_spread = 1.5
+    # Removed generate_households_for_state function
+    # Removed generate_historical_data_for_state function
 
-        for i in range(count):
-            # Randomly place homes around the state center
-            lat = state['lat'] + (random.random() - 0.5) * lat_spread
-            lon = state['lon'] + (random.random() - 0.5) * lon_spread
-
-            # Assign devices randomly but weighted by state percentages
-            # Use percentages directly from states_info for consistency
-            ev_prob = state['ev_homes'] / state['total_homes']
-            ac_prob = state['ac_homes'] / state['total_homes']
-            pv_prob = state['pv_homes'] / state['total_homes']
-
-            has_ev = random.random() < ev_prob
-            has_ac = random.random() < ac_prob
-            has_pv = random.random() < pv_prob
-
-            # Ensure at least one device is present if filters require it (simplification)
-            # This logic might need refinement depending on exact requirements
-            # For now, ensure *something* is true if needed by simple assignment
-            if not (has_ev or has_ac or has_pv):
-                 # If all are false, randomly set one based on probability as a fallback
-                 rand_choice = random.random()
-                 if rand_choice < ev_prob: has_ev = True
-                 elif rand_choice < ev_prob + ac_prob: has_ac = True
-                 else: has_pv = True
-
-
-            household = {
-                'id': f"{state_code}-{i+1}",
-                'lat': lat,
-                'lon': lon,
-                'has_ev': has_ev,
-                'has_ac': has_ac,
-                'has_pv': has_pv,
-                'energy_consumption': random.randint(20, 100),
-                'state': state_code
-            }
-            households.append(household)
-        
-        return households
-        
-    # --- New Function: Generate Historical Data ---
-    @st.cache_data
-    def generate_historical_data_for_state(state_code, states_info, num_years=5):
-        """Generates simulated historical appliance adoption percentages for a state."""
-        if state_code not in states_info:
-            return pd.DataFrame()
-
-        state = states_info[state_code]
-        current_year = datetime.datetime.now().year
-        years = list(range(current_year - num_years + 1, current_year + 1))
-        
-        # Get current percentages
-        current_ev_pct = (state['ev_homes'] / state['total_homes']) * 100
-        current_ac_pct = (state['ac_homes'] / state['total_homes']) * 100
-        current_pv_pct = (state['pv_homes'] / state['total_homes']) * 100
-
-        data = []
-        
-        # Simulate historical data with upward trend (especially EV, PV) and noise
-        for year in years:
-            year_factor = (year - (current_year - num_years)) / num_years # 0 to 1 scale over years
-
-            # Simulate EV: lower start, strong growth + noise
-            ev_start_factor = 0.2 + random.uniform(-0.1, 0.1) # Start around 20% of current value
-            ev_pct = max(1, current_ev_pct * (ev_start_factor + (1 - ev_start_factor) * year_factor**1.5) + random.uniform(-2, 2))
-            data.append({'Year': year, 'Device': 'EV Chargers', 'Percentage': ev_pct})
-
-            # Simulate AC: higher start, slower growth + noise
-            ac_start_factor = 0.8 + random.uniform(-0.05, 0.05) # Start around 80% of current value
-            ac_pct = min(95, max(10, current_ac_pct * (ac_start_factor + (1 - ac_start_factor) * year_factor**0.8) + random.uniform(-3, 3)))
-            data.append({'Year': year, 'Device': 'AC Units', 'Percentage': ac_pct})
-
-            # Simulate PV: lower start, moderate growth + noise
-            pv_start_factor = 0.3 + random.uniform(-0.1, 0.1) # Start around 30% of current value
-            pv_pct = max(1, current_pv_pct * (pv_start_factor + (1 - pv_start_factor) * year_factor**1.2) + random.uniform(-1.5, 1.5))
-            data.append({'Year': year, 'Device': 'Solar Panels', 'Percentage': pv_pct})
-
-        hist_df = pd.DataFrame(data)
-        # Ensure percentages are within reasonable bounds (0-100)
-        hist_df['Percentage'] = hist_df['Percentage'].clip(0, 100)
-        return hist_df
 
     # Load GeoJSON data for US states
     @st.cache_data
@@ -1725,51 +1680,77 @@ elif page == "Interactive Map":
             st.error(f"An unexpected error occurred while processing GeoJSON: {e}")
             return None
 
-    # --- Map Generation and Display Logic ---
-    # Create filter controls in sidebar
+    # Load data
+    states_info = get_states_info()
+    us_geojson = load_us_geojson()
+    all_household_data = load_household_data() # Load all data once
+
+    # --- Sidebar Elements --- (Moved here for better layout flow)
     st.sidebar.markdown("### Map Filters")
     show_ev = st.sidebar.checkbox("Show EV Chargers", value=True)
     show_ac = st.sidebar.checkbox("Show AC Units", value=True)
     show_pv = st.sidebar.checkbox("Show Solar Panels", value=True)
-    
+
     st.sidebar.markdown("---") # Separator
-    
-    # Add custom styling for the refresh button (optional, kept from previous code)
+
+    # Add custom styling for the refresh button
     st.sidebar.markdown("""
     <style>
     div[data-testid="stButton"] button {
         background-color: #515D9A !important;
-        color: black !important; /* Changed to black for better contrast on light button */
+        color: white !important; /* Changed back to white */
         font-weight: bold !important;
         border: 1px solid darkgray !important;
     }
     div[data-testid="stButton"] button:hover {
         background-color: #B8BCF3 !important;
-        color: black !important;
+        color: #202842 !important; /* Darker text on hover */
     }
     </style>
     """, unsafe_allow_html=True)
-    
+
     # Add refresh button to sidebar (clears state selection)
     if st.sidebar.button("↻ Reset Map View", use_container_width=True):
         # Clear state selection from session state if it exists
         if 'selected_state_map' in st.session_state:
             del st.session_state['selected_state_map']
         st.rerun()
-    
-    # Load data
-    states_info = get_states_info()
-    us_geojson = load_us_geojson()
-    
+    # --- End Sidebar Elements ---
+
     # --- State Selection ---
-    state_names = {code: info['name'] for code, info in states_info.items()}
-    state_codes_sorted = sorted(state_names.keys(), key=lambda k: state_names[k])
-    state_options = ["Select a State..."] + [state_names[code] for code in state_codes_sorted]
-    
+    # Use unique states from the loaded data if available, otherwise use default states list
+    if not all_household_data.empty and 'state' in all_household_data.columns:
+        # Convert state codes to uppercase and remove NaN/None before getting unique
+        valid_states = all_household_data['state'].dropna().astype(str).str.upper().unique()
+        available_states = sorted([s for s in valid_states if s != 'NA'])
+
+        if not available_states and 'NA' in valid_states:
+            # If only 'NA' is present after filtering, maybe show it or a message?
+             st.warning("Only 'NA' found for state values in the data.")
+             available_states = [] # Or keep ['NA'] if you want it selectable
+        elif 'NA' in valid_states:
+             st.info("Ignoring entries with state 'NA' in the dropdown.") # Inform user
+
+        # Get full state names from states_info if available, otherwise use the code
+        state_names = {code: states_info.get(code, {}).get('name', code) for code in available_states}
+        # Sort options based on the display name (full name or code)
+        sorted_state_options = sorted(state_names.items(), key=lambda item: item[1])
+
+        state_options = ["Select a State..."] + [name for code, name in sorted_state_options]
+        # Map the displayed name back to the original state code
+        state_code_map = {name: code for code, name in sorted_state_options}
+    else:
+        # Fallback to default states if data loading failed or no 'state' column
+        st.warning("Using default state list as household data is unavailable or missing/empty 'state' column.")
+        state_names = {code: info['name'] for code, info in states_info.items()}
+        state_codes_sorted = sorted(state_names.keys(), key=lambda k: state_names[k])
+        state_options = ["Select a State..."] + [state_names[code] for code in state_codes_sorted]
+        state_code_map = {v: k for k, v in state_names.items()} # Map name back to code
+
     # Use session state to remember the selection
-    if 'selected_state_map' not in st.session_state:
+    if 'selected_state_map' not in st.session_state or st.session_state['selected_state_map'] not in state_options:
         st.session_state['selected_state_map'] = state_options[0] # Default to "Select a State..."
-        
+
     selected_state_name = st.selectbox(
         "Select a State to View Households:",
         options=state_options,
@@ -1780,21 +1761,21 @@ elif page == "Interactive Map":
     # Find the state code corresponding to the selected name
     selected_state_code = None
     if selected_state_name != "Select a State...":
-        for code, name in state_names.items():
-            if name == selected_state_name:
-                selected_state_code = code
-                break
+        selected_state_code = state_code_map.get(selected_state_name)
+
 
     # --- Create Map ---
     map_location = [39.8283, -98.5795] # Default: Center of US
     map_zoom = 4
-    
+
     # If a state is selected, update map center and zoom
-    if selected_state_code:
+    if selected_state_code and selected_state_code in states_info:
         state_info = states_info[selected_state_code]
         map_location = [state_info['lat'], state_info['lon']]
         map_zoom = state_info['zoom']
-        
+    elif selected_state_code and selected_state_code not in states_info:
+         st.warning(f"State code '{selected_state_code}' found in data but not in state center/zoom lookup. Using default map view.")
+
     # Initialize map
     m = folium.Map(
         location=map_location, 
@@ -1831,27 +1812,42 @@ elif page == "Interactive Map":
         ).add_to(m)
 
     # --- Load and Add Household Markers (Only if a state is selected) ---
-    filtered_households = []
-    if selected_state_code:
-        with st.spinner(f"Loading household data for {selected_state_name}..."):
-            # Generate or retrieve cached households for the selected state
-            state_households = generate_households_for_state(selected_state_code, states_info)
-            
-            # Apply device filters from sidebar
-            filtered_households = [
-                h for h in state_households if 
-                ((show_ev and h['has_ev']) or 
-                 (show_ac and h['has_ac']) or 
-                 (show_pv and h['has_pv']))
-            ]
+    filtered_households_df = pd.DataFrame() # Initialize as empty DataFrame
+    if selected_state_code and not all_household_data.empty:
+        with st.spinner(f"Filtering household data for {selected_state_name}..."):
+            # Filter the loaded data by selected state
+            # Ensure comparison uses uppercase state code if needed
+            state_households_df = all_household_data[all_household_data['state'].astype(str).str.upper() == selected_state_code]
 
-        if filtered_households:
+            # Apply device filters from sidebar
+            # Create filter masks for each selected device type
+            filters = []
+            if show_ev: filters.append(state_households_df['has_ev'])
+            if show_ac: filters.append(state_households_df['has_ac'])
+            if show_pv: filters.append(state_households_df['has_pv'])
+
+            # Combine filters using logical OR if any filters are active
+            if filters:
+                combined_filter = pd.DataFrame(filters).transpose().any(axis=1)
+                filtered_households_df = state_households_df[combined_filter]
+            elif not state_households_df.empty:
+                 # If no device filters are selected, show all houses in the state
+                 st.info(f"No device filters selected. Displaying all {len(state_households_df)} detected homes in {selected_state_name}.")
+                 filtered_households_df = state_households_df
+            # If filters list is empty and state_households_df is empty, filtered_households_df remains empty
+
+        if not filtered_households_df.empty:
             # Create marker cluster for households
             marker_cluster = MarkerCluster(name=f'{selected_state_name} Homes').add_to(m)
-            
-            # Add markers for each household
-            for house in filtered_households:
+
+            # Add markers for each household from the DataFrame
+            for idx, house in filtered_households_df.iterrows():
                 # Determine marker icon based on devices (priority: EV > PV > AC)
+                # Check the filters again to ensure the displayed icon matches a selected filter
+                icon_color = "gray" # Default
+                icon_name = "home"  # Default
+                tooltip_device = "Other"
+
                 if house['has_ev'] and show_ev:
                     icon_color = "blue"
                     icon_name = "plug"
@@ -1861,28 +1857,29 @@ elif page == "Interactive Map":
                     icon_name = "sun"
                     tooltip_device = "Solar Panel"
                 elif house['has_ac'] and show_ac:
-                     icon_color = "orange"
-                     icon_name = "snowflake" # Changed AC icon
-                     tooltip_device = "AC Unit"
-                else:
-                    # This case should ideally not happen due to filtering, but as fallback:
-                    icon_color = "gray" 
-                    icon_name = "home"
-                    tooltip_device = "Other"
+                    icon_color = "orange"
+                    icon_name = "snowflake"
+                    tooltip_device = "AC Unit"
+                # If no filter is active for this house (e.g., if device checkboxes were toggled off after initial filtering)
+                # show a default icon or the icon of the first available device?
+                # Let's stick to the priority even if filter is off for tooltip
+                elif house['has_ev']: tooltip_device = "EV Charger"
+                elif house['has_pv']: tooltip_device = "Solar Panel"
+                elif house['has_ac']: tooltip_device = "AC Unit"
 
-
-                # Create popup content
+                # Create popup content - updated for real data
                 popup_content = f"""
-                <div style="min-width: 200px;">
+                <div style="min-width: 180px;">
                     <h4>Home {house['id']}</h4>
-                    <b>Devices:</b><br>
+                    <b>Detected Devices:</b><br>
                     {'✓ EV Charger<br>' if house['has_ev'] else ''}
                     {'✓ AC Unit<br>' if house['has_ac'] else ''}
                     {'✓ Solar Panels<br>' if house['has_pv'] else ''}
-                    <b>Daily Energy:</b> {house['energy_consumption']} kWh
+                    {f"<b>State:</b> {house['state']}<br>" if 'state' in house and pd.notna(house['state']) else ''}
+                    {f"<b>Coords:</b> ({house['lat']:.4f}, {house['lon']:.4f})"}
                 </div>
                 """
-                
+
                 # Add marker
                 folium.Marker(
                     location=[house['lat'], house['lon']],
@@ -1914,107 +1911,96 @@ elif page == "Interactive Map":
     st.subheader("Map View")
     if not selected_state_code:
          st.caption("Select a state from the dropdown above to load household markers.")
-    elif not filtered_households:
-         st.caption(f"Showing map for {selected_state_name}. No households match the current filters.")
+    elif filtered_households_df.empty:
+         # Provide more specific feedback
+         if selected_state_code and not state_households_df.empty:
+             st.caption(f"Showing map for {selected_state_name}. No households match the selected device filters (EV:{show_ev}, AC:{show_ac}, PV:{show_pv}).")
+         elif selected_state_code:
+             st.caption(f"Showing map for {selected_state_name}. No household data found for this state.")
+         else: # Should not happen if selected_state_code exists
+             st.caption(f"Showing map for {selected_state_name}. No households match the current filters or data is unavailable for this state.")
     else:
-         st.caption(f"Showing {len(filtered_households)} households for {selected_state_name}. Use sidebar filters to refine.")
-         
+         st.caption(f"Showing {len(filtered_households_df)} households for {selected_state_name}. Use sidebar filters to refine.")
+
     folium_static(m, width=1000, height=600) # Consider adjusting width/height if needed
-    
+
     # --- Statistics Display ---
     st.markdown("---") # Separator before stats
 
-    # Display statistics ONLY if a state is selected
-    if selected_state_code:
-        state = states_info[selected_state_code]
-        st.subheader(f"{state['name']} Statistics")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total Homes", f"{state['total_homes']:,}")
-        with col2:
-            ev_pct = state['ev_homes']/state['total_homes']
-            st.metric("EV Chargers", f"{state['ev_homes']:,}", f"{ev_pct:.1%}")
-        with col3:
-            ac_pct = state['ac_homes']/state['total_homes']
-            st.metric("AC Units", f"{state['ac_homes']:,}", f"{ac_pct:.1%}")
-        with col4:
-            pv_pct = state['pv_homes']/state['total_homes']
-            st.metric("Solar Panels", f"{state['pv_homes']:,}", f"{pv_pct:.1%}")
-        
-        # Display data table for the filtered households shown on map
-        if filtered_households:
-            st.subheader("Filtered Homes Data")
-            columns_to_show = ['id', 'energy_consumption', 'has_ev', 'has_ac', 'has_pv']
-            df = pd.DataFrame(filtered_households)[columns_to_show]
-            
-            # Rename columns for display
-            column_map = {
-                'id': 'Home ID',
-                'energy_consumption': 'Energy (kWh)',
-                'has_ev': 'EV Charger',
-                'has_ac': 'AC Unit',
-                'has_pv': 'Solar Panel'
-            }
-            df = df.rename(columns=column_map)
-            # Convert booleans to Yes/No for better readability
-            df['EV Charger'] = df['EV Charger'].map({True: 'Yes', False: 'No'})
-            df['AC Unit'] = df['AC Unit'].map({True: 'Yes', False: 'No'})
-            df['Solar Panel'] = df['Solar Panel'].map({True: 'Yes', False: 'No'})
+    # Display statistics ONLY if a state is selected and data is available
+    if selected_state_code and not all_household_data.empty:
+        # Use the data for the *selected state* before applying device filters
+        # Ensure comparison uses uppercase state code if needed
+        state_data = all_household_data[all_household_data['state'].astype(str).str.upper() == selected_state_code]
 
-            st.dataframe(df, use_container_width=True, height=300) # Added height limit
+        if not state_data.empty:
+            st.subheader(f"{selected_state_name} Statistics") # Use selected_state_name here
+
+            total_homes = len(state_data)
+            ev_homes = state_data['has_ev'].sum()
+            ac_homes = state_data['has_ac'].sum()
+            pv_homes = state_data['has_pv'].sum()
+
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Homes", f"{total_homes:,}")
+            with col2:
+                ev_pct = (ev_homes / total_homes) if total_homes > 0 else 0
+                st.metric("EV Chargers", f"{ev_homes:,}", f"{ev_pct:.1%}")
+            with col3:
+                ac_pct = (ac_homes / total_homes) if total_homes > 0 else 0
+                st.metric("AC Units", f"{ac_homes:,}", f"{ac_pct:.1%}")
+            with col4:
+                pv_pct = (pv_homes / total_homes) if total_homes > 0 else 0
+                st.metric("Solar Panels", f"{pv_homes:,}", f"{pv_pct:.1%}")
+
+            # Display data table for the filtered households shown on map (use filtered_households_df)
+            if not filtered_households_df.empty:
+                st.subheader("Filtered Homes Data")
+                # Select columns from the filtered DataFrame
+                columns_to_show = ['id', 'lat', 'lon', 'has_ev', 'has_ac', 'has_pv', 'state'] # Added state
+                df_display = filtered_households_df[[col for col in columns_to_show if col in filtered_households_df.columns]].copy()
+
+                # Rename columns for display
+                column_map = {
+                    'id': 'Home ID',
+                    'lat': 'Latitude',
+                    'lon': 'Longitude',
+                    'has_ev': 'EV Charger',
+                    'has_ac': 'AC Unit',
+                    'has_pv': 'Solar Panel',
+                    'state': 'State' # Added state
+                }
+                df_display = df_display.rename(columns=column_map)
+                # Convert booleans to Yes/No for better readability
+                for col in ['EV Charger', 'AC Unit', 'Solar Panel']:
+                    if col in df_display.columns:
+                        df_display[col] = df_display[col].map({True: 'Yes', False: 'No'})
+
+                # Format lat/lon
+                if 'Latitude' in df_display.columns: df_display['Latitude'] = df_display['Latitude'].map('{:.4f}'.format)
+                if 'Longitude' in df_display.columns: df_display['Longitude'] = df_display['Longitude'].map('{:.4f}'.format)
+
+                st.dataframe(df_display, use_container_width=True, height=300) # Added height limit
+            # No need for an else here, covered by the outer check
+            # else:
+            #      st.write("No data to display for the current filter selection.")
         else:
-             st.write("No data to display for the current filter selection.")
+            st.info(f"No household data found for {selected_state_name} in the provided CSV.")
 
-        # --- Add Historical Trend Section ---
-        st.markdown("---") # Separator
-        st.subheader(f"Historical Appliance Trends for {state['name']}")
-        st.caption("Simulated adoption rates over the last 5 years.")
-
-        # Generate historical data
-        historical_df = generate_historical_data_for_state(selected_state_code, states_info, num_years=5)
-
-        if not historical_df.empty:
-            # Create line chart
-            fig_hist = px.line(
-                historical_df,
-                x='Year',
-                y='Percentage',
-                color='Device',
-                markers=True,
-                labels={'Percentage': 'Adoption Rate (%)', 'Device': 'Appliance Type'},
-                color_discrete_map={
-                        'EV Chargers': primary_purple, # Use existing color scheme
-                        'AC Units': green,
-                        'Solar Panels': cream # Or perhaps another distinct color like salmon? Let's use cream for now.
-                },
-                template='plotly_white' # Use a clean template
-            )
-
-            fig_hist.update_layout(
-                yaxis_range=[0, 100],
-                xaxis=dict(tickmode='linear'), # Ensure all years are shown
-                legend_title="Appliance Type",
-                paper_bgcolor=white,
-                plot_bgcolor=white,
-                font=dict(color=dark_purple)
-            )
-            
-            fig_hist.update_traces(marker=dict(size=8))
-
-            st.plotly_chart(fig_hist, use_container_width=True)
-        else:
-            st.warning("Could not generate historical data.")
-        # --- End Historical Trend Section ---
+        # --- Removed Historical Trend Section ---
+        # st.markdown("---") # Separator
+        # st.subheader(f"Historical Appliance Trends for {state['name']}")
+        # ... (removed historical chart code) ...
 
 
     else:
         # Optionally show overall stats or a message when no state is selected
         st.subheader("Portfolio Overview")
         st.info("Select a state from the dropdown above to view detailed statistics and household data.")
-
-
-    # --- End Map Generation Logic ---
+        # You could potentially calculate and display aggregate stats here if needed
+        # total_homes = sum(info['total_homes'] for info in states_info.values())
+        # ... etc ...
 
     st.markdown("---")
     st.markdown(f"""
