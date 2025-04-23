@@ -1998,10 +1998,15 @@ elif page == "Interactive Map":
 
     # Add legend (always visible)
     legend_html = f'''
-    <div style="position: fixed; bottom: 50px; right: 50px; 
-                background-color: rgba(255, 255, 255, 0.8); /* Slightly transparent background */
-                padding: 10px; border-radius: 5px;
-                border: 1px solid #ccc; z-index: 9999; font-size: 12px;">
+    <div style="position: fixed; 
+                bottom: 20px; /* Moved up slightly */
+                left: 20px; /* Moved to bottom-left */
+                background-color: white; /* Opaque background */
+                padding: 10px; 
+                border-radius: 5px;
+                border: 2px solid #515D9A; /* Stronger border */ 
+                z-index: 10000; /* Slightly higher z-index */ 
+                font-size: 12px;">
         <h4 style="margin-top: 0; margin-bottom: 5px; color: #515D9A; text-align: center;">Legend</h4>
         {'<div><i class="fa fa-plug" style="color: blue; margin-right: 8px; font-size: 14px;"></i> EV Charger Only</div>' if show_ev else ''}
         {'<div><i class="fa fa-snowflake" style="color: orange; margin-right: 8px; font-size: 14px;"></i> AC Unit Only</div>' if show_ac else ''}
