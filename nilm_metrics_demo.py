@@ -1929,30 +1929,41 @@ elif page == "Interactive Map":
 
             # Add markers for each household from the DataFrame
             for idx, house in filtered_households_df.iterrows():
-                # Determine marker icon based on devices (priority: EV > PV > AC)
-                # Check the filters again to ensure the displayed icon matches a selected filter
-                icon_color = "gray" # Default
-                icon_name = "home"  # Default
-                tooltip_device = "Other"
+                # Calculate total number of detected devices
+                device_count = int(house['has_ev']) + int(house['has_ac']) + int(house['has_pv'])
 
-                if house['has_ev'] and show_ev:
-                    icon_color = "blue"
-                    icon_name = "plug"
-                    tooltip_device = "EV Charger"
-                elif house['has_pv'] and show_pv:
-                    icon_color = "green"
-                    icon_name = "sun"
-                    tooltip_device = "Solar Panel"
-                elif house['has_ac'] and show_ac:
-                    icon_color = "orange"
-                    icon_name = "snowflake"
-                    tooltip_device = "AC Unit"
-                # If no filter is active for this house (e.g., if device checkboxes were toggled off after initial filtering)
-                # show a default icon or the icon of the first available device?
-                # Let's stick to the priority even if filter is off for tooltip
-                elif house['has_ev']: tooltip_device = "EV Charger"
-                elif house['has_pv']: tooltip_device = "Solar Panel"
-                elif house['has_ac']: tooltip_device = "AC Unit"
+                # Assign icon based on device count and filters
+                if device_count == 3:
+                    icon_color = 'purple'
+                    icon_name = 'star'
+                    tooltip_device = 'All Devices (EV, AC, PV)'
+                elif device_count == 2:
+                    icon_color = 'red'
+                    icon_name = 'plus'
+                    tooltip_device = 'Two Devices'
+                elif device_count == 1:
+                    # Single device: use specific icon ONLY if filter is active
+                    if house['has_ev'] and show_ev:
+                        icon_color = "blue"
+                        icon_name = "plug"
+                        tooltip_device = "EV Charger Only"
+                    elif house['has_pv'] and show_pv:
+                        icon_color = "green"
+                        icon_name = "sun"
+                        tooltip_device = "Solar Panel Only"
+                    elif house['has_ac'] and show_ac:
+                        icon_color = "orange"
+                        icon_name = "snowflake"
+                        tooltip_device = "AC Unit Only"
+                    else:
+                        # Single device, but its filter is off
+                        icon_color = 'lightgray' # Use a muted color
+                        icon_name = 'home'
+                        tooltip_device = 'Single Device (Filtered Out)'
+                else: # device_count == 0 (shouldn't happen with initial filtering, but as safeguard)
+                    icon_color = 'gray'
+                    icon_name = 'question'
+                    tooltip_device = 'No Devices Detected'
 
                 # Create popup content - updated for real data
                 popup_content = f"""
@@ -1984,9 +1995,11 @@ elif page == "Interactive Map":
                 padding: 10px; border-radius: 5px;
                 border: 1px solid #ccc; z-index: 9999; font-size: 12px;">
         <h4 style="margin-top: 0; margin-bottom: 5px; color: #515D9A; text-align: center;">Legend</h4>
-        {'<div style="display: flex; align-items: center; margin-bottom: 3px;"><i class="fa fa-plug" style="color: blue; margin-right: 8px; font-size: 14px;"></i> EV Charger</div>' if show_ev else ''}
-        {'<div style="display: flex; align-items: center; margin-bottom: 3px;"><i class="fa fa-snowflake" style="color: orange; margin-right: 8px; font-size: 14px;"></i> AC Unit</div>' if show_ac else ''}
-        {'<div style="display: flex; align-items: center;"><i class="fa fa-sun" style="color: green; margin-right: 8px; font-size: 14px;"></i> Solar Panel</div>' if show_pv else ''}
+        {'<div><i class="fa fa-plug" style="color: blue; margin-right: 8px; font-size: 14px;"></i> EV Charger Only</div>' if show_ev else ''}
+        {'<div><i class="fa fa-snowflake" style="color: orange; margin-right: 8px; font-size: 14px;"></i> AC Unit Only</div>' if show_ac else ''}
+        {'<div><i class="fa fa-sun" style="color: green; margin-right: 8px; font-size: 14px;"></i> Solar Panel Only</div>' if show_pv else ''}
+        <div style="display: flex; align-items: center; margin-bottom: 3px;"><i class="fa fa-plus" style="color: red; margin-right: 8px; font-size: 14px;"></i> Two Devices</div>
+        <div style="display: flex; align-items: center;"><i class="fa fa-star" style="color: purple; margin-right: 8px; font-size: 14px;"></i> All Three Devices</div>
     </div>
     '''
     m.get_root().html.add_child(folium.Element(legend_html))
@@ -2093,5 +2106,6 @@ elif page == "Interactive Map":
     st.markdown(f"""
     <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
         Use the dropdown to select a state and explore homes with EV chargers, AC units, and solar panels.
+        Map data is randomly generated for demonstration purposes.
     </div>
     """, unsafe_allow_html=True)
