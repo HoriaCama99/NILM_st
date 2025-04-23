@@ -31,6 +31,9 @@ st.set_page_config(
     }
 )
 
+# Add Font Awesome CSS
+st.markdown('''<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">''', unsafe_allow_html=True)
+
 # Hide Streamlit's default menu and footer
 hide_streamlit_style = """
 <style>
