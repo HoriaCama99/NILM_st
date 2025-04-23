@@ -1996,44 +1996,40 @@ elif page == "Interactive Map":
         else:
             st.info(f"No households match the selected filters for {selected_state_name}.")
 
-    # Add legend (always visible)
-    legend_html = f'''
-    <div style="position: fixed; 
-                bottom: 20px; /* Moved up slightly */
-                left: 20px; /* Moved to bottom-left */
-                background-color: white; /* Opaque background */
-                padding: 10px; 
-                border-radius: 5px;
-                border: 2px solid #515D9A; /* Stronger border */ 
-                z-index: 10000; /* Slightly higher z-index */ 
-                font-size: 12px;">
-        <h4 style="margin-top: 0; margin-bottom: 5px; color: #515D9A; text-align: center;">Legend</h4>
-        {'<div><i class="fa fa-plug" style="color: blue; margin-right: 8px; font-size: 14px;"></i> EV Charger Only</div>' if show_ev else ''}
-        {'<div><i class="fa fa-snowflake" style="color: orange; margin-right: 8px; font-size: 14px;"></i> AC Unit Only</div>' if show_ac else ''}
-        {'<div><i class="fa fa-sun" style="color: green; margin-right: 8px; font-size: 14px;"></i> Solar Panel Only</div>' if show_pv else ''}
-        <div style="display: flex; align-items: center; margin-bottom: 3px;"><i class="fa fa-plus" style="color: red; margin-right: 8px; font-size: 14px;"></i> Two Devices</div>
-        <div style="display: flex; align-items: center;"><i class="fa fa-star" style="color: purple; margin-right: 8px; font-size: 14px;"></i> All Three Devices</div>
-    </div>
-    '''
-    m.get_root().html.add_child(folium.Element(legend_html))
-    
-    # Add Layer Control to toggle layers (Satellite, States, Homes cluster if present)
-    folium.LayerControl().add_to(m)
-    
-    # Display the map
+    # --- Display Legend using Streamlit ---
+    st.markdown("#### Map Legend")
+    # Use columns for layout, adjust width ratios as needed
+    legend_cols = st.columns([1, 1, 1, 1, 1]) 
+    with legend_cols[0]:
+        if show_ev: st.markdown('<i class="fa fa-plug" style="color: blue;"></i> EV Only', unsafe_allow_html=True)
+    with legend_cols[1]:
+        if show_ac: st.markdown('<i class="fa fa-snowflake" style="color: orange;"></i> AC Only', unsafe_allow_html=True)
+    with legend_cols[2]:
+        if show_pv: st.markdown('<i class="fa fa-sun" style="color: green;"></i> PV Only', unsafe_allow_html=True)
+    with legend_cols[3]:
+        st.markdown('<i class="fa fa-plus" style="color: red;"></i> Two Devices', unsafe_allow_html=True)
+    with legend_cols[4]:
+        st.markdown('<i class="fa fa-star" style="color: purple;"></i> All Three', unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True) # Add a little space after legend
+
+
+    # --- Display the Map ---
     st.subheader("Map View")
     if not selected_state_code:
          st.caption("Select a state from the dropdown above to load household markers.")
     elif filtered_households_df.empty:
-         # Provide more specific feedback
+         # Provide more specific feedback based on why it might be empty
          if selected_state_code and not state_households_df.empty:
-             st.caption(f"Showing map for {selected_state_name}. No households match the selected device filters (EV:{show_ev}, AC:{show_ac}, PV:{show_pv}).")
+             st.caption(f"Showing map for {selected_state_name}. No households match the selected device filters (EV:{show_ev}, AC:{show_ac}, PV:{show_pv}, All3:{show_all_three}).")
          elif selected_state_code:
-             st.caption(f"Showing map for {selected_state_name}. No household data found for this state.")
+             st.caption(f"Showing map for {selected_state_name}. No household data found for this state in the CSV.")
          else: # Should not happen if selected_state_code exists
-             st.caption(f"Showing map for {selected_state_name}. No households match the current filters or data is unavailable for this state.")
-    else:
-         st.caption(f"Showing {len(filtered_households_df)} households for {selected_state_name}. Use sidebar filters to refine.")
+             st.caption(f"Showing map for {selected_state_name}. No households match the current filters or data is unavailable.")
+    else: # This case implies filtered_households_df is not empty
+        st.caption(f"Showing {len(filtered_households_df)} households for {selected_state_name}. Use sidebar filters to refine.")
+
+    # Add Layer Control to toggle layers (Satellite, States, Homes cluster if present)
+    folium.LayerControl().add_to(m)
 
     folium_static(m, width=1000, height=600) # Consider adjusting width/height if needed
 
