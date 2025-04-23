@@ -266,20 +266,6 @@ selected_model = "V6" # Default model
 if page == "Sample Output":
     # Sample Output page code goes here
     st.title("Energy Disaggregation Model: Output Structure Example")
-    
-        # --- Add Data Dictionary Expander ---
-    with st.expander("Data Dictionary & Explanations", expanded=False):
-        st.markdown("### Table 1: Meter Information")
-        st.markdown("""
-        This table provides general information about each meter included in the analysis.
-
-        *   **meterid**: A unique identifier assigned to each household meter.
-        *   **window_start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data.
-        *   **window_stop**: The last date (YYYY-MM-DD) of the analysis period for this meter's data.
-        *   **interval**: The time resolution of the energy readings used (e.g., '15 min').
-        """)
-
-        st.markdown("<hr>", unsafe_allow_html=True)
 
     # Define function to convert date string to Unix timestamp string (start of day/month)
     def to_unix_timestamp_string(date_str):
@@ -424,32 +410,50 @@ if page == "Sample Output":
              st.stop()
         # st.write("Merged Data:", df_merged.head()) # Debug
              
-        # --- Generate Random Reference Date per Meter --- 
-        def generate_random_timestamp(start_ts_str, end_ts_str):
+        # --- Generate Random Reference Month per Meter --- 
+        def generate_random_month_timestamp(start_ts_str, end_ts_str):
             try:
                 start_ts = int(float(start_ts_str))
                 end_ts = int(float(end_ts_str))
-                if pd.isna(start_ts) or pd.isna(end_ts) or start_ts >= end_ts:
+                if pd.isna(start_ts) or pd.isna(end_ts) or start_ts > end_ts:
                     return None # Cannot generate date
-                # Generate random timestamp within the interval (inclusive)
-                random_ts = random.randint(start_ts, end_ts)
-                return str(random_ts) # Return as string
+
+                # Convert timestamps to datetime objects (UTC)
+                start_dt = pd.to_datetime(start_ts, unit='s', utc=True)
+                end_dt = pd.to_datetime(end_ts, unit='s', utc=True)
+
+                # Normalize start/end to the beginning of their respective months
+                start_month_start = start_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                # For end month, find start of *next* month to use as exclusive upper bound for range
+                end_month_start = end_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                
+                # Generate list of possible month start dates within the range
+                possible_months = pd.date_range(start=start_month_start, end=end_month_start, freq='MS', inclusive='both')
+
+                if possible_months.empty:
+                    return None # No valid months in the range
+
+                # Select a random month start from the list
+                random_month_dt = random.choice(possible_months)
+
+                # Return the timestamp string for the start of that month
+                return str(int(random_month_dt.timestamp()))
             except (ValueError, TypeError):
                 return None # Handle conversion errors
 
         # Create a mapping of meterid to window timestamps
         meter_windows = df_merged[['meterid', 'window_start_ts', 'window_stop_ts']].drop_duplicates(subset=['meterid'])
         # Apply the random date generation
-        meter_windows['reference_date_ts'] = meter_windows.apply(
-            lambda row: generate_random_timestamp(row['window_start_ts'], row['window_stop_ts']),
+        meter_windows['reference_month_ts'] = meter_windows.apply(
+            lambda row: generate_random_month_timestamp(row['window_start_ts'], row['window_stop_ts']),
             axis=1
         )
         # Merge the generated date back into the main dataframe
-        df_merged = pd.merge(df_merged, meter_windows[['meterid', 'reference_date_ts']], on='meterid', how='left')
+        df_merged = pd.merge(df_merged, meter_windows[['meterid', 'reference_month_ts']], on='meterid', how='left')
 
         # Check if any dates failed to generate
-        if df_merged['reference_date_ts'].isnull().any():
-             st.warning("Warning: Could not generate a valid random reference date for some meters (check window start/stop dates). Using N/A.")
+        if df_merged['reference_month_ts'].isnull().any():
+             st.warning("Warning: Could not generate a valid random reference month for some meters (check window start/stop dates). Using N/A.")
 
         # --- QC: Adjust Appliance Consumption to Not Exceed Grid --- 
         st.info("Applying QC: Scaling down appliance consumption if sum exceeds grid value.")
@@ -527,7 +531,7 @@ if page == "Sample Output":
             
         # --- Create Table 2: Appliance Breakdown --- 
         # (Melt and prepare data FIRST, then calculate plots/metrics)
-        id_vars_melt = ['meterid', 'reference_date_ts'] # Use new reference date
+        id_vars_melt = ['meterid', 'reference_month_ts'] # Use reference month
         if grid_col and grid_col in df_merged.columns: 
              id_vars_melt.append(grid_col)
              
@@ -707,7 +711,7 @@ if page == "Sample Output":
 
                 # Select, rename, and reorder final columns for display
                 final_display_cols = ['meterid', 'appliance_type', 'direction'] # Added direction
-                final_display_rename_map = {'reference_date_ts': 'reference_date'} # Rename new column
+                final_display_rename_map = {'reference_month_ts': 'reference_month'} # Rename reference month column
                 
                 # Check if grid column exists in the breakdown df before adding
                 # Use the original name before potential renaming in map
@@ -716,7 +720,7 @@ if page == "Sample Output":
                     final_display_cols.append(grid_col_in_breakdown) 
                     final_display_rename_map[grid_col_in_breakdown] = 'grid (kWh)' # RENAME to include (kWh)
                 
-                final_display_cols.extend(['Consumption (kWh)', 'reference_date_ts'])
+                final_display_cols.extend(['Consumption (kWh)', 'reference_month_ts'])
                 
                 # Select only the necessary columns that exist
                 final_display_cols_exist = [c for c in final_display_cols if c in appliance_breakdown_df.columns]
@@ -729,15 +733,15 @@ if page == "Sample Output":
                 final_display_order = ['meterid', 'appliance_type', 'direction'] # Added direction
                 if 'grid (kWh)' in display_df.columns: # Check using the new name
                     final_display_order.append('grid (kWh)')
-                final_display_order.extend(['Consumption (kWh)', 'reference_date']) # Use new name
+                final_display_order.extend(['Consumption (kWh)', 'reference_month']) # Use reference month name
                 
                 # Ensure all columns in final order exist before reordering
                 final_display_order_exist = [c for c in final_display_order if c in display_df.columns]
                 display_df = display_df[final_display_order_exist]
                 
-                # Format reference_date timestamp before displaying (YYYY-MM-DD)
-                if 'reference_date' in display_df.columns:
-                    display_df['reference_date'] = display_df['reference_date'].apply(lambda ts: format_unix_timestamp(ts, "%Y-%m-%d"))
+                # Format reference_month timestamp before displaying (Month YYYY)
+                if 'reference_month' in display_df.columns:
+                    display_df['reference_month'] = display_df['reference_month'].apply(lambda ts: format_unix_timestamp(ts, "%B %Y"))
 
                 st.dataframe(display_df, use_container_width=True)
                 
@@ -746,6 +750,18 @@ if page == "Sample Output":
 
                 # --- Add Data Dictionary Expander ---
                 with st.expander("Data Dictionary & Explanations", expanded=False):
+                    st.markdown("### Table 1: Meter Information")
+                    st.markdown("""
+                    This table provides general information about each meter included in the analysis.
+
+                    *   **meterid**: A unique identifier assigned to each household meter.
+                    *   **window_start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data.
+                    *   **window_stop**: The last date (YYYY-MM-DD) of the analysis period for this meter's data.
+                    *   **interval**: The time resolution of the energy readings used (e.g., '15 min').
+                    """)
+
+                    st.markdown("<hr>", unsafe_allow_html=True)
+
                     st.markdown("### Table 2: Appliance Breakdown")
                     st.markdown("""
                     This table shows the estimated energy consumption or generation for specific appliances detected for each meter, referenced against a specific date within the analysis window.
@@ -760,10 +776,10 @@ if page == "Sample Output":
                         *   `positive`: Consumes energy from the grid.
                         *   `negative`: Generates energy (feeds back to the grid, e.g., `pv`).
                     *   **grid (kWh)**: The total net energy measured at the meter (drawn from or sent to the grid) associated with the reference period. Positive values indicate net consumption; negative values would indicate net generation.
-                    *   **Consumption (kWh)**: The estimated energy consumed (`positive` direction) or generated (`negative` direction) by this specific `appliance_type` on the `reference_date`. 
+                    *   **Consumption (kWh)**: The estimated energy consumed (`positive` direction) or generated (`negative` direction) by this specific `appliance_type` on the `reference_month`. 
                         *   _Note:_ Consumption values (except PV) may have been scaled down if their initial sum exceeded the `grid (kWh)` value (QC step).
                         *   A value of `-1` typically indicates the appliance was not detected or had zero/non-positive activity during the reference period.
-                    *   **reference_date**: A specific date (YYYY-MM-DD) within the meter's `window_start` / `window_stop` range, used as a reference point for the displayed `Consumption (kWh)`.
+                    *   **reference_month**: A representative month (Month YYYY) within the meter's `window_start` / `window_stop` range, used as a reference point for the displayed `Consumption (kWh)`.
                     """)
 
             except Exception as e:
