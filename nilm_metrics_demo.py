@@ -412,47 +412,49 @@ if page == "Sample Output":
              
         # --- Generate Random Reference Month per Meter --- 
         def generate_random_month_timestamp(start_ts_str, end_ts_str):
-            try:
-                start_ts = int(float(start_ts_str))
-                end_ts = int(float(end_ts_str))
-                if pd.isna(start_ts) or pd.isna(end_ts) or start_ts > end_ts:
-                    return None # Cannot generate date
+             try:
+                 start_ts = int(float(start_ts_str))
+                 end_ts = int(float(end_ts_str))
+                 if pd.isna(start_ts) or pd.isna(end_ts):
+                     return pd.NaT # Return Not a Time for invalid input
+                 if start_ts > end_ts:
+                      return pd.NaT
+  
+                 # Convert timestamps to datetime objects (UTC)
+                 start_dt = pd.to_datetime(start_ts, unit='s', utc=True)
+                 end_dt = pd.to_datetime(end_ts, unit='s', utc=True)
 
-                # Convert timestamps to datetime objects (UTC)
-                start_dt = pd.to_datetime(start_ts, unit='s', utc=True)
-                end_dt = pd.to_datetime(end_ts, unit='s', utc=True)
+                 # Normalize start/end to the beginning of their respective months
+                 start_month_start = start_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                 # For end month, find start of *next* month to use as exclusive upper bound for range
+                 end_month_start = end_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                 
+                 # Generate list of possible month start dates within the range
+                 possible_months = pd.date_range(start=start_month_start, end=end_month_start, freq='MS', inclusive='both')
 
-                # Normalize start/end to the beginning of their respective months
-                start_month_start = start_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                # For end month, find start of *next* month to use as exclusive upper bound for range
-                end_month_start = end_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                
-                # Generate list of possible month start dates within the range
-                possible_months = pd.date_range(start=start_month_start, end=end_month_start, freq='MS', inclusive='both')
+                 if possible_months.empty:
+                     return None # No valid months in the range
 
-                if possible_months.empty:
-                    return None # No valid months in the range
+                 # Select a random month start from the list
+                 random_month_dt = random.choice(possible_months)
 
-                # Select a random month start from the list
-                random_month_dt = random.choice(possible_months)
-
-                # Return the timestamp string for the start of that month
-                return str(int(random_month_dt.timestamp()))
-            except (ValueError, TypeError):
-                return None # Handle conversion errors
+                 # Return the timestamp string for the start of that month
+                 return random_month_dt # Return the datetime object
+             except (ValueError, TypeError):
+                 return pd.NaT # Return Not a Time on conversion errors
 
         # Create a mapping of meterid to window timestamps
         meter_windows = df_merged[['meterid', 'window_start_ts', 'window_stop_ts']].drop_duplicates(subset=['meterid'])
         # Apply the random date generation
-        meter_windows['reference_month_ts'] = meter_windows.apply(
+        meter_windows['reference_month_dt'] = meter_windows.apply( # Changed column name
             lambda row: generate_random_month_timestamp(row['window_start_ts'], row['window_stop_ts']),
             axis=1
         )
         # Merge the generated date back into the main dataframe
-        df_merged = pd.merge(df_merged, meter_windows[['meterid', 'reference_month_ts']], on='meterid', how='left')
+        df_merged = pd.merge(df_merged, meter_windows[['meterid', 'reference_month_dt']], on='meterid', how='left') # Use dt column
 
         # Check if any dates failed to generate
-        if df_merged['reference_month_ts'].isnull().any():
+        if df_merged['reference_month_dt'].isnull().any():
              st.warning("Warning: Could not generate a valid random reference month for some meters (check window start/stop dates). Using N/A.")
 
         # --- QC: Adjust Appliance Consumption to Not Exceed Grid --- 
@@ -531,7 +533,7 @@ if page == "Sample Output":
             
         # --- Create Table 2: Appliance Breakdown --- 
         # (Melt and prepare data FIRST, then calculate plots/metrics)
-        id_vars_melt = ['meterid', 'reference_month_ts'] # Use reference month
+        id_vars_melt = ['meterid', 'reference_month_dt'] # Use datetime column
         if grid_col and grid_col in df_merged.columns: 
              id_vars_melt.append(grid_col)
              
@@ -711,7 +713,7 @@ if page == "Sample Output":
 
                 # Select, rename, and reorder final columns for display
                 final_display_cols = ['meterid', 'appliance_type', 'direction'] # Added direction
-                final_display_rename_map = {'reference_month_ts': 'reference_month'} # Rename reference month column
+                final_display_rename_map = {'reference_month_dt': 'reference_month'} # Rename datetime column
                 
                 # Check if grid column exists in the breakdown df before adding
                 # Use the original name before potential renaming in map
@@ -720,7 +722,7 @@ if page == "Sample Output":
                     final_display_cols.append(grid_col_in_breakdown) 
                     final_display_rename_map[grid_col_in_breakdown] = 'grid (kWh)' # RENAME to include (kWh)
                 
-                final_display_cols.extend(['Consumption (kWh)', 'reference_month_ts'])
+                final_display_cols.extend(['Consumption (kWh)', 'reference_month_dt'])
                 
                 # Select only the necessary columns that exist
                 final_display_cols_exist = [c for c in final_display_cols if c in appliance_breakdown_df.columns]
@@ -739,9 +741,12 @@ if page == "Sample Output":
                 final_display_order_exist = [c for c in final_display_order if c in display_df.columns]
                 display_df = display_df[final_display_order_exist]
                 
-                # Format reference_month timestamp before displaying (Month YYYY)
+                # Format reference_month datetime object before displaying (Month YYYY)
                 if 'reference_month' in display_df.columns:
-                    display_df['reference_month'] = display_df['reference_month'].apply(lambda ts: format_unix_timestamp(ts, "%B %Y"))
+                    # Ensure the column is actual datetime first (might be object type if NaTs are present)
+                    display_df['reference_month'] = pd.to_datetime(display_df['reference_month'], errors='coerce')
+                    # Format using dt accessor, handle NaT values by filling with 'N/A'
+                    display_df['reference_month'] = display_df['reference_month'].dt.strftime("%B %Y").fillna("N/A")
 
                 st.dataframe(display_df, use_container_width=True)
                 
