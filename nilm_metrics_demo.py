@@ -354,12 +354,13 @@ if page == "Sample Output":
         # Convert dates to timestamps
         df_metadata['window_start_ts'] = df_metadata['window_start_str'].apply(to_unix_timestamp_string)
         df_metadata['window_stop_ts'] = df_metadata['window_stop_str'].apply(to_unix_timestamp_string)
-        df_metadata['reference_month_ts'] = df_metadata['reference_month_str'].apply(to_unix_timestamp_string)
+        # df_metadata['reference_month_ts'] = df_metadata['reference_month_str'].apply(to_unix_timestamp_string)
         
         # Keep only necessary metadata columns
-        df_metadata = df_metadata[['meterid', 'window_start_ts', 'window_stop_ts', 'reference_month_ts']]
+        # Keep window start/stop for random date generation
+        df_metadata = df_metadata[['meterid', 'window_start_ts', 'window_stop_ts']]
         if df_metadata.isnull().values.any():
-             st.warning("Warning: Some dates in metadata could not be converted to timestamps.")
+             st.warning("Warning: Some window start/stop dates in metadata could not be converted to timestamps. Random reference date generation might fail for these.")
         # st.write("Prepared Metadata:", df_metadata.head()) # Debug
              
         # --- Prepare Consumption Data (df_consumption) ---
@@ -409,6 +410,33 @@ if page == "Sample Output":
              st.stop()
         # st.write("Merged Data:", df_merged.head()) # Debug
              
+        # --- Generate Random Reference Date per Meter --- 
+        def generate_random_timestamp(start_ts_str, end_ts_str):
+            try:
+                start_ts = int(float(start_ts_str))
+                end_ts = int(float(end_ts_str))
+                if pd.isna(start_ts) or pd.isna(end_ts) or start_ts >= end_ts:
+                    return None # Cannot generate date
+                # Generate random timestamp within the interval (inclusive)
+                random_ts = random.randint(start_ts, end_ts)
+                return str(random_ts) # Return as string
+            except (ValueError, TypeError):
+                return None # Handle conversion errors
+
+        # Create a mapping of meterid to window timestamps
+        meter_windows = df_merged[['meterid', 'window_start_ts', 'window_stop_ts']].drop_duplicates(subset=['meterid'])
+        # Apply the random date generation
+        meter_windows['reference_date_ts'] = meter_windows.apply(
+            lambda row: generate_random_timestamp(row['window_start_ts'], row['window_stop_ts']),
+            axis=1
+        )
+        # Merge the generated date back into the main dataframe
+        df_merged = pd.merge(df_merged, meter_windows[['meterid', 'reference_date_ts']], on='meterid', how='left')
+
+        # Check if any dates failed to generate
+        if df_merged['reference_date_ts'].isnull().any():
+             st.warning("Warning: Could not generate a valid random reference date for some meters (check window start/stop dates). Using N/A.")
+
         # --- QC: Adjust Appliance Consumption to Not Exceed Grid --- 
         st.info("Applying QC: Scaling down appliance consumption if sum exceeds grid value.")
 
@@ -485,7 +513,7 @@ if page == "Sample Output":
             
         # --- Create Table 2: Appliance Breakdown --- 
         # (Melt and prepare data FIRST, then calculate plots/metrics)
-        id_vars_melt = ['meterid', 'reference_month_ts']
+        id_vars_melt = ['meterid', 'reference_date_ts'] # Use new reference date
         if grid_col and grid_col in df_merged.columns: 
              id_vars_melt.append(grid_col)
              
@@ -665,7 +693,7 @@ if page == "Sample Output":
 
                 # Select, rename, and reorder final columns for display
                 final_display_cols = ['meterid', 'appliance_type', 'direction'] # Added direction
-                final_display_rename_map = {'reference_month_ts': 'reference_month'}
+                final_display_rename_map = {'reference_date_ts': 'reference_date'} # Rename new column
                 
                 # Check if grid column exists in the breakdown df before adding
                 # Use the original name before potential renaming in map
@@ -674,7 +702,7 @@ if page == "Sample Output":
                     final_display_cols.append(grid_col_in_breakdown) 
                     final_display_rename_map[grid_col_in_breakdown] = 'grid (kWh)' # RENAME to include (kWh)
                 
-                final_display_cols.extend(['Consumption (kWh)', 'reference_month_ts'])
+                final_display_cols.extend(['Consumption (kWh)', 'reference_date_ts'])
                 
                 # Select only the necessary columns that exist
                 final_display_cols_exist = [c for c in final_display_cols if c in appliance_breakdown_df.columns]
@@ -687,15 +715,15 @@ if page == "Sample Output":
                 final_display_order = ['meterid', 'appliance_type', 'direction'] # Added direction
                 if 'grid (kWh)' in display_df.columns: # Check using the new name
                     final_display_order.append('grid (kWh)')
-                final_display_order.extend(['Consumption (kWh)', 'reference_month']) 
+                final_display_order.extend(['Consumption (kWh)', 'reference_date']) # Use new name
                 
                 # Ensure all columns in final order exist before reordering
                 final_display_order_exist = [c for c in final_display_order if c in display_df.columns]
                 display_df = display_df[final_display_order_exist]
                 
-                # Format reference_month timestamp before displaying
-                if 'reference_month' in display_df.columns:
-                    display_df['reference_month'] = display_df['reference_month'].apply(lambda ts: format_unix_timestamp(ts, "%B %Y"))
+                # Format reference_date timestamp before displaying (YYYY-MM-DD)
+                if 'reference_date' in display_df.columns:
+                    display_df['reference_date'] = display_df['reference_date'].apply(lambda ts: format_unix_timestamp(ts, "%Y-%m-%d"))
 
                 st.dataframe(display_df, use_container_width=True)
                 
