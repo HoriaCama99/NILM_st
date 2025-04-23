@@ -1777,6 +1777,8 @@ elif page == "Interactive Map":
     show_ev = st.sidebar.checkbox("Show EV Chargers", value=True)
     show_ac = st.sidebar.checkbox("Show AC Units", value=True)
     show_pv = st.sidebar.checkbox("Show Solar Panels", value=True)
+    st.sidebar.markdown("<hr style='margin: 0.5rem 0;'>", unsafe_allow_html=True) # Small separator
+    show_all_three = st.sidebar.checkbox("ONLY Show Homes with All 3 Devices", value=False)
 
     st.sidebar.markdown("---") # Separator
 
@@ -1906,22 +1908,28 @@ elif page == "Interactive Map":
             # Ensure comparison uses uppercase state code if needed
             state_households_df = all_household_data[all_household_data['state'].astype(str).str.upper() == selected_state_code]
 
-            # Apply device filters from sidebar
-            # Create filter masks for each selected device type
-            filters = []
-            if show_ev: filters.append(state_households_df['has_ev'])
-            if show_ac: filters.append(state_households_df['has_ac'])
-            if show_pv: filters.append(state_households_df['has_pv'])
+            # Apply device filters based on sidebar selections
+            if show_all_three:
+                # Filter for homes having all three devices
+                all_three_condition = state_households_df['has_ev'] & state_households_df['has_ac'] & state_households_df['has_pv']
+                filtered_households_df = state_households_df[all_three_condition]
+                st.info("Filter applied: Showing only homes with all three devices (EV, AC, PV).")
+            else:
+                # Apply individual device filters (show if *any* selected device is present)
+                filters = []
+                if show_ev: filters.append(state_households_df['has_ev'])
+                if show_ac: filters.append(state_households_df['has_ac'])
+                if show_pv: filters.append(state_households_df['has_pv'])
 
-            # Combine filters using logical OR if any filters are active
-            if filters:
-                combined_filter = pd.DataFrame(filters).transpose().any(axis=1)
-                filtered_households_df = state_households_df[combined_filter]
-            elif not state_households_df.empty:
-                 # If no device filters are selected, show all houses in the state
-                 st.info(f"No device filters selected. Displaying all {len(state_households_df)} detected homes in {selected_state_name}.")
-                 filtered_households_df = state_households_df
-            # If filters list is empty and state_households_df is empty, filtered_households_df remains empty
+                if filters:
+                    combined_filter = pd.DataFrame(filters).transpose().any(axis=1)
+                    filtered_households_df = state_households_df[combined_filter]
+                elif not state_households_df.empty:
+                    # If no individual filters selected (and not show_all_three), show all in state?
+                    # Or show none? Let's show none if no boxes are checked.
+                    filtered_households_df = pd.DataFrame(columns=state_households_df.columns) # Empty DF
+                    st.info(f"No device filters selected. Please select device types or 'All 3 Devices' to view markers.")
+                # else: filters list is empty and state_households_df is empty, so filtered_households_df remains empty
 
         if not filtered_households_df.empty:
             # Create marker cluster for households
