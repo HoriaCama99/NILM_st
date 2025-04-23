@@ -266,6 +266,20 @@ selected_model = "V6" # Default model
 if page == "Sample Output":
     # Sample Output page code goes here
     st.title("Energy Disaggregation Model: Output Structure Example")
+    
+        # --- Add Data Dictionary Expander ---
+    with st.expander("Data Dictionary & Explanations", expanded=False):
+        st.markdown("### Table 1: Meter Information")
+        st.markdown("""
+        This table provides general information about each meter included in the analysis.
+
+        *   **meterid**: A unique identifier assigned to each household meter.
+        *   **window_start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data.
+        *   **window_stop**: The last date (YYYY-MM-DD) of the analysis period for this meter's data.
+        *   **interval**: The time resolution of the energy readings used (e.g., '15 min').
+        """)
+
+        st.markdown("<hr>", unsafe_allow_html=True)
 
     # Define function to convert date string to Unix timestamp string (start of day/month)
     def to_unix_timestamp_string(date_str):
@@ -732,18 +746,6 @@ if page == "Sample Output":
 
                 # --- Add Data Dictionary Expander ---
                 with st.expander("Data Dictionary & Explanations", expanded=False):
-                    st.markdown("### Table 1: Meter Information")
-                    st.markdown("""
-                    This table provides general information about each meter included in the analysis.
-
-                    *   **meterid**: A unique identifier assigned to each household meter.
-                    *   **window_start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data.
-                    *   **window_stop**: The last date (YYYY-MM-DD) of the analysis period for this meter's data.
-                    *   **interval**: The time resolution of the energy readings used (e.g., '15 min').
-                    """)
-
-                    st.markdown("<hr>", unsafe_allow_html=True)
-
                     st.markdown("### Table 2: Appliance Breakdown")
                     st.markdown("""
                     This table shows the estimated energy consumption or generation for specific appliances detected for each meter, referenced against a specific date within the analysis window.
