@@ -696,14 +696,15 @@ if page == "Sample Output":
         # --- Prepare and Display Table 1 (Meter Information) ---
         st.subheader("Table 1: Meter Information")
         # Add data dictionary explanation for Table 1 before displaying it
-        st.markdown("""
-        This table provides general information about each meter included in the analysis.
+        with st.expander("Table 1 Data Dictionary", expanded=False):
+            st.markdown("""
+            This table provides general information about each meter included in the analysis.
 
-        *   **meterid**: A unique identifier assigned to each household meter.
-        *   **window_start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data.
-        *   **window_stop**: The last date (YYYY-MM-DD) of the analysis period for this meter's data.
-        *   **interval**: The time resolution of the energy readings used (e.g., '15 min').
-        """)
+            *   **meterid**: A unique identifier assigned to each household meter.
+            *   **window_start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data.
+            *   **window_stop**: The last date (YYYY-MM-DD) of the analysis period for this meter's data.
+            *   **interval**: The time resolution of the energy readings used (e.g., '15 min').
+            """)
         
         # Display Table 1 (meter_info_df created in previous code)
         st.dataframe(meter_info_df, use_container_width=True)
@@ -712,24 +713,25 @@ if page == "Sample Output":
         st.subheader("Table 2: Appliance Breakdown")
         
         # Add data dictionary explanation for Table 2 before displaying it
-        st.markdown("""
-        This table shows the estimated energy consumption or generation for specific appliances detected for each meter, referenced against a specific date within the analysis window.
+        with st.expander("Table 2 Data Dictionary", expanded=False):
+            st.markdown("""
+            This table shows the estimated energy consumption or generation for specific appliances detected for each meter, referenced against a specific date within the analysis window.
 
-        *   **meterid**: Links back to the meter in Table 1.
-        *   **appliance_type**: Code for the detected appliance:
-            *   `ev`: Electric Vehicle Charging
-            *   `pv`: Solar Panel (Photovoltaic) Generation
-            *   `ac`: Air Conditioning
-            *   `wh`: Water Heater
-        *   **direction**: Indicates energy flow relative to the grid:
-            *   `positive`: Consumes energy from the grid.
-            *   `negative`: Generates energy (feeds back to the grid, e.g., `pv`).
-        *   **grid (kWh)**: The total net energy measured at the meter (drawn from or sent to the grid) associated with the reference period. Positive values indicate net consumption; negative values would indicate net generation.
-        *   **Consumption (kWh)**: The estimated energy consumed (`positive` direction) or generated (`negative` direction) by this specific `appliance_type` on the `reference_month`. 
-            *   _Note:_ Consumption values (except PV) may have been scaled down if their initial sum exceeded the `grid (kWh)` value (QC step).
-            *   A value of `-1` typically indicates the appliance was not detected or had zero/non-positive activity during the reference period.
-        *   **reference_month**: A representative month (Month YYYY) within the meter's `window_start` / `window_stop` range, used as a reference point for the displayed `Consumption (kWh)`.
-        """)
+            *   **meterid**: Links back to the meter in Table 1.
+            *   **appliance_type**: Code for the detected appliance:
+                *   `ev`: Electric Vehicle Charging
+                *   `pv`: Solar Panel (Photovoltaic) Generation
+                *   `ac`: Air Conditioning
+                *   `wh`: Water Heater
+            *   **direction**: Indicates energy flow relative to the grid:
+                *   `positive`: Consumes energy from the grid.
+                *   `negative`: Generates energy (feeds back to the grid, e.g., `pv`).
+            *   **grid (kWh)**: The total net energy measured at the meter (drawn from or sent to the grid) associated with the reference period. Positive values indicate net consumption; negative values would indicate net generation.
+            *   **Consumption (kWh)**: The estimated energy consumed (`positive` direction) or generated (`negative` direction) by this specific `appliance_type` on the `reference_month`. 
+                *   _Note:_ Consumption values (except PV) may have been scaled down if their initial sum exceeded the `grid (kWh)` value (QC step).
+                *   A value of `-1` typically indicates the appliance was not detected or had zero/non-positive activity during the reference period.
+            *   **reference_month**: A representative month (Month YYYY) within the meter's `window_start` / `window_stop` range, used as a reference point for the displayed `Consumption (kWh)`.
+            """)
         
         if not appliance_breakdown_df.empty:
             try:
@@ -889,19 +891,16 @@ if page == "Sample Output":
 
                     st.plotly_chart(fig_monthly, use_container_width=True)
 
-                # Add explanatory text
-                st.markdown(f"""
-                <div style="padding: 10px; border-left: 3px solid {primary_purple}; background-color: rgba(184, 188, 243, 0.1);">
-                    <small>
+                # Add explanatory text in expander
+                with st.expander("About Device Usage Patterns", expanded=False):
+                    st.markdown(f"""
                     These heatmaps show typical usage patterns for {selected_device_heatmap.lower()}:
                     
                     • The <b>Weekly Pattern</b> shows hourly usage across different days of the week
                     • The <b>Monthly Pattern</b> shows daily usage intensity across weeks
                     
                     Darker colors indicate higher usage/activity levels.
-                    </small>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
 
             except Exception as e:
                 st.error(f"An error occurred preparing Table 2 for display: {e}")
