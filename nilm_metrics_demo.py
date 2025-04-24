@@ -753,6 +753,120 @@ if page == "Sample Output":
                 # Update legend for new appliance codes
                 st.caption("Appliance Type Codes: ev = EV Charging, pv = Solar PV, ac = Air Conditioning, wh = Water Heater")
 
+                # --- Add Device Usage Heatmaps ---
+                st.markdown("### Device Usage Patterns")
+                st.markdown("Explore hourly and daily usage patterns for each device type.")
+
+                # Device selection for heatmaps
+                selected_device_heatmap = st.selectbox(
+                    "Select Device to View Usage Patterns:",
+                    ["EV Charging", "AC Usage", "PV Usage"],
+                    key="heatmap_device_selector"
+                )
+
+                # Create two columns for the heatmaps
+                heatmap_col1, heatmap_col2 = st.columns(2)
+
+                with heatmap_col1:
+                    st.subheader("Weekly Usage Pattern")
+                    
+                    # Generate sample data for weekly pattern (24 hours x 7 days)
+                    if selected_device_heatmap == "EV Charging":
+                        # EV charging typically happens at night
+                        weekly_data = np.random.normal(0.3, 0.1, size=(7, 24))
+                        weekly_data[:, 18:23] *= 3  # Higher usage in evening
+                        weekly_data[:, 0:5] *= 2    # Some usage in early morning
+                    elif selected_device_heatmap == "AC Usage":
+                        # AC usage peaks during afternoon
+                        weekly_data = np.random.normal(0.4, 0.1, size=(7, 24))
+                        weekly_data[:, 12:18] *= 2.5  # Higher usage in afternoon
+                        weekly_data[:, 2:6] *= 0.5    # Lower usage in early morning
+                    else:  # PV Usage
+                        # Solar generation peaks during daylight hours
+                        weekly_data = np.zeros((7, 24))
+                        weekly_data[:, 6:18] = np.random.normal(0.8, 0.2, size=(7, 12))  # Daylight hours
+                        weekly_data[:, [6, 18]] *= 0.5  # Lower at dawn/dusk
+
+                    # Ensure non-negative values
+                    weekly_data = np.maximum(weekly_data, 0)
+
+                    # Create weekly heatmap
+                    fig_weekly = go.Figure(data=go.Heatmap(
+                        z=weekly_data,
+                        x=[f"{i:02d}:00" for i in range(24)],
+                        y=['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                        colorscale=[[0, 'white'], [1, primary_purple]],
+                        hoverongaps=False,
+                        hovertemplate='Day: %{y}<br>Hour: %{x}<br>Usage: %{z:.2f}<extra></extra>'
+                    ))
+
+                    fig_weekly.update_layout(
+                        title=f"Hourly {selected_device_heatmap} Pattern",
+                        xaxis_title="Hour of Day",
+                        yaxis_title="Day of Week",
+                        height=400,
+                        paper_bgcolor=white,
+                        plot_bgcolor=white,
+                        font=dict(color=dark_purple)
+                    )
+
+                    st.plotly_chart(fig_weekly, use_container_width=True)
+
+                with heatmap_col2:
+                    st.subheader("Monthly Usage Pattern")
+                    
+                    # Generate sample data for monthly pattern (7 days x 5 weeks)
+                    if selected_device_heatmap == "EV Charging":
+                        # EV charging more consistent through the month
+                        monthly_data = np.random.normal(0.5, 0.2, size=(5, 7))
+                    elif selected_device_heatmap == "AC Usage":
+                        # AC usage varies with temperature patterns
+                        monthly_data = np.random.normal(0.6, 0.3, size=(5, 7))
+                        monthly_data[2:4] *= 1.5  # Higher usage in middle of month
+                    else:  # PV Usage
+                        # Solar generation varies with weather
+                        monthly_data = np.random.normal(0.7, 0.2, size=(5, 7))
+                        monthly_data *= np.linspace(0.8, 1.2, 5)[:, np.newaxis]  # Trend across month
+
+                    # Ensure non-negative values
+                    monthly_data = np.maximum(monthly_data, 0)
+
+                    # Create monthly heatmap
+                    fig_monthly = go.Figure(data=go.Heatmap(
+                        z=monthly_data,
+                        x=['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                        y=['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5'],
+                        colorscale=[[0, 'white'], [1, primary_purple]],
+                        hoverongaps=False,
+                        hovertemplate='Week: %{y}<br>Day: %{x}<br>Usage: %{z:.2f}<extra></extra>'
+                    ))
+
+                    fig_monthly.update_layout(
+                        title=f"Daily {selected_device_heatmap} Pattern",
+                        xaxis_title="Day of Week",
+                        yaxis_title="Week of Month",
+                        height=400,
+                        paper_bgcolor=white,
+                        plot_bgcolor=white,
+                        font=dict(color=dark_purple)
+                    )
+
+                    st.plotly_chart(fig_monthly, use_container_width=True)
+
+                # Add explanatory text
+                st.markdown(f"""
+                <div style="padding: 10px; border-left: 3px solid {primary_purple}; background-color: rgba(184, 188, 243, 0.1);">
+                    <small>
+                    These heatmaps show typical usage patterns for {selected_device_heatmap.lower()}:
+                    
+                    • The <b>Weekly Pattern</b> shows hourly usage across different days of the week
+                    • The <b>Monthly Pattern</b> shows daily usage intensity across weeks
+                    
+                    Darker colors indicate higher usage/activity levels.
+                    </small>
+                </div>
+                """, unsafe_allow_html=True)
+
                 # --- Add Data Dictionary Expander ---
                 with st.expander("Data Dictionary & Explanations", expanded=False):
                     st.markdown("### Table 1: Meter Information")
