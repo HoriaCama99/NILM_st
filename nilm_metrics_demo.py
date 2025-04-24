@@ -693,22 +693,6 @@ if page == "Sample Output":
         with metric_col4:
             st.metric(label="Consumption Identified", value=f"{pct_identified:.1f}%", help="% of total grid kWh attributed to detected EV, AC, and WH")
 
-        # --- Prepare and Display Table 1 (Meter Information) ---
-        st.subheader("Table 1: Meter Information")
-        # Add data dictionary explanation for Table 1 before displaying it
-        with st.expander("Table 1 Data Dictionary", expanded=False):
-            st.markdown("""
-            This table provides general information about each meter included in the analysis.
-
-            *   **meterid**: A unique identifier assigned to each household meter.
-            *   **window_start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data.
-            *   **window_stop**: The last date (YYYY-MM-DD) of the analysis period for this meter's data.
-            *   **interval**: The time resolution of the energy readings used (e.g., '15 min').
-            """)
-        
-        # Display Table 1 (meter_info_df created in previous code)
-        st.dataframe(meter_info_df, use_container_width=True)
-
         # --- Prepare and Display Table 2 --- 
         st.subheader("Table 2: Appliance Breakdown")
         
