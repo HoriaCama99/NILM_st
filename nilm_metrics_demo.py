@@ -512,6 +512,18 @@ if page == "Sample Output":
 
         # --- Create Table 1: Meter Information --- 
         st.subheader("Table 1: Meter Information")
+        
+        # Add data dictionary explanation for Table 1 before displaying it
+        with st.expander("Table 1 Data Dictionary", expanded=False):
+            st.markdown("""
+            This table provides general information about each meter included in the analysis.
+
+            *   **meterid**: A unique identifier assigned to each household meter.
+            *   **window_start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data.
+            *   **window_stop**: The last date (YYYY-MM-DD) of the analysis period for this meter's data.
+            *   **interval**: The time resolution of the energy readings used (e.g., '15 min').
+            """)
+            
         meter_info_cols = ['meterid', 'window_start_ts', 'window_stop_ts']
         try:
             # Select columns *before* drop_duplicates
