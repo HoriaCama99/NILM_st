@@ -310,6 +310,18 @@ if page == "Sample Output":
         metadata_csv_path = 'dissag_output_v2.csv' 
         consumption_csv_path = 'disagg_sample.csv'
         
+        # --- Data Dictionary for Table 1 ---
+        st.markdown("### Understanding the Data")
+        with st.expander("Table 1: Meter Information Explanation", expanded=False):
+            st.markdown("""
+            This table provides general information about each meter included in the analysis.
+
+            *   **meterid**: A unique identifier assigned to each household meter.
+            *   **window_start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data.
+            *   **window_stop**: The last date (YYYY-MM-DD) of the analysis period for this meter's data.
+            *   **interval**: The time resolution of the energy readings used (e.g., '15 min').
+            """)
+
         # --- Load and Process Data ---
         try:
             df_metadata = pd.read_csv(metadata_csv_path)
@@ -334,17 +346,6 @@ if page == "Sample Output":
         Start/Stop dates are displayed as YYYY-MM-DD, and the Reference Month is displayed as Month YYYY.
         """)
 
-        # --- Data Dictionary for Table 1 ---
-        with st.expander("Table 1: Meter Information - Data Dictionary", expanded=False):
-            st.markdown("""
-            This table provides general information about each meter included in the analysis.
-
-            *   **meterid**: A unique identifier assigned to each household meter.
-            *   **window_start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data.
-            *   **window_stop**: The last date (YYYY-MM-DD) of the analysis period for this meter's data.
-            *   **interval**: The time resolution of the energy readings used (e.g., '15 min').
-            """)
-
         # --- Table 1: Meter Information ---
         st.subheader("Table 1: Meter Information")
         meter_info_cols = ['meterid', 'window_start_ts', 'window_stop_ts']
@@ -367,26 +368,35 @@ if page == "Sample Output":
             st.exception(e)
 
         # --- Data Dictionary for Table 2 ---
-        with st.expander("Table 2: Appliance Breakdown - Data Dictionary", expanded=False):
+        with st.expander("Table 2: Appliance Breakdown Explanation", expanded=False):
             st.markdown("""
-            This table shows the energy consumption breakdown by appliance for each meter.
+            This table shows the estimated energy consumption or generation for specific appliances detected for each meter, referenced against a specific date within the analysis window.
 
-            *   **meterid**: A unique identifier assigned to each household meter.
-            *   **reference_month**: The month and year (Month YYYY) for which the energy consumption is reported.
-            *   **appliance**: The type of appliance or energy consumption category.
-            *   **consumption**: The total energy consumption for the specified appliance during the reference month.
+            *   **meterid**: Links back to the meter in Table 1.
+            *   **appliance_type**: Code for the detected appliance:
+                *   `ev`: Electric Vehicle Charging
+                *   `pv`: Solar Panel (Photovoltaic) Generation
+                *   `ac`: Air Conditioning
+                *   `wh`: Water Heater
+            *   **direction**: Indicates energy flow relative to the grid:
+                *   `positive`: Consumes energy from the grid.
+                *   `negative`: Generates energy (feeds back to the grid, e.g., `pv`).
+            *   **grid (kWh)**: The total net energy measured at the meter (drawn from or sent to the grid) associated with the reference period. Positive values indicate net consumption; negative values would indicate net generation.
+            *   **Consumption (kWh)**: The estimated energy consumed (`positive` direction) or generated (`negative` direction) by this specific `appliance_type` on the `reference_month`. 
+                *   _Note:_ Consumption values (except PV) may have been scaled down if their initial sum exceeded the `grid (kWh)` value (QC step).
+                *   A value of `-1` typically indicates the appliance was not detected or had zero/non-positive activity during the reference period.
+            *   **reference_month**: A representative month (Month YYYY) within the meter's `window_start` / `window_stop` range, used as a reference point for the displayed `Consumption (kWh)`.
             """)
-
-        # --- Table 2: Appliance Energy Consumption Breakdown ---
-        st.subheader("Table 2: Appliance Energy Consumption Breakdown")
-        if not df_consumption.empty:
+            
+        # --- Create Table 2: Appliance Breakdown ---
+        st.subheader("Table 2: Appliance Breakdown")
+        if not appliance_breakdown_df.empty:
             try:
-                st.dataframe(df_consumption)
+                # ... rest of the code for Table 2 ...
+                pass
             except Exception as e:
-                st.error(f"Error displaying appliance breakdown data: {e}")
+                st.error(f"Error processing appliance breakdown data: {e}")
                 st.exception(e)
-        else:
-            st.warning("No appliance breakdown data available.")
 
     except Exception as e:
         st.error(f"An unexpected error occurred: {e}")
