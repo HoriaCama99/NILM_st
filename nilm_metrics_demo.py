@@ -310,21 +310,9 @@ if page == "Sample Output":
         metadata_csv_path = 'dissag_output_v2.csv' 
         consumption_csv_path = 'disagg_sample.csv'
         
-        # --- Data Dictionary for Table 1 ---
-        st.markdown("### Understanding the Data")
-        with st.expander("Table 1: Meter Information Explanation", expanded=False):
-            st.markdown("""
-            This table provides general information about each meter included in the analysis.
-
-            *   **meterid**: A unique identifier assigned to each household meter.
-            *   **window_start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data.
-            *   **window_stop**: The last date (YYYY-MM-DD) of the analysis period for this meter's data.
-            *   **interval**: The time resolution of the energy readings used (e.g., '15 min').
-            """)
-
-        # --- Load and Process Data ---
         try:
             df_metadata = pd.read_csv(metadata_csv_path)
+            # st.write("Metadata CSV loaded:", df_metadata.head()) # Debug
         except FileNotFoundError:
             st.error(f"Error: Metadata file '{metadata_csv_path}' not found.")
             st.stop()
@@ -334,6 +322,7 @@ if page == "Sample Output":
 
         try:
             df_consumption = pd.read_csv(consumption_csv_path)
+            # st.write("Consumption CSV loaded:", df_consumption.head()) # Debug
         except FileNotFoundError:
             st.error(f"Error: Consumption file '{consumption_csv_path}' not found.")
             st.stop()
@@ -346,12 +335,187 @@ if page == "Sample Output":
         Start/Stop dates are displayed as YYYY-MM-DD, and the Reference Month is displayed as Month YYYY.
         """)
 
-        # --- Table 1: Meter Information ---
+        # --- Prepare Metadata (df_metadata) --- 
+        meta_rename_map = {
+            'dataid': 'meterid', # EXPECTED key in new file
+            'start_date_disagg_window': 'window_start_str', 
+            'end_date_disagg_window': 'window_stop_str',
+            'start_date_output_window': 'reference_month_str'
+        }
+        actual_meta_rename = {k: v for k, v in meta_rename_map.items() if k in df_metadata.columns}
+        df_metadata = df_metadata.rename(columns=actual_meta_rename)
+        
+        required_meta_cols = ['meterid', 'window_start_str', 'window_stop_str', 'reference_month_str']
+        missing_meta = [col for col in required_meta_cols if col not in df_metadata.columns]
+        if missing_meta:
+            st.error(f"Error: Metadata CSV '{metadata_csv_path}' is missing required columns (after potential rename): {missing_meta}. Expected original names: {list(meta_rename_map.keys())}")
+            st.stop()
+            
+        # Convert dates to timestamps
+        df_metadata['window_start_ts'] = df_metadata['window_start_str'].apply(to_unix_timestamp_string)
+        df_metadata['window_stop_ts'] = df_metadata['window_stop_str'].apply(to_unix_timestamp_string)
+        # df_metadata['reference_month_ts'] = df_metadata['reference_month_str'].apply(to_unix_timestamp_string)
+        
+        # Keep only necessary metadata columns
+        # Keep window start/stop for random date generation
+        df_metadata = df_metadata[['meterid', 'window_start_ts', 'window_stop_ts']]
+        if df_metadata.isnull().values.any():
+             st.warning("Warning: Some window start/stop dates in metadata could not be converted to timestamps. Random reference date generation might fail for these.")
+        # st.write("Prepared Metadata:", df_metadata.head()) # Debug
+             
+        # --- Prepare Consumption Data (df_consumption) ---
+        # EXPECTED key in old file (maps to dataid/meterid in new file)
+        consum_id_col = 'dataid' 
+        if consum_id_col not in df_consumption.columns:
+             st.error(f"Error: Consumption CSV '{consumption_csv_path}' is missing the identifier column '{consum_id_col}'. Cannot merge data.")
+             st.stop()
+        df_consumption = df_consumption.rename(columns={consum_id_col: 'meterid'})
+        
+        # Identify grid column
+        grid_col = 'grid (kWh)'
+        if grid_col not in df_consumption.columns:
+             grid_col = 'grid'
+             if grid_col not in df_consumption.columns:
+                 st.warning(f"Consumption CSV '{consumption_csv_path}' missing grid column ('grid (kWh)' or 'grid'). Grid values will be omitted.")
+                 grid_col = None
+                 
+        # Identify appliance columns and map to DESCRIPTIVE CODES
+        appliance_map = {
+            'ev charging (kWh)': 'ev', 
+            'solar production (kWh)': 'pv', 
+            'air conditioning (kWh)': 'ac', 
+            'water heater (kWh)': 'wh'  
+        }
+        appliance_cols = [col for col in appliance_map.keys() if col in df_consumption.columns]
+        if not appliance_cols:
+             st.error(f"Error: Consumption CSV '{consumption_csv_path}' is missing expected appliance kWh columns (e.g., 'ev charging (kWh)').")
+             st.stop()
+             
+        # Keep only necessary consumption columns
+        cols_to_keep = ['meterid'] + appliance_cols
+        if grid_col: 
+            cols_to_keep.append(grid_col)
+        df_consumption = df_consumption[cols_to_keep]
+        # st.write("Prepared Consumption Data:", df_consumption.head()) # Debug
+
+        # --- Merge Data --- 
+        try:
+            df_merged = pd.merge(df_metadata, df_consumption, on='meterid', how='inner')
+        except Exception as e:
+             st.error(f"Error merging metadata and consumption data on 'meterid': {e}")
+             st.stop()
+             
+        if df_merged.empty:
+             st.warning("Warning: No matching 'meterid's found between the two CSV files. Cannot display merged data.")
+             st.stop()
+        # st.write("Merged Data:", df_merged.head()) # Debug
+             
+        # --- Generate Random Reference Month per Meter --- 
+        def generate_random_month_timestamp(start_ts_str, end_ts_str):
+             try:
+                 start_ts = int(float(start_ts_str))
+                 end_ts = int(float(end_ts_str))
+                 if pd.isna(start_ts) or pd.isna(end_ts):
+                     return pd.NaT # Return Not a Time for invalid input
+                 if start_ts > end_ts:
+                      return pd.NaT
+  
+                 # Convert timestamps to datetime objects (UTC)
+                 start_dt = pd.to_datetime(start_ts, unit='s', utc=True)
+                 end_dt = pd.to_datetime(end_ts, unit='s', utc=True)
+
+                 # Normalize start/end to the beginning of their respective months
+                 start_month_start = start_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                 # For end month, find start of *next* month to use as exclusive upper bound for range
+                 end_month_start = end_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                 
+                 # Generate list of possible month start dates within the range
+                 possible_months = pd.date_range(start=start_month_start, end=end_month_start, freq='MS', inclusive='both')
+
+                 if possible_months.empty:
+                     return None # No valid months in the range
+
+                 # Select a random month start from the list
+                 random_month_dt = random.choice(possible_months)
+
+                 # Return the timestamp string for the start of that month
+                 return random_month_dt # Return the datetime object
+             except (ValueError, TypeError):
+                 return pd.NaT # Return Not a Time on conversion errors
+
+        # Create a mapping of meterid to window timestamps
+        meter_windows = df_merged[['meterid', 'window_start_ts', 'window_stop_ts']].drop_duplicates(subset=['meterid'])
+        # Apply the random date generation
+        meter_windows['reference_month_dt'] = meter_windows.apply( # Changed column name
+            lambda row: generate_random_month_timestamp(row['window_start_ts'], row['window_stop_ts']),
+            axis=1
+        )
+        # Merge the generated date back into the main dataframe
+        df_merged = pd.merge(df_merged, meter_windows[['meterid', 'reference_month_dt']], on='meterid', how='left') # Use dt column
+
+        # Check if any dates failed to generate
+        if df_merged['reference_month_dt'].isnull().any():
+             st.warning("Warning: Could not generate a valid random reference month for some meters (check window start/stop dates). Using N/A.")
+
+        # --- QC: Adjust Appliance Consumption to Not Exceed Grid --- 
+        st.info("Applying QC: Scaling down appliance consumption if sum exceeds grid value.")
+
+        # Identify consuming appliance columns (based on the original map keys, excluding pv)
+        consuming_appliance_cols_orig = [k for k, v in appliance_map.items() if v != 'pv' and k in df_merged.columns]
+
+        # Ensure grid column and consuming columns are numeric, fill NA/errors with 0
+        if grid_col and grid_col in df_merged.columns:
+            df_merged[grid_col] = pd.to_numeric(df_merged[grid_col], errors='coerce').fillna(0)
+            grid_available = True
+        else:
+            grid_available = False
+            st.warning("Grid column missing, cannot perform consumption QC scaling.")
+
+        if grid_available and consuming_appliance_cols_orig:
+            for col in consuming_appliance_cols_orig:
+                df_merged[col] = pd.to_numeric(df_merged[col], errors='coerce').fillna(0)
+
+            # Calculate total identified consumption (excluding PV)
+            df_merged['total_consumption_identified'] = df_merged[consuming_appliance_cols_orig].sum(axis=1)
+
+            # Calculate scaling factor where sum > grid and grid > 0
+            condition = (df_merged['total_consumption_identified'] > df_merged[grid_col]) & (df_merged[grid_col] > 0)
+            df_merged['scaling_factor'] = 1.0 # Default to 1 (no scaling)
+            # Use np.where for safe division
+            df_merged['scaling_factor'] = np.where(
+                condition,
+                df_merged[grid_col] / df_merged['total_consumption_identified'],
+                1.0
+            )
+
+            # Apply scaling factor to consuming appliances
+            scaled_count = 0
+            for col in consuming_appliance_cols_orig:
+                 original_sum = df_merged[col].sum() # For tracking changes
+                 df_merged[col] = df_merged[col] * df_merged['scaling_factor']
+                 if (df_merged[col].sum() != original_sum): # Basic check if scaling happened
+                      scaled_count += 1
+
+            # Handle cases where grid <= 0: set consumption to 0
+            zero_grid_condition = df_merged[grid_col] <= 0
+            for col in consuming_appliance_cols_orig:
+                df_merged[col] = np.where(zero_grid_condition, 0, df_merged[col])
+
+            if scaled_count > 0:
+                 st.caption(f"QC applied: Consumption values scaled down for entries where sum exceeded grid.")
+
+            # Drop temporary columns
+            df_merged = df_merged.drop(columns=['total_consumption_identified', 'scaling_factor'])
+
+        elif not consuming_appliance_cols_orig:
+             st.warning("No consuming appliance columns found (excluding PV). QC scaling skipped.")
+
+        # --- Create Table 1: Meter Information --- 
         st.subheader("Table 1: Meter Information")
         meter_info_cols = ['meterid', 'window_start_ts', 'window_stop_ts']
         try:
             # Select columns *before* drop_duplicates
-            meter_info_df = df_metadata[meter_info_cols].drop_duplicates(subset=['meterid']).reset_index(drop=True)
+            meter_info_df = df_merged[meter_info_cols].drop_duplicates(subset=['meterid']).reset_index(drop=True)
             meter_info_df['interval'] = "15 min" 
             # Rename timestamp columns for display
             meter_info_df = meter_info_df.rename(columns={'window_start_ts':'window_start', 'window_stop_ts':'window_stop'})
@@ -366,40 +530,387 @@ if page == "Sample Output":
         except Exception as e:
             st.error(f"An unexpected error occurred creating Meter Info table: {e}")
             st.exception(e)
-
-        # --- Data Dictionary for Table 2 ---
-        with st.expander("Table 2: Appliance Breakdown Explanation", expanded=False):
-            st.markdown("""
-            This table shows the estimated energy consumption or generation for specific appliances detected for each meter, referenced against a specific date within the analysis window.
-
-            *   **meterid**: Links back to the meter in Table 1.
-            *   **appliance_type**: Code for the detected appliance:
-                *   `ev`: Electric Vehicle Charging
-                *   `pv`: Solar Panel (Photovoltaic) Generation
-                *   `ac`: Air Conditioning
-                *   `wh`: Water Heater
-            *   **direction**: Indicates energy flow relative to the grid:
-                *   `positive`: Consumes energy from the grid.
-                *   `negative`: Generates energy (feeds back to the grid, e.g., `pv`).
-            *   **grid (kWh)**: The total net energy measured at the meter (drawn from or sent to the grid) associated with the reference period. Positive values indicate net consumption; negative values would indicate net generation.
-            *   **Consumption (kWh)**: The estimated energy consumed (`positive` direction) or generated (`negative` direction) by this specific `appliance_type` on the `reference_month`. 
-                *   _Note:_ Consumption values (except PV) may have been scaled down if their initial sum exceeded the `grid (kWh)` value (QC step).
-                *   A value of `-1` typically indicates the appliance was not detected or had zero/non-positive activity during the reference period.
-            *   **reference_month**: A representative month (Month YYYY) within the meter's `window_start` / `window_stop` range, used as a reference point for the displayed `Consumption (kWh)`.
-            """)
             
-        # --- Create Table 2: Appliance Breakdown ---
+        # --- Create Table 2: Appliance Breakdown --- 
+        # (Melt and prepare data FIRST, then calculate plots/metrics)
+        id_vars_melt = ['meterid', 'reference_month_dt'] # Use datetime column
+        if grid_col and grid_col in df_merged.columns: 
+             id_vars_melt.append(grid_col)
+             
+        value_vars_melt = [col for col in appliance_cols if col in df_merged.columns]
+        if not value_vars_melt:
+             st.warning("Warning: No appliance columns found in the merged data. Cannot create breakdown table or plots.")
+             # Optionally stop, or allow proceeding without breakdown/plots
+             appliance_breakdown_df = pd.DataFrame() # Create empty df
+             # Set flags or default values for plot data if needed
+        else:
+            try:
+                # Melt the merged dataframe
+                appliance_breakdown_df = pd.melt(
+                    df_merged, 
+                    id_vars=id_vars_melt,
+                    value_vars=value_vars_melt, 
+                    var_name='original_appliance_col', 
+                    value_name='Consumption (kWh)'
+                )
+                
+                # Convert consumption to numeric, handle errors/NaNs
+                appliance_breakdown_df['Consumption (kWh)'] = pd.to_numeric(appliance_breakdown_df['Consumption (kWh)'], errors='coerce').fillna(0)
+            
+            except Exception as e:
+                 st.error(f"Error during melting or initial processing for Table 2: {e}")
+                 appliance_breakdown_df = pd.DataFrame() # Ensure it exists but is empty on error
+
+        # --- Calculate Data for Plots and Metrics --- (Using df_merged and appliance_breakdown_df)
+        total_unique_meters = df_merged['meterid'].nunique()
+        appliance_presence = {}
+        energy_totals = {}
+        avg_grid = 0
+        avg_pv_prod = 0
+        pct_identified = 0
+        total_identified = 0
+        total_grid = 0
+
+        if not appliance_breakdown_df.empty and total_unique_meters > 0:
+            # Create appliance type code column early for calculations
+            appliance_code_map_calc = {k: v for k, v in appliance_map.items() if k in value_vars_melt}
+            appliance_breakdown_df['appliance_type'] = appliance_breakdown_df['original_appliance_col'].map(appliance_code_map_calc)
+            
+            # Filter for positive consumption for calculations
+            positive_consumption_df = appliance_breakdown_df[appliance_breakdown_df['Consumption (kWh)'] > 0]
+            
+            # Calculate Presence (% of unique meters having the appliance with >0 kWh)
+            presence_counts = positive_consumption_df.groupby('appliance_type')['meterid'].nunique()
+            appliance_presence = { # Map codes back to full names for plot labels
+                'EV Charging': (presence_counts.get('ev', 0) / total_unique_meters) * 100,
+                'Solar PV': (presence_counts.get('pv', 0) / total_unique_meters) * 100,
+                'Air Conditioning': (presence_counts.get('ac', 0) / total_unique_meters) * 100,
+                'Water Heater': (presence_counts.get('wh', 0) / total_unique_meters) * 100,
+            }
+
+            # Calculate Energy Totals (Sum of positive kWh for EV, AC, WH)
+            energy_sum_by_type = positive_consumption_df.groupby('appliance_type')['Consumption (kWh)'].sum()
+            ev_total = energy_sum_by_type.get('ev', 0)
+            ac_total = energy_sum_by_type.get('ac', 0)
+            wh_total = energy_sum_by_type.get('wh', 0)
+            total_identified = ev_total + ac_total + wh_total
+            
+            # Calculate Total Grid (Sum unique grid values per meter/month or just sum column if appropriate)
+            # Assuming grid value is per meter/month in the original merged data
+            if grid_col and grid_col in df_merged.columns:
+                # Sum unique grid values per meter/month combination if needed
+                # For simplicity, summing the column in df_merged (might overcount if multiple rows per meter/month before melt)
+                # A safer approach would be df_merged[[unique_key_cols, grid_col]].drop_duplicates()[grid_col].sum()
+                # Let's assume for now df_merged has one row per meter/month before melt for grid value
+                total_grid = pd.to_numeric(df_merged[grid_col], errors='coerce').fillna(0).sum()
+                avg_grid = pd.to_numeric(df_merged[grid_col], errors='coerce').mean() 
+            else: 
+                total_grid = 0 # Grid column missing
+                avg_grid = 0
+
+            other_consumption = max(0, total_grid - total_identified)
+            energy_totals = {
+                'EV Charging': ev_total,
+                'Air Conditioning': ac_total,
+                'Water Heater': wh_total,
+                'Other Consumption': other_consumption
+            }
+            
+            # Calculate Avg PV Production (Avg positive kWh for PV)
+            pv_prod = positive_consumption_df[positive_consumption_df['appliance_type'] == 'pv']['Consumption (kWh)']
+            avg_pv_prod = pv_prod.mean() if not pv_prod.empty else 0
+            
+            # Calculate % Consumption Identified
+            pct_identified = (total_identified / total_grid * 100) if total_grid > 0 else 0
+        else:
+             st.info("No appliance data found to calculate plots and metrics.")
+
+        # --- Display Plots and Metrics --- (Re-introducing)
+        st.markdown("### Visualization and Key Metrics")
+        plot_col1, plot_col2 = st.columns(2)
+
+        with plot_col1:
+            st.subheader("Appliance Presence")
+            if appliance_presence:
+                fig1 = px.bar(
+                    x=list(appliance_presence.keys()),
+                    y=list(appliance_presence.values()),
+                    labels={'x': 'Appliance Type', 'y': 'Percentage of Homes (%)'},
+                    color=list(appliance_presence.keys()),
+                    color_discrete_map={
+                            'EV Charging': primary_purple, 'Air Conditioning': green,
+                            'Solar PV': cream, 'Water Heater': salmon
+                    },
+                    text=[f"{val:.1f}%" for val in appliance_presence.values()]
+                )
+                fig1.update_layout(
+                    showlegend=False, yaxis_range=[0, 100],
+                    margin=dict(l=20, r=20, t=30, b=20),
+                    paper_bgcolor=white, plot_bgcolor=white, font=dict(color=dark_purple)
+                )
+                fig1.update_traces(textposition='outside', textfont=dict(color=dark_purple))
+                fig1.update_xaxes(showgrid=False, tickfont=dict(color=dark_purple))
+                fig1.update_yaxes(showgrid=True, gridcolor=light_purple, tickfont=dict(color=dark_purple))
+                st.plotly_chart(fig1, use_container_width=True)
+            else:
+                st.caption("Presence data not available.")
+
+        with plot_col2:
+            st.subheader("Total Energy Distribution")
+            if energy_totals and sum(energy_totals.values()) > 0:
+                fig2 = px.pie(
+                    values=list(energy_totals.values()),
+                    names=list(energy_totals.keys()),
+                    color=list(energy_totals.keys()),
+                    color_discrete_map={
+                            'EV Charging': primary_purple, 'Air Conditioning': green,
+                            'Water Heater': salmon, 'Other Consumption': light_purple
+                    },
+                    hole=0.4
+                )
+                fig2.update_layout(
+                    legend_title="Energy Type", margin=dict(l=20, r=20, t=30, b=20),
+                    paper_bgcolor=white, plot_bgcolor=white, font=dict(color=dark_purple),
+                    legend=dict(font=dict(color=dark_purple))
+                )
+                fig2.update_traces(
+                    textinfo='percent+label', hovertemplate='%{label}<br>%{value:.1f} kWh<br>%{percent}',
+                    textfont=dict(color=dark_gray) # Darker text for contrast
+                )
+                st.plotly_chart(fig2, use_container_width=True)
+            else:
+                 st.caption("Energy distribution data not available.")
+
+        # Key Metrics Section
+        st.subheader("Key Metrics")
+        metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+        with metric_col1:
+            st.metric(label="Total Homes", value=f"{total_unique_meters:,}")
+        with metric_col2:
+            st.metric(label="Avg. Grid Consumption", value=f"{avg_grid:.1f} kWh")
+        with metric_col3:
+            st.metric(label="Avg. Solar Production (PV)", value=f"{avg_pv_prod:.1f} kWh", help="Average production for homes with detected PV (>0 kWh)")
+        with metric_col4:
+            st.metric(label="Consumption Identified", value=f"{pct_identified:.1f}%", help="% of total grid kWh attributed to detected EV, AC, and WH")
+
+        # --- Prepare and Display Table 1 (Meter Information) ---
+        st.subheader("Table 1: Meter Information")
+        # Add data dictionary explanation for Table 1 before displaying it
+        st.markdown("""
+        This table provides general information about each meter included in the analysis.
+
+        *   **meterid**: A unique identifier assigned to each household meter.
+        *   **window_start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data.
+        *   **window_stop**: The last date (YYYY-MM-DD) of the analysis period for this meter's data.
+        *   **interval**: The time resolution of the energy readings used (e.g., '15 min').
+        """)
+        
+        # Display Table 1 (meter_info_df created in previous code)
+        st.dataframe(meter_info_df, use_container_width=True)
+
+        # --- Prepare and Display Table 2 --- 
         st.subheader("Table 2: Appliance Breakdown")
+        
+        # Add data dictionary explanation for Table 2 before displaying it
+        st.markdown("""
+        This table shows the estimated energy consumption or generation for specific appliances detected for each meter, referenced against a specific date within the analysis window.
+
+        *   **meterid**: Links back to the meter in Table 1.
+        *   **appliance_type**: Code for the detected appliance:
+            *   `ev`: Electric Vehicle Charging
+            *   `pv`: Solar Panel (Photovoltaic) Generation
+            *   `ac`: Air Conditioning
+            *   `wh`: Water Heater
+        *   **direction**: Indicates energy flow relative to the grid:
+            *   `positive`: Consumes energy from the grid.
+            *   `negative`: Generates energy (feeds back to the grid, e.g., `pv`).
+        *   **grid (kWh)**: The total net energy measured at the meter (drawn from or sent to the grid) associated with the reference period. Positive values indicate net consumption; negative values would indicate net generation.
+        *   **Consumption (kWh)**: The estimated energy consumed (`positive` direction) or generated (`negative` direction) by this specific `appliance_type` on the `reference_month`. 
+            *   _Note:_ Consumption values (except PV) may have been scaled down if their initial sum exceeded the `grid (kWh)` value (QC step).
+            *   A value of `-1` typically indicates the appliance was not detected or had zero/non-positive activity during the reference period.
+        *   **reference_month**: A representative month (Month YYYY) within the meter's `window_start` / `window_stop` range, used as a reference point for the displayed `Consumption (kWh)`.
+        """)
+        
         if not appliance_breakdown_df.empty:
             try:
-                # ... rest of the code for Table 2 ...
-                pass
+                # Set non-positive consumption to -1 (if not already done, depends on calculation flow)
+                appliance_breakdown_df.loc[appliance_breakdown_df['Consumption (kWh)'] <= 0, 'Consumption (kWh)'] = -1
+                
+                # Map original appliance column names to NEW codes ('ev', 'pv', etc.)
+                appliance_code_map = {k: v for k, v in appliance_map.items() if k in value_vars_melt}
+                appliance_breakdown_df['appliance_type'] = appliance_breakdown_df['original_appliance_col'].map(appliance_code_map)
+
+                # Add direction column based on appliance type
+                appliance_breakdown_df['direction'] = np.where(
+                    appliance_breakdown_df['appliance_type'] == 'pv',
+                    'negative', # PV generates
+                    'positive'  # Others consume
+                )
+
+                # Select, rename, and reorder final columns for display
+                final_display_cols = ['meterid', 'appliance_type', 'direction'] # Added direction
+                final_display_rename_map = {'reference_month_dt': 'reference_month'} # Rename datetime column
+                
+                # Check if grid column exists in the breakdown df before adding
+                # Use the original name before potential renaming in map
+                grid_col_in_breakdown = grid_col if grid_col and grid_col in appliance_breakdown_df.columns else None
+                if grid_col_in_breakdown:
+                    final_display_cols.append(grid_col_in_breakdown) 
+                    final_display_rename_map[grid_col_in_breakdown] = 'grid (kWh)' # RENAME to include (kWh)
+                
+                final_display_cols.extend(['Consumption (kWh)', 'reference_month_dt'])
+                
+                # Select only the necessary columns that exist
+                final_display_cols_exist = [c for c in final_display_cols if c in appliance_breakdown_df.columns]
+                display_df = appliance_breakdown_df[final_display_cols_exist].copy() # Work on a copy
+                
+                # Rename the selected columns
+                display_df = display_df.rename(columns=final_display_rename_map)
+                
+                # Define final order based on RENAMED columns
+                final_display_order = ['meterid', 'appliance_type', 'direction'] # Added direction
+                if 'grid (kWh)' in display_df.columns: # Check using the new name
+                    final_display_order.append('grid (kWh)')
+                final_display_order.extend(['Consumption (kWh)', 'reference_month']) # Use reference month name
+                
+                # Ensure all columns in final order exist before reordering
+                final_display_order_exist = [c for c in final_display_order if c in display_df.columns]
+                display_df = display_df[final_display_order_exist]
+                
+                # Format reference_month datetime object before displaying (Month YYYY)
+                if 'reference_month' in display_df.columns:
+                    # Ensure the column is actual datetime first (might be object type if NaTs are present)
+                    display_df['reference_month'] = pd.to_datetime(display_df['reference_month'], errors='coerce')
+                    # Format using dt accessor, handle NaT values by filling with 'N/A'
+                    display_df['reference_month'] = display_df['reference_month'].dt.strftime("%B %Y").fillna("N/A")
+
+                st.dataframe(display_df, use_container_width=True)
+                
+                # Update legend for new appliance codes
+                st.caption("Appliance Type Codes: ev = EV Charging, pv = Solar PV, ac = Air Conditioning, wh = Water Heater")
+
+                # --- Add Device Usage Heatmaps ---
+                st.markdown("### Device Usage Patterns")
+                st.markdown("Explore hourly and daily usage patterns for each device type.")
+
+                # Device selection for heatmaps
+                selected_device_heatmap = st.selectbox(
+                    "Select Device to View Usage Patterns:",
+                    ["EV Charging", "AC Usage", "PV Usage"],
+                    key="heatmap_device_selector"
+                )
+
+                # Create two columns for the heatmaps
+                heatmap_col1, heatmap_col2 = st.columns(2)
+
+                with heatmap_col1:
+                    st.subheader("Weekly Usage Pattern")
+                    
+                    # Generate sample data for weekly pattern (24 hours x 7 days)
+                    if selected_device_heatmap == "EV Charging":
+                        # EV charging typically happens at night
+                        weekly_data = np.random.normal(0.3, 0.1, size=(7, 24))
+                        weekly_data[:, 18:23] *= 3  # Higher usage in evening
+                        weekly_data[:, 0:5] *= 2    # Some usage in early morning
+                    elif selected_device_heatmap == "AC Usage":
+                        # AC usage peaks during afternoon
+                        weekly_data = np.random.normal(0.4, 0.1, size=(7, 24))
+                        weekly_data[:, 12:18] *= 2.5  # Higher usage in afternoon
+                        weekly_data[:, 2:6] *= 0.5    # Lower usage in early morning
+                    else:  # PV Usage
+                        # Solar generation peaks during daylight hours
+                        weekly_data = np.zeros((7, 24))
+                        weekly_data[:, 6:18] = np.random.normal(0.8, 0.2, size=(7, 12))  # Daylight hours
+                        weekly_data[:, [6, 18]] *= 0.5  # Lower at dawn/dusk
+
+                    # Ensure non-negative values
+                    weekly_data = np.maximum(weekly_data, 0)
+
+                    # Create weekly heatmap with a more visible colorscale
+                    fig_weekly = go.Figure(data=go.Heatmap(
+                        z=weekly_data,
+                        x=[f"{i:02d}:00" for i in range(24)],
+                        y=['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                        colorscale='Purples',  # Using a predefined colorscale for better visibility
+                        hoverongaps=False,
+                        hovertemplate='Day: %{y}<br>Hour: %{x}<br>Usage: %{z:.2f}<extra></extra>'
+                    ))
+
+                    fig_weekly.update_layout(
+                        title=f"Hourly {selected_device_heatmap} Pattern",
+                        xaxis_title="Hour of Day",
+                        yaxis_title="Day of Week",
+                        height=400,
+                        paper_bgcolor=white,
+                        plot_bgcolor=white,
+                        font=dict(color=dark_purple)
+                    )
+
+                    st.plotly_chart(fig_weekly, use_container_width=True)
+
+                with heatmap_col2:
+                    st.subheader("Monthly Usage Pattern")
+                    
+                    # Generate sample data for monthly pattern (7 days x 5 weeks)
+                    if selected_device_heatmap == "EV Charging":
+                        # EV charging more consistent through the month
+                        monthly_data = np.random.normal(0.5, 0.2, size=(5, 7))
+                    elif selected_device_heatmap == "AC Usage":
+                        # AC usage varies with temperature patterns
+                        monthly_data = np.random.normal(0.6, 0.3, size=(5, 7))
+                        monthly_data[2:4] *= 1.5  # Higher usage in middle of month
+                    else:  # PV Usage
+                        # Solar generation varies with weather
+                        monthly_data = np.random.normal(0.7, 0.2, size=(5, 7))
+                        monthly_data *= np.linspace(0.8, 1.2, 5)[:, np.newaxis]  # Trend across month
+
+                    # Ensure non-negative values
+                    monthly_data = np.maximum(monthly_data, 0)
+
+                    # Create monthly heatmap with a more visible colorscale
+                    fig_monthly = go.Figure(data=go.Heatmap(
+                        z=monthly_data,
+                        x=['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                        y=['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5'],
+                        colorscale='Purples',  # Using a predefined colorscale for better visibility
+                        hoverongaps=False,
+                        hovertemplate='Week: %{y}<br>Day: %{x}<br>Usage: %{z:.2f}<extra></extra>'
+                    ))
+
+                    fig_monthly.update_layout(
+                        title=f"Daily {selected_device_heatmap} Pattern",
+                        xaxis_title="Day of Week",
+                        yaxis_title="Week of Month",
+                        height=400,
+                        paper_bgcolor=white,
+                        plot_bgcolor=white,
+                        font=dict(color=dark_purple)
+                    )
+
+                    st.plotly_chart(fig_monthly, use_container_width=True)
+
+                # Add explanatory text
+                st.markdown(f"""
+                <div style="padding: 10px; border-left: 3px solid {primary_purple}; background-color: rgba(184, 188, 243, 0.1);">
+                    <small>
+                    These heatmaps show typical usage patterns for {selected_device_heatmap.lower()}:
+                    
+                    • The <b>Weekly Pattern</b> shows hourly usage across different days of the week
+                    • The <b>Monthly Pattern</b> shows daily usage intensity across weeks
+                    
+                    Darker colors indicate higher usage/activity levels.
+                    </small>
+                </div>
+                """, unsafe_allow_html=True)
+
             except Exception as e:
-                st.error(f"Error processing appliance breakdown data: {e}")
+                st.error(f"An error occurred preparing Table 2 for display: {e}")
                 st.exception(e)
+        else:
+             st.info("No data available for Appliance Breakdown Table.")
 
     except Exception as e:
-        st.error(f"An unexpected error occurred: {e}")
+        st.error(f"An unexpected error occurred on the Sample Output page: {e}")
         st.exception(e)
 
 elif page == "Performance Metrics":
@@ -1811,142 +2322,3 @@ elif page == "Interactive Map":
         Map data is randomly generated for demonstration purposes.
     </div>
     """, unsafe_allow_html=True)
-
-    # ... existing code ...
-    st.caption("Appliance Type Codes: ev = EV Charging, pv = Solar PV, ac = Air Conditioning, wh = Water Heater")
-
-    # --- Add Device Usage Heatmaps ---
-    st.markdown("### Device Usage Patterns")
-    st.markdown("Explore hourly and daily usage patterns for each device type.")
-
-    try:
-        # Device selection for heatmaps
-        selected_device_heatmap = st.selectbox(
-            "Select Device to View Usage Patterns:",
-            ["EV Charging", "AC Usage", "PV Usage"],
-            key="heatmap_device_selector"
-        )
-
-        # Create two columns for the heatmaps
-        heatmap_col1, heatmap_col2 = st.columns(2)
-
-        with heatmap_col1:
-            st.subheader("Weekly Usage Pattern")
-            
-            # Generate sample data for weekly pattern (24 hours x 7 days)
-            weekly_data = np.zeros((7, 24))  # Initialize with zeros
-            
-            if selected_device_heatmap == "EV Charging":
-                # EV charging typically happens at night
-                base = np.random.normal(0.3, 0.1, size=(7, 24))
-                base[:, 18:23] = np.random.normal(0.8, 0.1, size=(7, 5))  # Evening peak
-                base[:, 0:5] = np.random.normal(0.6, 0.1, size=(7, 5))    # Early morning
-                weekly_data = np.maximum(base, 0)  # Ensure non-negative
-                
-            elif selected_device_heatmap == "AC Usage":
-                # AC usage peaks during afternoon
-                base = np.random.normal(0.2, 0.1, size=(7, 24))
-                base[:, 12:18] = np.random.normal(0.9, 0.1, size=(7, 6))  # Afternoon peak
-                base[:, 2:6] = np.random.normal(0.1, 0.05, size=(7, 4))   # Early morning low
-                weekly_data = np.maximum(base, 0)  # Ensure non-negative
-                
-            else:  # PV Usage
-                # Solar generation follows daylight pattern
-                for hour in range(24):
-                    if 6 <= hour <= 18:  # Daylight hours
-                        # Create a bell curve peaking at noon
-                        intensity = -((hour - 12)**2) / 20 + 1  # Peak at noon
-                        weekly_data[:, hour] = np.random.normal(intensity, 0.1, size=7)
-                weekly_data = np.maximum(weekly_data, 0)  # Ensure non-negative
-
-            # Create weekly heatmap
-            fig_weekly = go.Figure(data=go.Heatmap(
-                z=weekly_data,
-                x=[f"{i:02d}:00" for i in range(24)],
-                y=['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-                colorscale=[[0, 'white'], [1, primary_purple]],
-                hoverongaps=False,
-                hovertemplate='Day: %{y}<br>Hour: %{x}<br>Usage: %{z:.2f}<extra></extra>'
-            ))
-
-            fig_weekly.update_layout(
-                title=f"Hourly {selected_device_heatmap} Pattern",
-                xaxis_title="Hour of Day",
-                yaxis_title="Day of Week",
-                height=400,
-                paper_bgcolor=white,
-                plot_bgcolor=white,
-                font=dict(color=dark_purple)
-            )
-
-            st.plotly_chart(fig_weekly, use_container_width=True)
-
-        with heatmap_col2:
-            st.subheader("Monthly Usage Pattern")
-            
-            # Generate sample data for monthly pattern (31 days)
-            days_in_month = 31
-            weeks = 5
-            monthly_data = np.zeros((weeks, 7))  # Initialize with zeros
-            
-            if selected_device_heatmap == "EV Charging":
-                # EV charging - relatively consistent through month
-                base = np.random.normal(0.5, 0.15, size=(weeks, 7))
-                # Add slight weekly pattern (more charging on weekdays)
-                base[:, 0] *= 0.8  # Less on Sundays
-                base[:, 5:] *= 0.9  # Less on weekends
-                monthly_data = np.maximum(base, 0)
-                
-            elif selected_device_heatmap == "AC Usage":
-                # AC usage - varies with simulated temperature pattern
-                base = np.random.normal(0.6, 0.2, size=(weeks, 7))
-                # Add a heat wave in the middle of the month
-                base[2:4, :] *= 1.5
-                monthly_data = np.maximum(base, 0)
-                
-            else:  # PV Usage
-                # Solar - varies with simulated weather pattern
-                base = np.random.normal(0.7, 0.15, size=(weeks, 7))
-                # Add weather pattern (cloudy days)
-                cloud_pattern = np.random.choice([0.6, 1.0], size=(weeks, 7), p=[0.3, 0.7])
-                monthly_data = np.maximum(base * cloud_pattern, 0)
-
-            # Create monthly heatmap
-            fig_monthly = go.Figure(data=go.Heatmap(
-                z=monthly_data,
-                x=['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-                y=['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5'],
-                colorscale=[[0, 'white'], [1, primary_purple]],
-                hoverongaps=False,
-                hovertemplate='Week: %{y}<br>Day: %{x}<br>Usage: %{z:.2f}<extra></extra>'
-            ))
-
-            fig_monthly.update_layout(
-                title=f"Daily {selected_device_heatmap} Pattern",
-                xaxis_title="Day of Week",
-                yaxis_title="Week of Month",
-                height=400,
-                paper_bgcolor=white,
-                plot_bgcolor=white,
-                font=dict(color=dark_purple)
-            )
-
-            st.plotly_chart(fig_monthly, use_container_width=True)
-
-        # Add explanatory text
-        st.markdown(f"""
-        <div style="padding: 10px; border-left: 3px solid {primary_purple}; background-color: rgba(184, 188, 243, 0.1);">
-            <small>
-            These heatmaps show typical usage patterns for {selected_device_heatmap.lower()}:
-            
-            • The <b>Weekly Pattern</b> shows hourly usage across different days of the week
-            • The <b>Monthly Pattern</b> shows daily usage intensity across weeks
-            
-            Darker colors indicate higher usage/activity levels.
-            </small>
-        </div>
-        """, unsafe_allow_html=True)
-
-    except Exception as e:
-        st.error(f"Error generating heatmaps: {e}")
-        st.exception(e)
