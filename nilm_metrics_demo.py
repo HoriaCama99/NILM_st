@@ -266,47 +266,59 @@ if page == "Sample Output":
     # Sample Output page code goes here
     st.title("Energy Disaggregation Model: Output Structure Example")
 
-    # Define function to format date string to YYYY-MM-DD
-    def format_date_str(date_str, date_format="%Y-%m-%d"):
-        """Converts various date string formats to a standard YYYY-MM-DD format."""
-        if pd.isna(date_str):
+    # Updated function to format Unix timestamp to YYYY-MM-DD string
+    def format_unix_timestamp_to_date(ts, date_format="%Y-%m-%d"):
+        """Converts a Unix timestamp (numeric) to a formatted date string (UTC)."""
+        if pd.isna(ts):
             return "N/A"
         try:
-            # Assuming date_str is in a format pandas can parse (e.g., YYYY-MM-DD or similar)
-            # Keep only the date part if time is included
-            dt = pd.to_datetime(date_str).normalize()
-            return dt.strftime(date_format)
-        except Exception as e:
-            # Add warning to help debug problematic date values
-            st.warning(f"Could not format date '{date_str}': {e}")
+            # Convert timestamp to datetime (assuming UTC)
+            dt_object = pd.to_datetime(float(ts), unit='s', utc=True)
+            return dt_object.strftime(date_format)
+        except (ValueError, TypeError):
+            # Handle cases where conversion fails (e.g., non-numeric string or invalid timestamp)
+            st.warning(f"Could not format timestamp '{ts}'") 
             return "Invalid Date"
+        except Exception as e:
+            st.warning(f"Unexpected error formatting timestamp '{ts}': {e}")
+            return "Error"
 
     try:
         # --- Load Data --- 
-        # Updated file paths
+        # Updated file paths (removed directory prefix)
         meters_csv_path = 'disagg_meters_BDR_10k.csv' 
         details_csv_path = 'disagg_details_bdr_10k.csv' 
         
         try:
+            # Read meters data, explicitly handle potential errors during conversion
             df_meters = pd.read_csv(meters_csv_path)
-            # st.write("Meters CSV loaded:", df_meters.head()) # Debug
+            # Ensure timestamp columns are numeric, coercing errors
+            df_meters['meter_disagg_start'] = pd.to_numeric(df_meters['meter_disagg_start'], errors='coerce')
+            df_meters['meter_disagg_end'] = pd.to_numeric(df_meters['meter_disagg_end'], errors='coerce')
+
         except FileNotFoundError:
             st.error(f"Error: Meters file '{meters_csv_path}' not found.")
             st.stop()
         except Exception as e:
-            st.error(f"Error reading meters CSV '{meters_csv_path}': {e}")
+            st.error(f"Error reading or processing meters CSV '{meters_csv_path}': {e}")
             st.stop()
 
-        # --- Load Details Data (Defer full processing, but load path is needed) ---
-        # try:
-        #     df_details = pd.read_csv(details_csv_path)
-        # except FileNotFoundError:
-        #     st.error(f"Error: Details file '{details_csv_path}' not found.")
-        #     st.stop()
-        # except Exception as e:
-        #     st.error(f"Error reading details CSV '{details_csv_path}': {e}")
-        #     st.stop()
-        
+        # --- Load Details Data --- 
+        try:
+            df_details = pd.read_csv(details_csv_path)
+            # Ensure timestamp and direction columns are numeric, coercing errors
+            df_details['equipment_disagg_start'] = pd.to_numeric(df_details['equipment_disagg_start'], errors='coerce')
+            df_details['direction'] = pd.to_numeric(df_details['direction'], errors='coerce')
+            df_details['meter_consumption'] = pd.to_numeric(df_details['meter_consumption'], errors='coerce')
+            df_details['equipment_consumption'] = pd.to_numeric(df_details['equipment_consumption'], errors='coerce')
+
+        except FileNotFoundError:
+            st.error(f"Error: Details file '{details_csv_path}' not found.")
+            st.stop()
+        except Exception as e:
+            st.error(f"Error reading or processing details CSV '{details_csv_path}': {e}") # Corrected indentation
+            st.stop()
+             
         st.markdown("""
         This page shows the output structure using data from meter and equipment detail files.
         Disaggregation start/end dates are displayed as YYYY-MM-DD.
@@ -335,9 +347,9 @@ if page == "Sample Output":
             'usage_interval_duration': 'Interval'
         })
 
-        # Format date columns for display
-        meter_info_df['Disaggregation Start'] = meter_info_df['Disaggregation Start'].apply(format_date_str)
-        meter_info_df['Disaggregation End'] = meter_info_df['Disaggregation End'].apply(format_date_str)
+        # Format date columns for display using the updated function
+        meter_info_df['Disaggregation Start'] = meter_info_df['Disaggregation Start'].apply(format_unix_timestamp_to_date)
+        meter_info_df['Disaggregation End'] = meter_info_df['Disaggregation End'].apply(format_unix_timestamp_to_date)
 
         # --- Create Table 1: Meter Information --- 
         st.subheader("Table 1: Meter Information")
@@ -348,29 +360,16 @@ if page == "Sample Output":
             This table provides general information about each meter included in the analysis.
 
             *   **Meter ID**: A unique identifier assigned to each household meter.
-            *   **Disaggregation Start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data.
-            *   **Disaggregation End**: The last date (YYYY-MM-DD) of the analysis period for this meter's data.
+            *   **Disaggregation Start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data (derived from Unix timestamp).
+            *   **Disaggregation End**: The last date (YYYY-MM-DD) of the analysis period for this meter's data (derived from Unix timestamp).
             *   **Interval**: The time resolution of the energy readings used (e.g., '15 min', '1 hour').
             """)
             
         # Display Table 1
         st.dataframe(meter_info_df, use_container_width=True)
-
-        # --- Load and Prepare Details Data (df_details for Table 2) ---
-        try:
-            df_details = pd.read_csv(details_csv_path)
-            # st.write("Details CSV loaded:", df_details.head()) # Debug
-        except FileNotFoundError:
-            st.error(f"Error: Details file '{details_csv_path}' not found.")
-            st.stop()
-        except Exception as e:
-            st.error(f"Error reading details CSV '{details_csv_path}': {e}")
-            st.stop()
-            
-        detail_id_col = 'meter_id' 
-        if detail_id_col not in df_details.columns:
-             st.error(f"Error: Details CSV '{details_csv_path}' is missing the identifier column '{detail_id_col}'. Cannot process data.")
-             st.stop()
+             
+        # --- Prepare Details Data (df_details for Table 2) ---
+        detail_id_col = 'meter_id' # Already checked df_details has this column
              
         # Define required columns for Table 2 processing
         required_detail_cols = [
@@ -381,6 +380,7 @@ if page == "Sample Output":
             'equipment_consumption', # New appliance consumption column
             'equipment_disagg_start' # Use as reference date
         ]
+        # Check if all required columns are present (already checked id_col)
         missing_detail_cols = [col for col in required_detail_cols if col not in df_details.columns]
         if missing_detail_cols:
             st.error(f"Error: Details CSV '{details_csv_path}' is missing required columns: {missing_detail_cols}.")
@@ -393,46 +393,43 @@ if page == "Sample Output":
         df_details_processed = df_details_processed.rename(columns={
             'meter_id': 'Meter ID',
             'equipment_type': 'Appliance Type',
-            'direction': 'Direction',
-            'meter_consumption': 'Meter Consumption (kWh)', # Renamed grid equivalent
-            'equipment_consumption': 'Appliance Consumption (kWh)', # Renamed appliance consumption
-            'equipment_disagg_start': 'Reference Date' # Renamed reference date
+            'direction': 'Direction', # Will be mapped shortly
+            'meter_consumption': 'Meter Consumption (kWh)', 
+            'equipment_consumption': 'Appliance Consumption (kWh)',
+            'equipment_disagg_start': 'Reference Date' # Will be formatted shortly
         })
 
-        # Ensure consumption columns are numeric, fill NA/errors with 0
+        # Map Direction column: -1 -> negative, 1 -> positive
+        direction_map = {-1: 'negative', 1: 'positive'}
+        # Fill potential NaN directions with a placeholder before mapping
+        df_details_processed['Direction'] = df_details_processed['Direction'].fillna(0) # Or another placeholder
+        df_details_processed['Direction'] = df_details_processed['Direction'].map(direction_map).fillna('unknown')
+
+        # Ensure consumption columns are numeric (already done during load, but good practice)
         df_details_processed['Meter Consumption (kWh)'] = pd.to_numeric(df_details_processed['Meter Consumption (kWh)'], errors='coerce').fillna(0)
         df_details_processed['Appliance Consumption (kWh)'] = pd.to_numeric(df_details_processed['Appliance Consumption (kWh)'], errors='coerce').fillna(0)
 
-        # Format Reference Date
-        df_details_processed['Reference Date'] = df_details_processed['Reference Date'].apply(format_date_str)
+        # Format Reference Date using the updated timestamp function
+        df_details_processed['Reference Date'] = df_details_processed['Reference Date'].apply(format_unix_timestamp_to_date)
         
         # --- QC: Adjust Appliance Consumption --- 
-        # QC is complex with this structure as 'meter_consumption' might be repeated per appliance.
-        # For now, we skip the QC step that scaled consumption to not exceed grid. 
-        # A more robust QC would require grouping by meter and reference period.
         st.info("QC Note: Consumption scaling based on total meter value is not applied with this data structure.")
 
         # --- Calculate Data for Plots and Metrics --- (Using df_details_processed)
         total_unique_meters = df_details_processed['Meter ID'].nunique()
         
-        # Map Appliance Types for display (adjust if needed based on values in equipment_type)
-        # Example: Assuming equipment_type contains codes like 'EV', 'AC', 'PV'
+        # Map Appliance Types for display
         appliance_display_map = {
             'EV': 'EV Charging',
             'PV': 'Solar PV',
             'AC': 'Air Conditioning',
             'WH': 'Water Heater'
-            # Add other mappings if present in the data
         }
-        # Create a display name column, keeping original if no map exists
         df_details_processed['Appliance Display Name'] = df_details_processed['Appliance Type'].map(appliance_display_map).fillna(df_details_processed['Appliance Type'])
 
-        # Filter for positive consumption/generation for calculations
-        # Use 'Appliance Consumption (kWh)' column
-        # Note: PV generation might be positive in this column if direction is handled separately
-        # We rely on 'Direction' column now.
+        # Filter based on mapped direction strings
         consuming_df = df_details_processed[df_details_processed['Direction'] == 'positive']
-        generating_df = df_details_processed[df_details_processed['Direction'] == 'negative'] # Assuming PV is negative
+        generating_df = df_details_processed[df_details_processed['Direction'] == 'negative']
 
         appliance_presence = {}
         energy_totals = {}
@@ -443,30 +440,26 @@ if page == "Sample Output":
         total_meter_consumption = 0
 
         if total_unique_meters > 0:
-            # Calculate Presence (% of unique meters having the appliance type)
-            # Need to check for presence of each type (EV, AC, PV, WH)
+            # Calculate Presence
             presence_counts = df_details_processed.groupby('Appliance Type')['Meter ID'].nunique()
             appliance_presence = {
                 display_name: (presence_counts.get(code, 0) / total_unique_meters) * 100 
                 for code, display_name in appliance_display_map.items()
             }
 
-            # Calculate Energy Totals (Sum kWh for EV, AC, WH from consuming_df)
+            # Calculate Energy Totals
             energy_sum_by_type = consuming_df.groupby('Appliance Type')['Appliance Consumption (kWh)'].sum()
             ev_total = energy_sum_by_type.get('EV', 0)
             ac_total = energy_sum_by_type.get('AC', 0)
             wh_total = energy_sum_by_type.get('WH', 0)
             total_identified_consumption = ev_total + ac_total + wh_total
             
-            # Calculate Total Meter Consumption (Sum unique meter_consumption values per meter/period?)
-            # Simplification: Sum the Meter Consumption column, acknowledging potential duplication issues.
-            # A better approach needs grouping by meter and reference period.
+            # Calculate Total Meter Consumption
             unique_meter_consumption = df_details_processed[['Meter ID', 'Reference Date', 'Meter Consumption (kWh)']].drop_duplicates()
             total_meter_consumption = unique_meter_consumption['Meter Consumption (kWh)'].sum()
             avg_meter_consumption = unique_meter_consumption['Meter Consumption (kWh)'].mean()
             
             # Calculate Other Consumption
-            # Note: This is approximate due to potential duplication in meter_consumption
             other_consumption = max(0, total_meter_consumption - total_identified_consumption)
             energy_totals = {
                 'EV Charging': ev_total,
@@ -475,13 +468,11 @@ if page == "Sample Output":
                 'Other Consumption': other_consumption 
             }
             
-            # Calculate Avg PV Production (Avg Appliance Consumption for PV from generating_df)
+            # Calculate Avg PV Production
             pv_generation = generating_df[generating_df['Appliance Type'] == 'PV']['Appliance Consumption (kWh)']
-            # Assuming PV generation is positive in the column, despite direction='negative'
             avg_pv_prod = pv_generation.mean() if not pv_generation.empty else 0
             
             # Calculate % Consumption Identified
-            # Compares identified EV/AC/WH consumption to total meter consumption
             pct_identified = (total_identified_consumption / total_meter_consumption * 100) if total_meter_consumption > 0 else 0
         else:
              st.info("No appliance data found to calculate plots and metrics.")
@@ -493,15 +484,15 @@ if page == "Sample Output":
         with plot_col1:
             st.subheader("Appliance Presence")
             if appliance_presence:
-                # Filter presence data for devices with > 0% presence
                 filtered_presence = {k: v for k, v in appliance_presence.items() if v > 0}
                 if filtered_presence:
+                    # Corrected indentation for fig1 creation
                     fig1 = px.bar(
                         x=list(filtered_presence.keys()),
                         y=list(filtered_presence.values()),
                         labels={'x': 'Appliance Type', 'y': 'Percentage of Homes (%)'},
-                        color=list(filtered_presence.keys()), # Use filtered keys for color
-                        color_discrete_map={ # Map display names to colors
+                        color=list(filtered_presence.keys()), 
+                        color_discrete_map={ 
                                 'EV Charging': primary_purple, 'Air Conditioning': green,
                                 'Solar PV': cream, 'Water Heater': salmon
                         },
@@ -517,20 +508,20 @@ if page == "Sample Output":
                     fig1.update_yaxes(showgrid=True, gridcolor=light_purple, tickfont=dict(color=dark_purple))
                     st.plotly_chart(fig1, use_container_width=True)
                 else:
+                    # Corrected indentation for else block
                     st.caption("No appliances detected in this sample.")
             else:
                 st.caption("Presence data not available.")
 
         with plot_col2:
             st.subheader("Total Energy Distribution")
-            # Filter energy totals for types with > 0 energy
             filtered_energy_totals = {k: v for k, v in energy_totals.items() if v > 0}
             if filtered_energy_totals and sum(filtered_energy_totals.values()) > 0:
                 fig2 = px.pie(
                     values=list(filtered_energy_totals.values()),
                     names=list(filtered_energy_totals.keys()),
-                    color=list(filtered_energy_totals.keys()), # Use filtered keys for color
-                    color_discrete_map={ # Map display names to colors
+                    color=list(filtered_energy_totals.keys()), 
+                    color_discrete_map={ 
                             'EV Charging': primary_purple, 'Air Conditioning': green,
                             'Water Heater': salmon, 'Other Consumption': light_purple
                     },
@@ -543,7 +534,7 @@ if page == "Sample Output":
                 )
                 fig2.update_traces(
                     textinfo='percent+label', hovertemplate='%{label}<br>%{value:.1f} kWh<br>%{percent}',
-                    textfont=dict(color=dark_gray) # Darker text for contrast
+                    textfont=dict(color=dark_gray) 
                 )
                 st.plotly_chart(fig2, use_container_width=True)
             else:
@@ -555,11 +546,9 @@ if page == "Sample Output":
         with metric_col1:
             st.metric(label="Total Homes", value=f"{total_unique_meters:,}")
         with metric_col2:
-            # Use avg_meter_consumption calculated earlier
             st.metric(label="Avg. Meter Consumption", value=f"{avg_meter_consumption:.1f} kWh", help="Average meter consumption across unique meter/date combinations.")
         with metric_col3:
-            # Use avg_pv_prod calculated earlier
-            st.metric(label="Avg. Solar Production (PV)", value=f"{avg_pv_prod:.1f} kWh", help="Average production for detected PV systems.")
+            st.metric(label="Avg. Solar Production (PV)", value=f"{avg_pv_prod:.1f} kWh", help="Average production for detected PV systems (based on negative direction).")
         with metric_col4:
             st.metric(label="Consumption Identified", value=f"{pct_identified:.1f}%", help="% of total meter kWh attributed to detected EV, AC, and WH.")
 
@@ -572,11 +561,11 @@ if page == "Sample Output":
             This table shows the detailed disaggregation results for specific equipment types within each meter's analysis window.
 
             *   **Meter ID**: Links back to the meter in Table 1.
-            *   **Appliance Type**: Code or name for the detected appliance (e.g., `EV`, `AC`, `PV`).
-            *   **Direction**: Indicates energy flow: `positive` (consumption) or `negative` (generation, e.g., `PV`).
+            *   **Appliance**: Type of the detected appliance (e.g., `EV Charging`, `Solar PV`).
+            *   **Direction**: Indicates energy flow: `positive` (consumption) or `negative` (generation).
             *   **Meter Consumption (kWh)**: The total net energy measured at the meter associated with the specific appliance and reference period. May be repeated across appliance types for the same period.
-            *   **Appliance Consumption (kWh)**: The estimated energy consumed (`positive` direction) or generated (`negative` direction) by this specific `Appliance Type` for the reference period.
-            *   **Reference Date**: The start date (YYYY-MM-DD) of the specific period for which the equipment consumption is reported.
+            *   **Appliance Consumption (kWh)**: The estimated energy consumed (`positive` direction) or generated (`negative` direction) by this specific `Appliance` for the reference period.
+            *   **Reference Date**: The start date (YYYY-MM-DD) of the specific period for which the equipment consumption is reported (derived from Unix timestamp).
             """)
         
         if not df_details_processed.empty:
@@ -584,7 +573,7 @@ if page == "Sample Output":
                 # Select and rename columns for the final display table
                 display_df_cols = [
                     'Meter ID', 
-                    'Appliance Display Name', # Use the mapped display name
+                    'Appliance Display Name', 
                     'Direction', 
                     'Meter Consumption (kWh)', 
                     'Appliance Consumption (kWh)', 
@@ -592,7 +581,7 @@ if page == "Sample Output":
                 ]
                 display_df = df_details_processed[display_df_cols].copy()
 
-                # Rename for final table header clarity if desired (already done mostly)
+                # Rename for final table header clarity
                 display_df = display_df.rename(columns={'Appliance Display Name': 'Appliance'}) 
 
                 # Set desired order
@@ -606,9 +595,8 @@ if page == "Sample Output":
                 # Display Table 2
                 st.dataframe(display_df, use_container_width=True)
                 
-                # Optional: Update legend/caption if needed, based on actual equipment_type values
                 unique_appliance_types = df_details_processed['Appliance Type'].unique()
-                st.caption(f"Detected Appliance Types: {', '.join(unique_appliance_types)}")
+                st.caption(f"Detected Appliance Types in Details File: {', '.join(unique_appliance_types)}")
 
             except Exception as e:
                 st.error(f"An error occurred preparing Table 2 for display: {e}")
@@ -616,13 +604,13 @@ if page == "Sample Output":
         else:
              st.info("No data available for Appliance Breakdown Table.")
 
-        # --- Add Device Usage Heatmaps --- (Uses random data, no changes needed for now)
+        # --- Add Device Usage Heatmaps --- (Uses random data, updated device list)
         st.markdown("### Device Usage Patterns")
         st.markdown("Explore hourly and daily usage patterns for each device type.")
 
-        # Device selection for heatmaps (Use mapped display names if available)
+        # Device selection for heatmaps (Use mapped display names)
         heatmap_device_options = list(appliance_display_map.values())
-        if not heatmap_device_options: # Fallback if map is empty or no devices
+        if not heatmap_device_options:
              heatmap_device_options = ['EV Charging', 'AC Usage', 'PV Usage']
 
         selected_device_heatmap = st.selectbox(
@@ -740,7 +728,7 @@ if page == "Sample Output":
     except Exception as e:
         st.error(f"An unexpected error occurred on the Sample Output page: {e}")
         st.exception(e)
-        
+
 elif page == "Performance Metrics":
     # Performance Metrics page
     # Just one title, with a more comprehensive subheader
@@ -1667,49 +1655,34 @@ elif page == "Interactive Map":
     # --- Load Real Household Data ---
     @st.cache_data
     def load_household_data(csv_path='customer_device_mapping_with_coords.csv'):
-        """Loads household data from the specified CSV file."""
         try:
             df = pd.read_csv(csv_path)
-
-            # Rename columns for consistency (add 'state' if needed)
+            # Rename columns for consistency
             rename_map = {
-                'custid': 'id',
-                'latitude': 'lat',
-                'longitude': 'lon',
-                'state': 'state' # Ensure the state column is mapped if named differently
+                'custid': 'id', 'latitude': 'lat', 'longitude': 'lon', 'state': 'state'
             }
             df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
-
-            # Check for essential columns (including state)
-            # Allow ac_value, pv_value, ev_value to be missing, default to 0
+            # Check for essential columns
             required_core_cols = ['id', 'lat', 'lon', 'state']
             value_cols = ['ac_value', 'pv_value', 'ev_value']
             missing_core_cols = [col for col in required_core_cols if col not in df.columns]
             if missing_core_cols:
                 st.error(f"Error: CSV '{csv_path}' is missing required core columns: {missing_core_cols}")
-                return pd.DataFrame() # Return empty DataFrame
-
+                return pd.DataFrame()
             # Ensure value columns exist, fill missing with 0
             for val_col in value_cols:
                 if val_col not in df.columns:
                     st.warning(f"Warning: Column '{val_col}' not found in CSV. Assuming 0 for all entries.")
                     df[val_col] = 0
                 else:
-                    # Ensure they are numeric, fill non-numeric/NaN with 0
                     df[val_col] = pd.to_numeric(df[val_col], errors='coerce').fillna(0)
-
-
             # Create boolean flags for device presence
             df['has_ac'] = df['ac_value'] > 0
             df['has_pv'] = df['pv_value'] > 0
             df['has_ev'] = df['ev_value'] > 0
-
             # Select and return relevant columns
             final_cols = ['id', 'lat', 'lon', 'state', 'has_ev', 'has_ac', 'has_pv']
-            # Include original value columns if needed for popups, etc.
-            # final_cols.extend(['ac_value', 'pv_value', 'ev_value'])
             return df[[col for col in final_cols if col in df.columns]]
-
         except FileNotFoundError:
             st.error(f"Error: Household data file '{csv_path}' not found.")
             return pd.DataFrame()
@@ -1717,13 +1690,10 @@ elif page == "Interactive Map":
             st.error(f"Error loading or processing household data from '{csv_path}': {e}")
             return pd.DataFrame()
 
-
     # --- Refactored Data Generation ---
-
-    # Cache state information (coordinates, name, zoom) - Keep for map centering
     @st.cache_data
     def get_states_info():
-        # US states with coordinates (approximate centers) - all 50 states plus DC
+        # ... (States data dictionary) ...
         states_data = {
             'AL': {'name': 'Alabama', 'lat': 32.7794, 'lon': -86.8287, 'zoom': 7},
             'AK': {'name': 'Alaska', 'lat': 64.0685, 'lon': -152.2782, 'zoom': 4},
@@ -1777,19 +1747,13 @@ elif page == "Interactive Map":
             'WI': {'name': 'Wisconsin', 'lat': 44.6243, 'lon': -89.9941, 'zoom': 7},
             'WY': {'name': 'Wyoming', 'lat': 42.9957, 'lon': -107.5512, 'zoom': 7}
         }
-        # Remove mock stats generation from here
         return states_data
 
-    # Removed generate_households_for_state function
-    # Removed generate_historical_data_for_state function
-
-
-    # Load GeoJSON data for US states
     @st.cache_data
     def load_us_geojson():
         try:
             response = requests.get("https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/us-states.json")
-            response.raise_for_status() # Raise an exception for bad status codes
+            response.raise_for_status() 
             us_states = response.json()
             return us_states
         except requests.exceptions.RequestException as e:
@@ -1802,94 +1766,74 @@ elif page == "Interactive Map":
     # Load data
     states_info = get_states_info()
     us_geojson = load_us_geojson()
-    all_household_data = load_household_data() # Load all data once
+    all_household_data = load_household_data()
 
-    # --- Sidebar Elements --- (Moved here for better layout flow)
+    # --- Sidebar Elements --- 
     st.sidebar.markdown("### Map Filters")
     show_ev = st.sidebar.checkbox("Show EV Chargers", value=True)
     show_ac = st.sidebar.checkbox("Show AC Units", value=True)
     show_pv = st.sidebar.checkbox("Show Solar Panels", value=True)
-    st.sidebar.markdown("<hr style='margin: 0.5rem 0;'>", unsafe_allow_html=True) # Small separator
+    st.sidebar.markdown("<hr style='margin: 0.5rem 0;'>", unsafe_allow_html=True)
     show_all_three = st.sidebar.checkbox("ONLY Show Homes with All 3 Devices", value=False)
-
-    st.sidebar.markdown("---") # Separator
-
-    # Add custom styling for the refresh button
+    st.sidebar.markdown("---")
     st.sidebar.markdown("""
     <style>
     div[data-testid="stButton"] button {
         background-color: #515D9A !important;
-        color: white !important; /* Changed back to white */
+        color: white !important;
         font-weight: bold !important;
         border: 1px solid darkgray !important;
     }
     div[data-testid="stButton"] button:hover {
         background-color: #B8BCF3 !important;
-        color: #202842 !important; /* Darker text on hover */
+        color: #202842 !important;
     }
     </style>
     """, unsafe_allow_html=True)
-
-    # Add refresh button to sidebar (clears state selection)
     if st.sidebar.button("↻ Reset Map View", use_container_width=True):
-        # Clear state selection from session state if it exists
         if 'selected_state_map' in st.session_state:
             del st.session_state['selected_state_map']
         st.rerun()
     # --- End Sidebar Elements ---
 
-    # --- State Selection ---
-    # Use unique states from the loaded data if available, otherwise use default states list
+    # --- State Selection --- 
     if not all_household_data.empty and 'state' in all_household_data.columns:
-        # Convert state codes to uppercase and remove NaN/None before getting unique
         valid_states = all_household_data['state'].dropna().astype(str).str.upper().unique()
         available_states = sorted([s for s in valid_states if s != 'NA'])
-
         if not available_states and 'NA' in valid_states:
-            # If only 'NA' is present after filtering, maybe show it or a message?
              st.warning("Only 'NA' found for state values in the data.")
-             available_states = [] # Or keep ['NA'] if you want it selectable
+             available_states = []
         elif 'NA' in valid_states:
-             st.info("Ignoring entries with state 'NA' in the dropdown.") # Inform user
-
-        # Get full state names from states_info if available, otherwise use the code
+             st.info("Ignoring entries with state 'NA' in the dropdown.")
         state_names = {code: states_info.get(code, {}).get('name', code) for code in available_states}
-        # Sort options based on the display name (full name or code)
         sorted_state_options = sorted(state_names.items(), key=lambda item: item[1])
-
         state_options = ["Select a State..."] + [name for code, name in sorted_state_options]
-        # Map the displayed name back to the original state code
         state_code_map = {name: code for code, name in sorted_state_options}
     else:
-        # Fallback to default states if data loading failed or no 'state' column
         st.warning("Using default state list as household data is unavailable or missing/empty 'state' column.")
         state_names = {code: info['name'] for code, info in states_info.items()}
         state_codes_sorted = sorted(state_names.keys(), key=lambda k: state_names[k])
         state_options = ["Select a State..."] + [state_names[code] for code in state_codes_sorted]
+        # Corrected indentation for state_code_map
         state_code_map = {v: k for k, v in state_names.items()} # Map name back to code
 
-    # Use session state to remember the selection
     if 'selected_state_map' not in st.session_state or st.session_state['selected_state_map'] not in state_options:
-        st.session_state['selected_state_map'] = state_options[0] # Default to "Select a State..."
+        st.session_state['selected_state_map'] = state_options[0]
 
     selected_state_name = st.selectbox(
         "Select a State to View Households:",
         options=state_options,
-        key='selected_state_map', # Persist selection across reruns
-        index=state_options.index(st.session_state['selected_state_map']) # Set current index
+        key='selected_state_map',
+        index=state_options.index(st.session_state['selected_state_map'])
     )
 
-    # Find the state code corresponding to the selected name
     selected_state_code = None
     if selected_state_name != "Select a State...":
         selected_state_code = state_code_map.get(selected_state_name)
 
-
-    # --- Create Map ---
-    map_location = [39.8283, -98.5795] # Default: Center of US
+    # --- Create Map --- 
+    map_location = [39.8283, -98.5795]
     map_zoom = 4
-
-    # If a state is selected, update map center and zoom
     if selected_state_code and selected_state_code in states_info:
         state_info = states_info[selected_state_code]
         map_location = [state_info['lat'], state_info['lon']]
@@ -1897,30 +1841,26 @@ elif page == "Interactive Map":
     elif selected_state_code and selected_state_code not in states_info:
          st.warning(f"State code '{selected_state_code}' found in data but not in state center/zoom lookup. Using default map view.")
 
-    # Initialize map
     m = folium.Map(
         location=map_location, 
         zoom_start=map_zoom,
-        tiles="CartoDB positron" # Use a light base map
+        tiles="CartoDB positron" 
     )
-
-    # Add satellite view layer
     folium.TileLayer('Esri_WorldImagery', name='Satellite View', attr='Esri').add_to(m)
     
-    # Add state boundaries (GeoJSON) - always visible
     if us_geojson:
         style_function = lambda x: {
             'fillColor': primary_purple,
             'color': 'white',
             'weight': 1,
-            'fillOpacity': 0.3 if selected_state_code else 0.5 # Make less opaque if state selected
+            'fillOpacity': 0.3 if selected_state_code else 0.5
         }
         highlight_function = lambda x: {
                 'fillColor': light_purple,
                 'color': 'white',
                 'weight': 3,
                 'fillOpacity': 0.7
-        } if not selected_state_code else style_function(x) # No highlight if state selected
+        } if not selected_state_code else style_function(x)
 
         folium.GeoJson(
             us_geojson,
@@ -1928,51 +1868,35 @@ elif page == "Interactive Map":
             style_function=style_function,
             highlight_function=highlight_function,
             tooltip=folium.GeoJsonTooltip(fields=['name'], aliases=['State:'], labels=True, sticky=False),
-            # Remove popup click functionality as selection is via dropdown
-            # popup=folium.GeoJsonPopup(...) 
         ).add_to(m)
 
-    # --- Load and Add Household Markers (Only if a state is selected) ---
-    filtered_households_df = pd.DataFrame() # Initialize as empty DataFrame
+    # --- Load and Add Household Markers --- 
+    filtered_households_df = pd.DataFrame()
     if selected_state_code and not all_household_data.empty:
         with st.spinner(f"Filtering household data for {selected_state_name}..."):
-            # Filter the loaded data by selected state
-            # Ensure comparison uses uppercase state code if needed
             state_households_df = all_household_data[all_household_data['state'].astype(str).str.upper() == selected_state_code]
-
-            # Apply device filters based on sidebar selections
             if show_all_three:
-                # Filter for homes having all three devices
                 all_three_condition = state_households_df['has_ev'] & state_households_df['has_ac'] & state_households_df['has_pv']
                 filtered_households_df = state_households_df[all_three_condition]
                 st.info("Filter applied: Showing only homes with all three devices (EV, AC, PV).")
             else:
-                # Apply individual device filters (show if *any* selected device is present)
                 filters = []
                 if show_ev: filters.append(state_households_df['has_ev'])
                 if show_ac: filters.append(state_households_df['has_ac'])
                 if show_pv: filters.append(state_households_df['has_pv'])
-
                 if filters:
                     combined_filter = pd.DataFrame(filters).transpose().any(axis=1)
                     filtered_households_df = state_households_df[combined_filter]
                 elif not state_households_df.empty:
-                    # If no individual filters selected (and not show_all_three), show all in state?
-                    # Or show none? Let's show none if no boxes are checked.
-                    filtered_households_df = pd.DataFrame(columns=state_households_df.columns) # Empty DF
+                    filtered_households_df = pd.DataFrame(columns=state_households_df.columns)
                     st.info(f"No device filters selected. Please select device types or 'All 3 Devices' to view markers.")
-                # else: filters list is empty and state_households_df is empty, so filtered_households_df remains empty
 
         if not filtered_households_df.empty:
-            # Create marker cluster for households
             marker_cluster = MarkerCluster(name=f'{selected_state_name} Homes').add_to(m)
-
-            # Add markers for each household from the DataFrame
             for idx, house in filtered_households_df.iterrows():
-                # Calculate total number of detected devices
                 device_count = int(house['has_ev']) + int(house['has_ac']) + int(house['has_pv'])
-
-                # Assign icon based on device count and filters
+                
+                # Assign icon based on device count and filters - Corrected indentation
                 if device_count == 3:
                     icon_color = 'purple'
                     icon_name = 'star'
@@ -1982,7 +1906,7 @@ elif page == "Interactive Map":
                     icon_name = 'plus'
                     tooltip_device = 'Two Devices'
                 elif device_count == 1:
-                    # Single device: use specific icon ONLY if filter is active
+                    # Corrected indentation for inner if/elifs
                     if house['has_ev'] and show_ev:
                         icon_color = "blue"
                         icon_name = "plug"
@@ -1996,20 +1920,22 @@ elif page == "Interactive Map":
                         icon_name = "snowflake"
                         tooltip_device = "AC Unit Only"
                     else:
-                        # Single device, but its filter is off
-                        icon_color = 'lightgray' # Use a muted color
+                        # Single device, but its filter is off - Corrected indentation
+                        icon_color = 'lightgray' 
                         icon_name = 'home'
                         tooltip_device = 'Single Device (Filtered Out)'
-                else: # device_count == 0 (shouldn't happen with initial filtering, but as safeguard)
+                else: # device_count == 0 - Corrected indentation
                     icon_color = 'gray'
                     icon_name = 'question'
                     tooltip_device = 'No Devices Detected'
-
-                # Create popup content - updated for real data
+                
                 popup_content = f"""
                 <div style="min-width: 180px;">
                     <h4>Home {house['id']}</h4>
                     <b>Detected Devices:</b><br>
+                    {'<span style="color: blue;">✓ EV Charger</span><br>' if house['has_ev'] else ''}
+                    {'<span style="color: orange;">✓ AC Unit</span><br>' if house['has_ac'] else ''}
+                    {'<span style="color: green;">✓ Solar Panels</span><br>' if house['has_pv'] else ''}
                     {'✓ EV Charger<br>' if house['has_ev'] else ''}
                     {'✓ AC Unit<br>' if house['has_ac'] else ''}
                     {'✓ Solar Panels<br>' if house['has_pv'] else ''}
@@ -2017,7 +1943,7 @@ elif page == "Interactive Map":
                     {f"<b>Coords:</b> ({house['lat']:.4f}, {house['lon']:.4f})"}
                 </div>
                 """
-
+                
                 # Add marker
                 folium.Marker(
                     location=[house['lat'], house['lon']],
@@ -2028,9 +1954,8 @@ elif page == "Interactive Map":
         else:
             st.info(f"No households match the selected filters for {selected_state_name}.")
 
-    # --- Display Legend using Streamlit ---
+    # --- Display Legend --- 
     st.markdown("#### Map Legend")
-    # Use columns for layout, adjust width ratios as needed
     legend_cols = st.columns([1, 1, 1, 1, 1]) 
     with legend_cols[0]:
         if show_ev: st.markdown('<i class="fa fa-plug" style="color: blue;"></i> EV Only', unsafe_allow_html=True)
@@ -2042,46 +1967,27 @@ elif page == "Interactive Map":
         st.markdown('<i class="fa fa-plus" style="color: red;"></i> Two Devices', unsafe_allow_html=True)
     with legend_cols[4]:
         st.markdown('<i class="fa fa-star" style="color: purple;"></i> All Three', unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True) # Add a little space after legend
+    st.markdown("<br>", unsafe_allow_html=True)
 
-
-    # --- Display the Map ---
+    # --- Display the Map --- 
     st.subheader("Map View")
     if not selected_state_code:
-         st.caption("Select a state from the dropdown above to load household markers.")
-    elif filtered_households_df.empty:
-         # Provide more specific feedback based on why it might be empty
-         if selected_state_code and not state_households_df.empty:
-             st.caption(f"Showing map for {selected_state_name}. No households match the selected device filters (EV:{show_ev}, AC:{show_ac}, PV:{show_pv}, All3:{show_all_three}).")
-         elif selected_state_code:
-             st.caption(f"Showing map for {selected_state_name}. No household data found for this state in the CSV.")
-         else: # Should not happen if selected_state_code exists
-             st.caption(f"Showing map for {selected_state_name}. No households match the current filters or data is unavailable.")
-    else: # This case implies filtered_households_df is not empty
-        st.caption(f"Showing {len(filtered_households_df)} households for {selected_state_name}. Use sidebar filters to refine.")
+        st.caption("Select a state from the dropdown above to load household markers.")
+    # Captions for filtered states moved inside the if block below
 
-    # Add Layer Control to toggle layers (Satellite, States, Homes cluster if present)
     folium.LayerControl().add_to(m)
+    folium_static(m, width=1000, height=600)
 
-    folium_static(m, width=1000, height=600) # Consider adjusting width/height if needed
-
-    # --- Statistics Display ---
-    st.markdown("---") # Separator before stats
-
-    # Display statistics ONLY if a state is selected and data is available
+    # --- Statistics Display --- 
+    st.markdown("---") 
     if selected_state_code and not all_household_data.empty:
-        # Use the data for the *selected state* before applying device filters
-        # Ensure comparison uses uppercase state code if needed
         state_data = all_household_data[all_household_data['state'].astype(str).str.upper() == selected_state_code]
-
         if not state_data.empty:
-            st.subheader(f"{selected_state_name} Statistics") # Use selected_state_name here
-
+            st.subheader(f"{selected_state_name} Statistics")
             total_homes = len(state_data)
             ev_homes = state_data['has_ev'].sum()
             ac_homes = state_data['has_ac'].sum()
             pv_homes = state_data['has_pv'].sum()
-
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Total Homes", f"{total_homes:,}")
@@ -2095,14 +2001,12 @@ elif page == "Interactive Map":
                 pv_pct = (pv_homes / total_homes) if total_homes > 0 else 0
                 st.metric("Solar Panels", f"{pv_homes:,}", f"{pv_pct:.1%}")
 
-            # Display data table for the filtered households shown on map (use filtered_households_df)
+            # Display data table - Corrected indentation
             if not filtered_households_df.empty:
                 st.subheader("Filtered Homes Data")
-                # Select columns from the filtered DataFrame
-                columns_to_show = ['id', 'lat', 'lon', 'has_ev', 'has_ac', 'has_pv', 'state'] # Added state
+                columns_to_show = ['id', 'lat', 'lon', 'has_ev', 'has_ac', 'has_pv', 'state'] 
                 df_display = filtered_households_df[[col for col in columns_to_show if col in filtered_households_df.columns]].copy()
-
-                # Rename columns for display
+                
                 column_map = {
                     'id': 'Home ID',
                     'lat': 'Latitude',
@@ -2110,43 +2014,37 @@ elif page == "Interactive Map":
                     'has_ev': 'EV Charger',
                     'has_ac': 'AC Unit',
                     'has_pv': 'Solar Panel',
-                    'state': 'State' # Added state
+                    'state': 'State' 
                 }
+                # Corrected indentation
                 df_display = df_display.rename(columns=column_map)
-                # Convert booleans to Yes/No for better readability
                 for col in ['EV Charger', 'AC Unit', 'Solar Panel']:
                     if col in df_display.columns:
                         df_display[col] = df_display[col].map({True: 'Yes', False: 'No'})
 
-                # Format lat/lon
                 if 'Latitude' in df_display.columns: df_display['Latitude'] = df_display['Latitude'].map('{:.4f}'.format)
                 if 'Longitude' in df_display.columns: df_display['Longitude'] = df_display['Longitude'].map('{:.4f}'.format)
 
-                st.dataframe(df_display, use_container_width=True, height=300) # Added height limit
-            # No need for an else here, covered by the outer check
-            # else:
-            #      st.write("No data to display for the current filter selection.")
+                st.dataframe(df_display, use_container_width=True, height=300)
+                # Add caption specific to filtered data being shown
+                st.caption(f"Showing {len(filtered_households_df)} households matching filters for {selected_state_name}.")
+            else:
+                # Add caption when filters result in no data for the selected state
+                st.caption(f"No households match the selected device filters for {selected_state_name}.")
+
         else:
             st.info(f"No household data found for {selected_state_name} in the provided CSV.")
-
-        # --- Removed Historical Trend Section ---
-        # st.markdown("---") # Separator
-        # st.subheader(f"Historical Appliance Trends for {state['name']}")
-        # ... (removed historical chart code) ...
-
-
     else:
-        # Optionally show overall stats or a message when no state is selected
-        st.subheader("Portfolio Overview")
-        st.info("Select a state from the dropdown above to view detailed statistics and household data.")
-        # You could potentially calculate and display aggregate stats here if needed
-        # total_homes = sum(info['total_homes'] for info in states_info.values())
-        # ... etc ...
+        # Keep this for when no state is selected at all
+        if not selected_state_code:
+             st.subheader("Portfolio Overview")
+             st.info("Select a state from the dropdown above to view detailed statistics and household data.")
 
     st.markdown("---")
+    # Updated footer text slightly
     st.markdown(f"""
     <div style="text-align:center; color:{primary_purple}; padding: 10px; border-radius: 5px;">
-        Use the dropdown to select a state and explore homes with EV chargers, AC units, and solar panels.
-        Map data is randomly generated for demonstration purposes.
+        Use the dropdown to select a state and explore homes with detected devices.
+        Household location data is illustrative.
     </div>
     """, unsafe_allow_html=True)
