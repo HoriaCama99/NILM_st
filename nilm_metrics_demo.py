@@ -339,17 +339,12 @@ if page == "Sample Output":
         # Select only necessary columns for meter info table (keep only one row per meter)
         meter_info_df = df_meters[meter_info_cols].drop_duplicates(subset=[meter_id_col]).reset_index(drop=True)
 
-        # Rename columns for display in Table 1
-        meter_info_df = meter_info_df.rename(columns={
-            'meter_id': 'Meter ID', 
-            'meter_disagg_start': 'Disaggregation Start',
-            'meter_disagg_end': 'Disaggregation End',
-            'usage_interval_duration': 'Interval'
-        })
-
+        # Create a copy for display formatting
+        meter_info_display_df = meter_info_df.copy()
         # Format date columns for display using the updated function
-        meter_info_df['Disaggregation Start'] = meter_info_df['Disaggregation Start'].apply(format_unix_timestamp_to_date)
-        meter_info_df['Disaggregation End'] = meter_info_df['Disaggregation End'].apply(format_unix_timestamp_to_date)
+        meter_info_display_df['meter_disagg_start'] = meter_info_display_df['meter_disagg_start'].apply(format_unix_timestamp_to_date)
+        meter_info_display_df['meter_disagg_end'] = meter_info_display_df['meter_disagg_end'].apply(format_unix_timestamp_to_date)
+
 
         # --- Create Table 1: Meter Information --- 
         st.subheader("Table 1: Meter Information")
@@ -359,14 +354,14 @@ if page == "Sample Output":
             st.markdown("""
             This table provides general information about each meter included in the analysis.
 
-            *   **Meter ID**: A unique identifier assigned to each household meter.
-            *   **Disaggregation Start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data (derived from Unix timestamp).
-            *   **Disaggregation End**: The last date (YYYY-MM-DD) of the analysis period for this meter's data (derived from Unix timestamp).
-            *   **Interval**: The time resolution of the energy readings used (e.g., '15 min', '1 hour').
+            *   **meter_id**: A unique identifier assigned to each household meter.
+            *   **meter_disagg_start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data (derived from Unix timestamp).
+            *   **meter_disagg_end**: The last date (YYYY-MM-DD) of the analysis period for this meter's data (derived from Unix timestamp).
+            *   **usage_interval_duration**: The time resolution of the energy readings used (e.g., '15 min', '1 hour').
             """)
             
-        # Display Table 1
-        st.dataframe(meter_info_df, use_container_width=True)
+        # Display Table 1 using the formatted copy
+        st.dataframe(meter_info_display_df, use_container_width=True)
              
         # --- Prepare Details Data (df_details for Table 2) ---
         detail_id_col = 'meter_id' # Already checked df_details has this column
@@ -389,34 +384,17 @@ if page == "Sample Output":
         # Keep only necessary columns from details file
         df_details_processed = df_details[required_detail_cols].copy()
 
-        # Rename columns for consistency and clarity
-        df_details_processed = df_details_processed.rename(columns={
-            'meter_id': 'Meter ID',
-            'equipment_type': 'Appliance Type',
-            'direction': 'Direction', # Will be mapped shortly
-            'meter_consumption': 'Meter Consumption (kWh)', 
-            'equipment_consumption': 'Appliance Consumption (kWh)',
-            'equipment_disagg_start': 'Reference Date' # Will be formatted shortly
-        })
-
+        # Create derived columns for calculation/display without renaming originals
         # Map Direction column: -1 -> negative, 1 -> positive
         direction_map = {-1: 'negative', 1: 'positive'}
-        # Fill potential NaN directions with a placeholder before mapping
-        df_details_processed['Direction'] = df_details_processed['Direction'].fillna(0) # Or another placeholder
-        df_details_processed['Direction'] = df_details_processed['Direction'].map(direction_map).fillna('unknown')
+        df_details_processed['direction_mapped'] = df_details_processed['direction'].fillna(0).map(direction_map).fillna('unknown')
 
-        # Ensure consumption columns are numeric (already done during load, but good practice)
-        df_details_processed['Meter Consumption (kWh)'] = pd.to_numeric(df_details_processed['Meter Consumption (kWh)'], errors='coerce').fillna(0)
-        df_details_processed['Appliance Consumption (kWh)'] = pd.to_numeric(df_details_processed['Appliance Consumption (kWh)'], errors='coerce').fillna(0)
+        # Ensure consumption columns are numeric
+        df_details_processed['meter_consumption'] = pd.to_numeric(df_details_processed['meter_consumption'], errors='coerce').fillna(0)
+        df_details_processed['equipment_consumption'] = pd.to_numeric(df_details_processed['equipment_consumption'], errors='coerce').fillna(0)
 
         # Format Reference Date using the updated timestamp function
-        df_details_processed['Reference Date'] = df_details_processed['Reference Date'].apply(format_unix_timestamp_to_date)
-        
-        # --- QC: Adjust Appliance Consumption --- 
-        st.info("QC Note: Consumption scaling based on total meter value is not applied with this data structure.")
-
-        # --- Calculate Data for Plots and Metrics --- (Using df_details_processed)
-        total_unique_meters = df_details_processed['Meter ID'].nunique()
+        df_details_processed['equipment_disagg_start_formatted'] = df_details_processed['equipment_disagg_start'].apply(format_unix_timestamp_to_date)
         
         # Map Appliance Types for display
         appliance_display_map = {
@@ -425,11 +403,17 @@ if page == "Sample Output":
             'AC': 'Air Conditioning',
             'WH': 'Water Heater'
         }
-        df_details_processed['Appliance Display Name'] = df_details_processed['Appliance Type'].map(appliance_display_map).fillna(df_details_processed['Appliance Type'])
+        df_details_processed['equipment_type_display'] = df_details_processed['equipment_type'].map(appliance_display_map).fillna(df_details_processed['equipment_type'])
 
-        # Filter based on mapped direction strings
-        consuming_df = df_details_processed[df_details_processed['Direction'] == 'positive']
-        generating_df = df_details_processed[df_details_processed['Direction'] == 'negative']
+        # --- QC: Adjust Appliance Consumption --- 
+        st.info("QC Note: Consumption scaling based on total meter value is not applied with this data structure.")
+
+        # --- Calculate Data for Plots and Metrics --- (Using original and derived columns)
+        total_unique_meters = df_details_processed['meter_id'].nunique()
+        
+        # Use mapped direction strings for filtering
+        consuming_df = df_details_processed[df_details_processed['direction_mapped'] == 'positive']
+        generating_df = df_details_processed[df_details_processed['direction_mapped'] == 'negative']
 
         appliance_presence = {}
         energy_totals = {}
@@ -440,37 +424,40 @@ if page == "Sample Output":
         total_meter_consumption = 0
 
         if total_unique_meters > 0:
-            # Calculate Presence
-            presence_counts = df_details_processed.groupby('Appliance Type')['Meter ID'].nunique()
+            # Calculate Presence based on original equipment_type
+            presence_counts = df_details_processed.groupby('equipment_type')['meter_id'].nunique()
             appliance_presence = {
-                display_name: (presence_counts.get(code, 0) / total_unique_meters) * 100 
-                for code, display_name in appliance_display_map.items()
+                # Use display name for keys in the result dictionary
+                appliance_display_map.get(code, code): (presence_counts.get(code, 0) / total_unique_meters) * 100 
+                for code in df_details_processed['equipment_type'].unique() if code in appliance_display_map # Only map known types
             }
 
-            # Calculate Energy Totals
-            energy_sum_by_type = consuming_df.groupby('Appliance Type')['Appliance Consumption (kWh)'].sum()
+            # Calculate Energy Totals based on original equipment_type
+            energy_sum_by_type = consuming_df.groupby('equipment_type')['equipment_consumption'].sum()
             ev_total = energy_sum_by_type.get('EV', 0)
             ac_total = energy_sum_by_type.get('AC', 0)
             wh_total = energy_sum_by_type.get('WH', 0)
             total_identified_consumption = ev_total + ac_total + wh_total
             
-            # Calculate Total Meter Consumption
-            unique_meter_consumption = df_details_processed[['Meter ID', 'Reference Date', 'Meter Consumption (kWh)']].drop_duplicates()
-            total_meter_consumption = unique_meter_consumption['Meter Consumption (kWh)'].sum()
-            avg_meter_consumption = unique_meter_consumption['Meter Consumption (kWh)'].mean()
+            # Calculate Total Meter Consumption using original columns
+            unique_meter_consumption = df_details_processed[['meter_id', 'equipment_disagg_start', 'meter_consumption']].drop_duplicates()
+            total_meter_consumption = unique_meter_consumption['meter_consumption'].sum()
+            avg_meter_consumption = unique_meter_consumption['meter_consumption'].mean()
             
             # Calculate Other Consumption
             other_consumption = max(0, total_meter_consumption - total_identified_consumption)
+            # Use display names for keys in the result dictionary
             energy_totals = {
-                'EV Charging': ev_total,
-                'Air Conditioning': ac_total,
-                'Water Heater': wh_total,
+                appliance_display_map.get('EV', 'EV'): ev_total,
+                appliance_display_map.get('AC', 'AC'): ac_total,
+                appliance_display_map.get('WH', 'WH'): wh_total,
                 'Other Consumption': other_consumption 
             }
             
-            # Calculate Avg PV Production
-            pv_generation = generating_df[generating_df['Appliance Type'] == 'PV']['Appliance Consumption (kWh)']
-            avg_pv_prod = pv_generation.mean() if not pv_generation.empty else 0
+            # Calculate Avg PV Production using original equipment_type
+            pv_generation = generating_df[generating_df['equipment_type'] == 'PV']['equipment_consumption']
+            # Use absolute value for production
+            avg_pv_prod = abs(pv_generation.mean()) if not pv_generation.empty else 0
             
             # Calculate % Consumption Identified
             pct_identified = (total_identified_consumption / total_meter_consumption * 100) if total_meter_consumption > 0 else 0
@@ -484,6 +471,7 @@ if page == "Sample Output":
         with plot_col1:
             st.subheader("Appliance Presence")
             if appliance_presence:
+                # Use display names from appliance_presence keys
                 filtered_presence = {k: v for k, v in appliance_presence.items() if v > 0}
                 if filtered_presence:
                     # Corrected indentation for fig1 creation
@@ -515,6 +503,7 @@ if page == "Sample Output":
 
         with plot_col2:
             st.subheader("Total Energy Distribution")
+            # Use display names from energy_totals keys
             filtered_energy_totals = {k: v for k, v in energy_totals.items() if v > 0}
             if filtered_energy_totals and sum(filtered_energy_totals.values()) > 0:
                 fig2 = px.pie(
@@ -546,11 +535,13 @@ if page == "Sample Output":
         with metric_col1:
             st.metric(label="Total Homes", value=f"{total_unique_meters:,}")
         with metric_col2:
-            st.metric(label="Avg. Meter Consumption", value=f"{avg_meter_consumption:.1f} kWh", help="Average meter consumption across unique meter/date combinations.")
+            # Use original column name for help text if needed
+            st.metric(label="Avg. Meter Consumption", value=f"{avg_meter_consumption:.1f} kWh", help="Average meter_consumption across unique meter_id/equipment_disagg_start combinations.")
         with metric_col3:
-            st.metric(label="Avg. Solar Production (PV)", value=f"{avg_pv_prod:.1f} kWh", help="Average production for detected PV systems (based on negative direction).")
+            # Use absolute value for display
+            st.metric(label="Avg. Solar Production (PV)", value=f"{avg_pv_prod:.1f} kWh", help="Average absolute equipment_consumption for detected PV systems (based on negative direction).")
         with metric_col4:
-            st.metric(label="Consumption Identified", value=f"{pct_identified:.1f}%", help="% of total meter kWh attributed to detected EV, AC, and WH.")
+            st.metric(label="Consumption Identified", value=f"{pct_identified:.1f}%", help="% of total meter_consumption attributed to detected EV, AC, and WH equipment_consumption.")
 
         # --- Prepare and Display Table 2 --- 
         st.subheader("Table 2: Appliance Breakdown")
@@ -560,42 +551,46 @@ if page == "Sample Output":
             st.markdown("""
             This table shows the detailed disaggregation results for specific equipment types within each meter's analysis window.
 
-            *   **Meter ID**: Links back to the meter in Table 1.
-            *   **Appliance**: Type of the detected appliance (e.g., `EV Charging`, `Solar PV`).
-            *   **Direction**: Indicates energy flow: `positive` (consumption) or `negative` (generation).
-            *   **Meter Consumption (kWh)**: The total net energy measured at the meter associated with the specific appliance and reference period. May be repeated across appliance types for the same period.
-            *   **Appliance Consumption (kWh)**: The estimated energy consumed (`positive` direction) or generated (`negative` direction) by this specific `Appliance` for the reference period.
-            *   **Reference Date**: The start date (YYYY-MM-DD) of the specific period for which the equipment consumption is reported (derived from Unix timestamp).
+            *   **meter_id**: Links back to the meter in Table 1.
+            *   **equipment_type**: Code for the detected appliance (e.g., `EV`, `AC`, `PV`, `WH`).
+            *   **direction**: Indicates energy flow: `1` (consumption) or `-1` (generation). (Mapped to 'positive'/'negative' for calculations).
+            *   **meter_consumption**: The total net energy measured at the meter associated with the specific reference period. May be repeated across equipment types for the same period. Units: kWh.
+            *   **equipment_consumption**: The estimated energy consumed (`positive` direction/`1`) or generated (`negative` direction/`-1`) by this specific `equipment_type` for the reference period. Units: kWh.
+            *   **equipment_disagg_start**: The start date (YYYY-MM-DD) of the specific period for which the equipment consumption is reported (derived from Unix timestamp).
             """)
         
         if not df_details_processed.empty:
             try:
-                # Select and rename columns for the final display table
+                # Select and order columns for the final display table using original names
+                # Use the formatted/mapped versions for display where appropriate
                 display_df_cols = [
-                    'Meter ID', 
-                    'Appliance Display Name', 
-                    'Direction', 
-                    'Meter Consumption (kWh)', 
-                    'Appliance Consumption (kWh)', 
-                    'Reference Date'
+                    'meter_id', 
+                    'equipment_type', # Show original code
+                    'direction',      # Show original direction
+                    'meter_consumption', 
+                    'equipment_consumption', 
+                    'equipment_disagg_start_formatted' # Show formatted date
                 ]
                 display_df = df_details_processed[display_df_cols].copy()
 
-                # Rename for final table header clarity
-                display_df = display_df.rename(columns={'Appliance Display Name': 'Appliance'}) 
+                # Rename only the formatted date column for final table header clarity
+                display_df = display_df.rename(columns={
+                    'equipment_disagg_start_formatted': 'equipment_disagg_start' 
+                }) 
 
-                # Set desired order
+                # Set desired order (using the renamed formatted date column)
                 final_display_order = [
-                    'Meter ID', 'Appliance', 'Direction', 
-                    'Meter Consumption (kWh)', 'Appliance Consumption (kWh)', 
-                    'Reference Date'
+                    'meter_id', 'equipment_type', 'direction', 
+                    'meter_consumption', 'equipment_consumption', 
+                    'equipment_disagg_start'
                 ]
                 display_df = display_df[final_display_order]
 
                 # Display Table 2
                 st.dataframe(display_df, use_container_width=True)
                 
-                unique_appliance_types = df_details_processed['Appliance Type'].unique()
+                # Use original column for unique types
+                unique_appliance_types = df_details_processed['equipment_type'].unique()
                 st.caption(f"Detected Appliance Types in Details File: {', '.join(unique_appliance_types)}")
 
             except Exception as e:
@@ -608,10 +603,19 @@ if page == "Sample Output":
         st.markdown("### Device Usage Patterns")
         st.markdown("Explore hourly and daily usage patterns for each device type.")
 
-        # Device selection for heatmaps (Use mapped display names)
+        # Device selection for heatmaps (Use mapped display names from appliance_display_map)
         heatmap_device_options = list(appliance_display_map.values())
+        # Add any types found in data but not in map, if necessary (unlikely with current map)
+        # known_types_in_data = df_details_processed['equipment_type'].unique()
+        # for type_code in known_types_in_data:
+        #     display_name = appliance_display_map.get(type_code, type_code)
+        #     if display_name not in heatmap_device_options:
+        #         heatmap_device_options.append(display_name)
+
         if not heatmap_device_options:
-             heatmap_device_options = ['EV Charging', 'AC Usage', 'PV Usage']
+             # Fallback if no known/mapped types found
+             heatmap_device_options = ['EV Charging', 'AC Usage', 'PV Usage'] 
+             st.warning("Using default device list for heatmaps as no known types were found in data.")
 
         selected_device_heatmap = st.selectbox(
             "Select Device to View Usage Patterns:",
