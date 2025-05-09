@@ -287,7 +287,7 @@ if page == "Sample Output":
         # --- Load Data --- 
         # Updated file paths (removed directory prefix)
         meters_csv_path = 'disagg_meters_BDR_50k.csv' 
-        details_csv_path = 'disagg_details_bdr_50k.csv' 
+        details_csv_path = 'disagg_details_BDR_50k.csv' 
         
         try:
             # Read meters data, explicitly handle potential errors during conversion
