@@ -262,6 +262,39 @@ except Exception as e:
 # Initialize selected_model to the default value before page logic
 selected_model = "V6" # Default model
 
+# --- Cached Data Loading Function for Sample Output ---
+@st.cache_data
+def load_sample_output_data(meters_csv_path, details_csv_path):
+    """Loads and performs initial processing for meters and details data."""
+    try:
+        # Read meters data, explicitly handle potential errors during conversion
+        df_meters = pd.read_csv(meters_csv_path)
+        # Ensure timestamp columns are numeric, coercing errors
+        df_meters['meter_disagg_start'] = pd.to_numeric(df_meters['meter_disagg_start'], errors='coerce')
+        df_meters['meter_disagg_end'] = pd.to_numeric(df_meters['meter_disagg_end'], errors='coerce')
+    except FileNotFoundError:
+        st.error(f"Error: Meters file '{meters_csv_path}' not found.")
+        df_meters = pd.DataFrame() # Return empty DataFrame
+    except Exception as e:
+        st.error(f"Error reading or processing meters CSV '{meters_csv_path}': {e}")
+        df_meters = pd.DataFrame() # Return empty DataFrame
+
+    try:
+        df_details = pd.read_csv(details_csv_path)
+        # Ensure timestamp and direction columns are numeric, coercing errors
+        df_details['equipment_disagg_start'] = pd.to_numeric(df_details['equipment_disagg_start'], errors='coerce')
+        df_details['direction'] = pd.to_numeric(df_details['direction'], errors='coerce')
+        df_details['meter_consumption'] = pd.to_numeric(df_details['meter_consumption'], errors='coerce')
+        df_details['equipment_consumption'] = pd.to_numeric(df_details['equipment_consumption'], errors='coerce')
+    except FileNotFoundError:
+        st.error(f"Error: Details file '{details_csv_path}' not found.")
+        df_details = pd.DataFrame() # Return empty DataFrame
+    except Exception as e:
+        st.error(f"Error reading or processing details CSV '{details_csv_path}': {e}")
+        df_details = pd.DataFrame() # Return empty DataFrame
+        
+    return df_meters, df_details
+
 if page == "Sample Output":
     # Sample Output page code goes here
     st.title("Energy Disaggregation Model: Output Structure Example")
@@ -284,40 +317,60 @@ if page == "Sample Output":
             return "Error"
 
     try:
-        # --- Load Data --- 
+        # --- Load Data using Cached Function --- 
         # Updated file paths (removed directory prefix)
         meters_csv_path = 'disagg_meters_BDR_50k.csv' 
         details_csv_path = 'disagg_details_BDR_50k.csv' 
         
-        try:
-            # Read meters data, explicitly handle potential errors during conversion
-            df_meters = pd.read_csv(meters_csv_path)
-            # Ensure timestamp columns are numeric, coercing errors
-            df_meters['meter_disagg_start'] = pd.to_numeric(df_meters['meter_disagg_start'], errors='coerce')
-            df_meters['meter_disagg_end'] = pd.to_numeric(df_meters['meter_disagg_end'], errors='coerce')
+        df_meters, df_details = load_sample_output_data(meters_csv_path, details_csv_path)
 
-        except FileNotFoundError:
-            st.error(f"Error: Meters file '{meters_csv_path}' not found.")
+        # --- Check if dataframes are loaded successfully ---
+        if df_meters.empty and df_details.empty:
+            st.error("Both meter and detail data files failed to load. Please check the file paths and file integrity.")
             st.stop()
-        except Exception as e:
-            st.error(f"Error reading or processing meters CSV '{meters_csv_path}': {e}")
+        elif df_meters.empty:
+            st.error(f"Meters data file '{meters_csv_path}' failed to load or is empty. Cannot proceed with Sample Output.")
             st.stop()
+        elif df_details.empty:
+            st.error(f"Details data file '{details_csv_path}' failed to load or is empty. Cannot proceed with Sample Output.")
+            st.stop()
+        
+        # Original error handling for df_meters and df_details can be removed or simplified
+        # as the cached function now handles FileNotFoundError and returns empty DFs.
+        # We just need to check if they are empty after the call.
 
-        # --- Load Details Data --- 
-        try:
-            df_details = pd.read_csv(details_csv_path)
-            # Ensure timestamp and direction columns are numeric, coercing errors
-            df_details['equipment_disagg_start'] = pd.to_numeric(df_details['equipment_disagg_start'], errors='coerce')
-            df_details['direction'] = pd.to_numeric(df_details['direction'], errors='coerce')
-            df_details['meter_consumption'] = pd.to_numeric(df_details['meter_consumption'], errors='coerce')
-            df_details['equipment_consumption'] = pd.to_numeric(df_details['equipment_consumption'], errors='coerce')
+        # --- Further processing starts here, assuming df_meters and df_details are not empty ---
 
-        except FileNotFoundError:
-            st.error(f"Error: Details file '{details_csv_path}' not found.")
-            st.stop()
-        except Exception as e:
-            st.error(f"Error reading or processing details CSV '{details_csv_path}': {e}") # Corrected indentation
-            st.stop()
+        # The FileNotFoundError checks below are now handled inside load_sample_output_data
+        # try:
+        #     # Read meters data, explicitly handle potential errors during conversion
+        #     df_meters = pd.read_csv(meters_csv_path)
+        #     # Ensure timestamp columns are numeric, coercing errors
+        #     df_meters['meter_disagg_start'] = pd.to_numeric(df_meters['meter_disagg_start'], errors='coerce')
+        #     df_meters['meter_disagg_end'] = pd.to_numeric(df_meters['meter_disagg_end'], errors='coerce')
+        #
+        # except FileNotFoundError:
+        #     st.error(f"Error: Meters file '{meters_csv_path}' not found.")
+        #     st.stop()
+        # except Exception as e:
+        #     st.error(f"Error reading or processing meters CSV '{meters_csv_path}': {e}")
+        #     st.stop()
+        #
+        # # --- Load Details Data --- 
+        # try:
+        #     df_details = pd.read_csv(details_csv_path)
+        #     # Ensure timestamp and direction columns are numeric, coercing errors
+        #     df_details['equipment_disagg_start'] = pd.to_numeric(df_details['equipment_disagg_start'], errors='coerce')
+        #     df_details['direction'] = pd.to_numeric(df_details['direction'], errors='coerce')
+        #     df_details['meter_consumption'] = pd.to_numeric(df_details['meter_consumption'], errors='coerce')
+        #     df_details['equipment_consumption'] = pd.to_numeric(df_details['equipment_consumption'], errors='coerce')
+        #
+        # except FileNotFoundError:
+        #     st.error(f"Error: Details file '{details_csv_path}' not found.")
+        #     st.stop()
+        # except Exception as e:
+        #     st.error(f"Error reading or processing details CSV '{details_csv_path}': {e}") # Corrected indentation
+        #     st.stop()
              
         st.markdown("""
         This page shows the output structure using data from meter and equipment detail files.
