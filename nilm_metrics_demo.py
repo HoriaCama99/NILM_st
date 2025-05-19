@@ -316,11 +316,11 @@ if page == "Sample Output":
             st.warning(f"Unexpected error formatting timestamp '{ts}': {e}")
             return "Error"
 
-    try:
-        # --- Load Data using Cached Function --- 
-        # Updated file paths (removed directory prefix)
-        meters_csv_path = 'disagg_meters_BDR_50k.csv' 
-        details_csv_path = 'disagg_details_BDR_50k.csv' 
+    # try:
+    #     # --- Load Data using Cached Function --- 
+    #     # Updated file paths (removed directory prefix)
+    #     meters_csv_path = 'disagg_meters_BDR_50k.csv' 
+    #     details_csv_path = 'disagg_details_BDR_50k.csv' 
         
         df_meters, df_details = load_sample_output_data(meters_csv_path, details_csv_path)
 
