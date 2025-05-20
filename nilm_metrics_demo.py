@@ -299,488 +299,488 @@ if page == "Sample Output":
     # Sample Output page code goes here
     st.title("Energy Disaggregation Model: Output Structure Example")
 
-    # Updated function to format Unix timestamp to YYYY-MM-DD string
-    def format_unix_timestamp_to_date(ts, date_format="%Y-%m-%d"):
-        """Converts a Unix timestamp (numeric) to a formatted date string (UTC)."""
-        if pd.isna(ts):
-            return "N/A"
-        try:
-            # Convert timestamp to datetime (assuming UTC)
-            dt_object = pd.to_datetime(float(ts), unit='s', utc=True)
-            return dt_object.strftime(date_format)
-        except (ValueError, TypeError):
-            # Handle cases where conversion fails (e.g., non-numeric string or invalid timestamp)
-            st.warning(f"Could not format timestamp '{ts}'") 
-            return "Invalid Date"
-        except Exception as e:
-            st.warning(f"Unexpected error formatting timestamp '{ts}': {e}")
-            return "Error"
+    # # Updated function to format Unix timestamp to YYYY-MM-DD string
+    # def format_unix_timestamp_to_date(ts, date_format="%Y-%m-%d"):
+    #     """Converts a Unix timestamp (numeric) to a formatted date string (UTC)."""
+    #     if pd.isna(ts):
+    #         return "N/A"
+    #     try:
+    #         # Convert timestamp to datetime (assuming UTC)
+    #         dt_object = pd.to_datetime(float(ts), unit='s', utc=True)
+    #         return dt_object.strftime(date_format)
+    #     except (ValueError, TypeError):
+    #         # Handle cases where conversion fails (e.g., non-numeric string or invalid timestamp)
+    #         st.warning(f"Could not format timestamp '{ts}'") 
+    #         return "Invalid Date"
+    #     except Exception as e:
+    #         st.warning(f"Unexpected error formatting timestamp '{ts}': {e}")
+    #         return "Error"
 
-    try:
-        # --- Load Data using Cached Function --- 
-        # Updated file paths (removed directory prefix)
-        meters_csv_path = 'disagg_meters_BDR_50k.csv' 
-        details_csv_path = 'disagg_details_BDR_50k.csv' 
+    # try:
+    #     # --- Load Data using Cached Function --- 
+    #     # Updated file paths (removed directory prefix)
+    #     meters_csv_path = 'disagg_meters_BDR_50k.csv' 
+    #     details_csv_path = 'disagg_details_BDR_50k.csv' 
         
-        df_meters, df_details = load_sample_output_data(meters_csv_path, details_csv_path)
+    #     df_meters, df_details = load_sample_output_data(meters_csv_path, details_csv_path)
 
-        # --- Check if dataframes are loaded successfully ---
-        if df_meters.empty and df_details.empty:
-            st.error("Both meter and detail data files failed to load. Please check the file paths and file integrity.")
-            st.stop()
-        elif df_meters.empty:
-            st.error(f"Meters data file '{meters_csv_path}' failed to load or is empty. Cannot proceed with Sample Output.")
-            st.stop()
-        elif df_details.empty:
-            st.error(f"Details data file '{details_csv_path}' failed to load or is empty. Cannot proceed with Sample Output.")
-            st.stop()
+    #     # --- Check if dataframes are loaded successfully ---
+    #     if df_meters.empty and df_details.empty:
+    #         st.error("Both meter and detail data files failed to load. Please check the file paths and file integrity.")
+    #         st.stop()
+    #     elif df_meters.empty:
+    #         st.error(f"Meters data file '{meters_csv_path}' failed to load or is empty. Cannot proceed with Sample Output.")
+    #         st.stop()
+    #     elif df_details.empty:
+    #         st.error(f"Details data file '{details_csv_path}' failed to load or is empty. Cannot proceed with Sample Output.")
+    #         st.stop()
         
-        # Original error handling for df_meters and df_details can be removed or simplified
-        # as the cached function now handles FileNotFoundError and returns empty DFs.
-        # We just need to check if they are empty after the call.
+    #     # Original error handling for df_meters and df_details can be removed or simplified
+    #     # as the cached function now handles FileNotFoundError and returns empty DFs.
+    #     # We just need to check if they are empty after the call.
 
-        # --- Further processing starts here, assuming df_meters and df_details are not empty ---
+    #     # --- Further processing starts here, assuming df_meters and df_details are not empty ---
 
-        # The FileNotFoundError checks below are now handled inside load_sample_output_data
-        # try:
-        #     # Read meters data, explicitly handle potential errors during conversion
-        #     df_meters = pd.read_csv(meters_csv_path)
-        #     # Ensure timestamp columns are numeric, coercing errors
-        #     df_meters['meter_disagg_start'] = pd.to_numeric(df_meters['meter_disagg_start'], errors='coerce')
-        #     df_meters['meter_disagg_end'] = pd.to_numeric(df_meters['meter_disagg_end'], errors='coerce')
-        #
-        # except FileNotFoundError:
-        #     st.error(f"Error: Meters file '{meters_csv_path}' not found.")
-        #     st.stop()
-        # except Exception as e:
-        #     st.error(f"Error reading or processing meters CSV '{meters_csv_path}': {e}")
-        #     st.stop()
-        #
-        # # --- Load Details Data --- 
-        # try:
-        #     df_details = pd.read_csv(details_csv_path)
-        #     # Ensure timestamp and direction columns are numeric, coercing errors
-        #     df_details['equipment_disagg_start'] = pd.to_numeric(df_details['equipment_disagg_start'], errors='coerce')
-        #     df_details['direction'] = pd.to_numeric(df_details['direction'], errors='coerce')
-        #     df_details['meter_consumption'] = pd.to_numeric(df_details['meter_consumption'], errors='coerce')
-        #     df_details['equipment_consumption'] = pd.to_numeric(df_details['equipment_consumption'], errors='coerce')
-        #
-        # except FileNotFoundError:
-        #     st.error(f"Error: Details file '{details_csv_path}' not found.")
-        #     st.stop()
-        # except Exception as e:
-        #     st.error(f"Error reading or processing details CSV '{details_csv_path}': {e}") # Corrected indentation
-        #     st.stop()
+    #     # The FileNotFoundError checks below are now handled inside load_sample_output_data
+    #     # try:
+    #     #     # Read meters data, explicitly handle potential errors during conversion
+    #     #     df_meters = pd.read_csv(meters_csv_path)
+    #     #     # Ensure timestamp columns are numeric, coercing errors
+    #     #     df_meters['meter_disagg_start'] = pd.to_numeric(df_meters['meter_disagg_start'], errors='coerce')
+    #     #     df_meters['meter_disagg_end'] = pd.to_numeric(df_meters['meter_disagg_end'], errors='coerce')
+    #     #
+    #     # except FileNotFoundError:
+    #     #     st.error(f"Error: Meters file '{meters_csv_path}' not found.")
+    #     #     st.stop()
+    #     # except Exception as e:
+    #     #     st.error(f"Error reading or processing meters CSV '{meters_csv_path}': {e}")
+    #     #     st.stop()
+    #     #
+    #     # # --- Load Details Data --- 
+    #     # try:
+    #     #     df_details = pd.read_csv(details_csv_path)
+    #     #     # Ensure timestamp and direction columns are numeric, coercing errors
+    #     #     df_details['equipment_disagg_start'] = pd.to_numeric(df_details['equipment_disagg_start'], errors='coerce')
+    #     #     df_details['direction'] = pd.to_numeric(df_details['direction'], errors='coerce')
+    #     #     df_details['meter_consumption'] = pd.to_numeric(df_details['meter_consumption'], errors='coerce')
+    #     #     df_details['equipment_consumption'] = pd.to_numeric(df_details['equipment_consumption'], errors='coerce')
+    #     #
+    #     # except FileNotFoundError:
+    #     #     st.error(f"Error: Details file '{details_csv_path}' not found.")
+    #     #     st.stop()
+    #     # except Exception as e:
+    #     #     st.error(f"Error reading or processing details CSV '{details_csv_path}': {e}") # Corrected indentation
+    #     #     st.stop()
              
-        st.markdown("""
-        This page shows the output structure using data from meter and equipment detail files.
-        Disaggregation start/end dates are displayed as YYYY-MM-DD.
-        """)
+    #     st.markdown("""
+    #     This page shows the output structure using data from meter and equipment detail files.
+    #     Disaggregation start/end dates are displayed as YYYY-MM-DD.
+    #     """)
 
-        # --- Prepare Meters Data (df_meters for Table 1) --- 
-        meter_id_col = 'meter_id'
-        if meter_id_col not in df_meters.columns:
-            st.error(f"Error: Meters CSV '{meters_csv_path}' is missing the required '{meter_id_col}' column.")
-            st.stop()
+    #     # --- Prepare Meters Data (df_meters for Table 1) --- 
+    #     meter_id_col = 'meter_id'
+    #     if meter_id_col not in df_meters.columns:
+    #         st.error(f"Error: Meters CSV '{meters_csv_path}' is missing the required '{meter_id_col}' column.")
+    #         st.stop()
 
-        meter_info_cols = ['meter_id', 'meter_disagg_start', 'meter_disagg_end', 'usage_interval_duration']
-        missing_meter_cols = [col for col in meter_info_cols if col not in df_meters.columns]
-        if missing_meter_cols:
-            st.error(f"Error: Meters CSV '{meters_csv_path}' is missing required columns: {missing_meter_cols}.")
-            st.stop()
+    #     meter_info_cols = ['meter_id', 'meter_disagg_start', 'meter_disagg_end', 'usage_interval_duration']
+    #     missing_meter_cols = [col for col in meter_info_cols if col not in df_meters.columns]
+    #     if missing_meter_cols:
+    #         st.error(f"Error: Meters CSV '{meters_csv_path}' is missing required columns: {missing_meter_cols}.")
+    #         st.stop()
             
-        # Select only necessary columns for meter info table (keep only one row per meter)
-        meter_info_df = df_meters[meter_info_cols].drop_duplicates(subset=[meter_id_col]).reset_index(drop=True)
+    #     # Select only necessary columns for meter info table (keep only one row per meter)
+    #     meter_info_df = df_meters[meter_info_cols].drop_duplicates(subset=[meter_id_col]).reset_index(drop=True)
 
-        # Create a copy for display formatting
-        meter_info_display_df = meter_info_df.copy()
-        # Format date columns for display using the updated function
-        meter_info_display_df['meter_disagg_start'] = meter_info_display_df['meter_disagg_start'].apply(format_unix_timestamp_to_date)
-        meter_info_display_df['meter_disagg_end'] = meter_info_display_df['meter_disagg_end'].apply(format_unix_timestamp_to_date)
+    #     # Create a copy for display formatting
+    #     meter_info_display_df = meter_info_df.copy()
+    #     # Format date columns for display using the updated function
+    #     meter_info_display_df['meter_disagg_start'] = meter_info_display_df['meter_disagg_start'].apply(format_unix_timestamp_to_date)
+    #     meter_info_display_df['meter_disagg_end'] = meter_info_display_df['meter_disagg_end'].apply(format_unix_timestamp_to_date)
 
 
-        # --- Create Table 1: Meter Information --- 
-        st.subheader("Table 1: Meter Information")
+    #     # --- Create Table 1: Meter Information --- 
+    #     st.subheader("Table 1: Meter Information")
         
-        # Add data dictionary explanation for Table 1 before displaying it
-        with st.expander("Table 1 Data Dictionary", expanded=False):
-            st.markdown("""
-            This table provides general information about each meter included in the analysis.
+    #     # Add data dictionary explanation for Table 1 before displaying it
+    #     with st.expander("Table 1 Data Dictionary", expanded=False):
+    #         st.markdown("""
+    #         This table provides general information about each meter included in the analysis.
 
-            *   **meter_id**: A unique identifier assigned to each household meter.
-            *   **meter_disagg_start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data (derived from Unix timestamp).
-            *   **meter_disagg_end**: The last date (YYYY-MM-DD) of the analysis period for this meter's data (derived from Unix timestamp).
-            *   **usage_interval_duration**: The time resolution of the energy readings used (e.g., '15 min', '1 hour').
-            """)
+    #         *   **meter_id**: A unique identifier assigned to each household meter.
+    #         *   **meter_disagg_start**: The first date (YYYY-MM-DD) of the analysis period for this meter's data (derived from Unix timestamp).
+    #         *   **meter_disagg_end**: The last date (YYYY-MM-DD) of the analysis period for this meter's data (derived from Unix timestamp).
+    #         *   **usage_interval_duration**: The time resolution of the energy readings used (e.g., '15 min', '1 hour').
+    #         """)
             
-        # Display Table 1 using the formatted copy
-        st.dataframe(meter_info_display_df, use_container_width=True)
+    #     # Display Table 1 using the formatted copy
+    #     st.dataframe(meter_info_display_df, use_container_width=True)
              
-        # --- Prepare Details Data (df_details for Table 2) ---
-        detail_id_col = 'meter_id' # Already checked df_details has this column
+    #     # --- Prepare Details Data (df_details for Table 2) ---
+    #     detail_id_col = 'meter_id' # Already checked df_details has this column
              
-        # Define required columns for Table 2 processing
-        required_detail_cols = [
-            'meter_id', 
-            'equipment_type', 
-            'direction', 
-            'meter_consumption', # New grid column equivalent
-            'equipment_consumption', # New appliance consumption column
-            'equipment_disagg_start' # Use as reference date
-        ]
-        # Check if all required columns are present (already checked id_col)
-        missing_detail_cols = [col for col in required_detail_cols if col not in df_details.columns]
-        if missing_detail_cols:
-            st.error(f"Error: Details CSV '{details_csv_path}' is missing required columns: {missing_detail_cols}.")
-            st.stop()
+    #     # Define required columns for Table 2 processing
+    #     required_detail_cols = [
+    #         'meter_id', 
+    #         'equipment_type', 
+    #         'direction', 
+    #         'meter_consumption', # New grid column equivalent
+    #         'equipment_consumption', # New appliance consumption column
+    #         'equipment_disagg_start' # Use as reference date
+    #     ]
+    #     # Check if all required columns are present (already checked id_col)
+    #     missing_detail_cols = [col for col in required_detail_cols if col not in df_details.columns]
+    #     if missing_detail_cols:
+    #         st.error(f"Error: Details CSV '{details_csv_path}' is missing required columns: {missing_detail_cols}.")
+    #         st.stop()
             
-        # Keep only necessary columns from details file
-        df_details_processed = df_details[required_detail_cols].copy()
+    #     # Keep only necessary columns from details file
+    #     df_details_processed = df_details[required_detail_cols].copy()
 
-        # Create derived columns for calculation/display without renaming originals
-        # Map Direction column: -1 -> negative, 1 -> positive
-        direction_map = {-1: 'negative', 1: 'positive'}
-        df_details_processed['direction_mapped'] = df_details_processed['direction'].fillna(0).map(direction_map).fillna('unknown')
+    #     # Create derived columns for calculation/display without renaming originals
+    #     # Map Direction column: -1 -> negative, 1 -> positive
+    #     direction_map = {-1: 'negative', 1: 'positive'}
+    #     df_details_processed['direction_mapped'] = df_details_processed['direction'].fillna(0).map(direction_map).fillna('unknown')
 
-        # Ensure consumption columns are numeric
-        df_details_processed['meter_consumption'] = pd.to_numeric(df_details_processed['meter_consumption'], errors='coerce').fillna(0)
-        df_details_processed['equipment_consumption'] = pd.to_numeric(df_details_processed['equipment_consumption'], errors='coerce').fillna(0)
+    #     # Ensure consumption columns are numeric
+    #     df_details_processed['meter_consumption'] = pd.to_numeric(df_details_processed['meter_consumption'], errors='coerce').fillna(0)
+    #     df_details_processed['equipment_consumption'] = pd.to_numeric(df_details_processed['equipment_consumption'], errors='coerce').fillna(0)
 
-        # Format Reference Date using the updated timestamp function
-        df_details_processed['equipment_disagg_start_formatted'] = df_details_processed['equipment_disagg_start'].apply(format_unix_timestamp_to_date)
+    #     # Format Reference Date using the updated timestamp function
+    #     df_details_processed['equipment_disagg_start_formatted'] = df_details_processed['equipment_disagg_start'].apply(format_unix_timestamp_to_date)
         
-        # Map Appliance Types for display
-        appliance_display_map = {
-            'EV': 'EV Charging',
-            'PV': 'Solar PV',
-            'AC': 'Air Conditioning',
-            'WH': 'Water Heater'
-        }
-        df_details_processed['equipment_type_display'] = df_details_processed['equipment_type'].map(appliance_display_map).fillna(df_details_processed['equipment_type'])
+    #     # Map Appliance Types for display
+    #     appliance_display_map = {
+    #         'EV': 'EV Charging',
+    #         'PV': 'Solar PV',
+    #         'AC': 'Air Conditioning',
+    #         'WH': 'Water Heater'
+    #     }
+    #     df_details_processed['equipment_type_display'] = df_details_processed['equipment_type'].map(appliance_display_map).fillna(df_details_processed['equipment_type'])
 
-        # --- QC: Adjust Appliance Consumption --- 
-        st.info("QC Note: Consumption scaling based on total meter value is not applied with this data structure.")
+    #     # --- QC: Adjust Appliance Consumption --- 
+    #     st.info("QC Note: Consumption scaling based on total meter value is not applied with this data structure.")
 
-        # --- Calculate Data for Plots and Metrics --- (Using original and derived columns)
-        total_unique_meters = df_details_processed['meter_id'].nunique()
+    #     # --- Calculate Data for Plots and Metrics --- (Using original and derived columns)
+    #     total_unique_meters = df_details_processed['meter_id'].nunique()
         
-        # Use mapped direction strings for filtering
-        consuming_df = df_details_processed[df_details_processed['direction_mapped'] == 'positive']
-        generating_df = df_details_processed[df_details_processed['direction_mapped'] == 'negative']
+    #     # Use mapped direction strings for filtering
+    #     consuming_df = df_details_processed[df_details_processed['direction_mapped'] == 'positive']
+    #     generating_df = df_details_processed[df_details_processed['direction_mapped'] == 'negative']
 
-        appliance_presence = {}
-        energy_totals = {}
-        avg_meter_consumption = 0
-        avg_pv_prod = 0
-        pct_identified = 0
-        total_identified_consumption = 0
-        total_meter_consumption = 0
+    #     appliance_presence = {}
+    #     energy_totals = {}
+    #     avg_meter_consumption = 0
+    #     avg_pv_prod = 0
+    #     pct_identified = 0
+    #     total_identified_consumption = 0
+    #     total_meter_consumption = 0
 
-        if total_unique_meters > 0:
-            # Calculate Presence based on original equipment_type
-            presence_counts = df_details_processed.groupby('equipment_type')['meter_id'].nunique()
-            appliance_presence = {
-                # Use display name for keys in the result dictionary
-                appliance_display_map.get(code, code): (presence_counts.get(code, 0) / total_unique_meters) * 100 
-                for code in df_details_processed['equipment_type'].unique() if code in appliance_display_map # Only map known types
-            }
+    #     if total_unique_meters > 0:
+    #         # Calculate Presence based on original equipment_type
+    #         presence_counts = df_details_processed.groupby('equipment_type')['meter_id'].nunique()
+    #         appliance_presence = {
+    #             # Use display name for keys in the result dictionary
+    #             appliance_display_map.get(code, code): (presence_counts.get(code, 0) / total_unique_meters) * 100 
+    #             for code in df_details_processed['equipment_type'].unique() if code in appliance_display_map # Only map known types
+    #         }
 
-            # Calculate Energy Totals based on original equipment_type
-            energy_sum_by_type = consuming_df.groupby('equipment_type')['equipment_consumption'].sum()
-            ev_total = energy_sum_by_type.get('EV', 0)
-            ac_total = energy_sum_by_type.get('AC', 0)
-            wh_total = energy_sum_by_type.get('WH', 0)
-            total_identified_consumption = ev_total + ac_total + wh_total
+    #         # Calculate Energy Totals based on original equipment_type
+    #         energy_sum_by_type = consuming_df.groupby('equipment_type')['equipment_consumption'].sum()
+    #         ev_total = energy_sum_by_type.get('EV', 0)
+    #         ac_total = energy_sum_by_type.get('AC', 0)
+    #         wh_total = energy_sum_by_type.get('WH', 0)
+    #         total_identified_consumption = ev_total + ac_total + wh_total
             
-            # Calculate Total Meter Consumption using original columns
-            unique_meter_consumption = df_details_processed[['meter_id', 'equipment_disagg_start', 'meter_consumption']].drop_duplicates()
-            total_meter_consumption = unique_meter_consumption['meter_consumption'].sum()
-            avg_meter_consumption = unique_meter_consumption['meter_consumption'].mean()
+    #         # Calculate Total Meter Consumption using original columns
+    #         unique_meter_consumption = df_details_processed[['meter_id', 'equipment_disagg_start', 'meter_consumption']].drop_duplicates()
+    #         total_meter_consumption = unique_meter_consumption['meter_consumption'].sum()
+    #         avg_meter_consumption = unique_meter_consumption['meter_consumption'].mean()
             
-            # Calculate Other Consumption
-            other_consumption = max(0, total_meter_consumption - total_identified_consumption)
-            # Use display names for keys in the result dictionary
-            energy_totals = {
-                appliance_display_map.get('EV', 'EV'): ev_total,
-                appliance_display_map.get('AC', 'AC'): ac_total,
-                appliance_display_map.get('WH', 'WH'): wh_total,
-                'Other Consumption': other_consumption 
-            }
+    #         # Calculate Other Consumption
+    #         other_consumption = max(0, total_meter_consumption - total_identified_consumption)
+    #         # Use display names for keys in the result dictionary
+    #         energy_totals = {
+    #             appliance_display_map.get('EV', 'EV'): ev_total,
+    #             appliance_display_map.get('AC', 'AC'): ac_total,
+    #             appliance_display_map.get('WH', 'WH'): wh_total,
+    #             'Other Consumption': other_consumption 
+    #         }
             
-            # Calculate Avg PV Production using original equipment_type
-            pv_generation = generating_df[generating_df['equipment_type'] == 'PV']['equipment_consumption']
-            # Use absolute value for production
-            avg_pv_prod = abs(pv_generation.mean()) if not pv_generation.empty else 0
+    #         # Calculate Avg PV Production using original equipment_type
+    #         pv_generation = generating_df[generating_df['equipment_type'] == 'PV']['equipment_consumption']
+    #         # Use absolute value for production
+    #         avg_pv_prod = abs(pv_generation.mean()) if not pv_generation.empty else 0
             
-            # Calculate % Consumption Identified
-            pct_identified = (total_identified_consumption / total_meter_consumption * 100) if total_meter_consumption > 0 else 0
-        else:
-             st.info("No appliance data found to calculate plots and metrics.")
+    #         # Calculate % Consumption Identified
+    #         pct_identified = (total_identified_consumption / total_meter_consumption * 100) if total_meter_consumption > 0 else 0
+    #     else:
+    #          st.info("No appliance data found to calculate plots and metrics.")
 
-        # --- Display Plots and Metrics --- 
-        st.markdown("### Visualization and Key Metrics")
-        plot_col1, plot_col2 = st.columns(2)
+    #     # --- Display Plots and Metrics --- 
+    #     st.markdown("### Visualization and Key Metrics")
+    #     plot_col1, plot_col2 = st.columns(2)
 
-        with plot_col1:
-            st.subheader("Appliance Presence")
-            if appliance_presence:
-                # Use display names from appliance_presence keys
-                filtered_presence = {k: v for k, v in appliance_presence.items() if v > 0}
-                if filtered_presence:
-                    # Corrected indentation for fig1 creation
-                    fig1 = px.bar(
-                        x=list(filtered_presence.keys()),
-                        y=list(filtered_presence.values()),
-                        labels={'x': 'Appliance Type', 'y': 'Percentage of Homes (%)'},
-                        color=list(filtered_presence.keys()), 
-                        color_discrete_map={ 
-                                'EV Charging': primary_purple, 'Air Conditioning': green,
-                                'Solar PV': cream, 'Water Heater': salmon
-                        },
-                        text=[f"{val:.1f}%" for val in filtered_presence.values()]
-                    )
-                    fig1.update_layout(
-                        showlegend=False, yaxis_range=[0, 100],
-                        margin=dict(l=20, r=20, t=30, b=20),
-                        paper_bgcolor=white, plot_bgcolor=white, font=dict(color=dark_purple)
-                    )
-                    fig1.update_traces(textposition='outside', textfont=dict(color=dark_purple))
-                    fig1.update_xaxes(showgrid=False, tickfont=dict(color=dark_purple))
-                    fig1.update_yaxes(showgrid=True, gridcolor=light_purple, tickfont=dict(color=dark_purple))
-                    st.plotly_chart(fig1, use_container_width=True)
-                else:
-                    # Corrected indentation for else block
-                    st.caption("No appliances detected in this sample.")
-            else:
-                st.caption("Presence data not available.")
+    #     with plot_col1:
+    #         st.subheader("Appliance Presence")
+    #         if appliance_presence:
+    #             # Use display names from appliance_presence keys
+    #             filtered_presence = {k: v for k, v in appliance_presence.items() if v > 0}
+    #             if filtered_presence:
+    #                 # Corrected indentation for fig1 creation
+    #                 fig1 = px.bar(
+    #                     x=list(filtered_presence.keys()),
+    #                     y=list(filtered_presence.values()),
+    #                     labels={'x': 'Appliance Type', 'y': 'Percentage of Homes (%)'},
+    #                     color=list(filtered_presence.keys()), 
+    #                     color_discrete_map={ 
+    #                             'EV Charging': primary_purple, 'Air Conditioning': green,
+    #                             'Solar PV': cream, 'Water Heater': salmon
+    #                     },
+    #                     text=[f"{val:.1f}%" for val in filtered_presence.values()]
+    #                 )
+    #                 fig1.update_layout(
+    #                     showlegend=False, yaxis_range=[0, 100],
+    #                     margin=dict(l=20, r=20, t=30, b=20),
+    #                     paper_bgcolor=white, plot_bgcolor=white, font=dict(color=dark_purple)
+    #                 )
+    #                 fig1.update_traces(textposition='outside', textfont=dict(color=dark_purple))
+    #                 fig1.update_xaxes(showgrid=False, tickfont=dict(color=dark_purple))
+    #                 fig1.update_yaxes(showgrid=True, gridcolor=light_purple, tickfont=dict(color=dark_purple))
+    #                 st.plotly_chart(fig1, use_container_width=True)
+    #             else:
+    #                 # Corrected indentation for else block
+    #                 st.caption("No appliances detected in this sample.")
+    #         else:
+    #             st.caption("Presence data not available.")
 
-        with plot_col2:
-            st.subheader("Total Energy Distribution")
-            # Use display names from energy_totals keys
-            filtered_energy_totals = {k: v for k, v in energy_totals.items() if v > 0}
-            if filtered_energy_totals and sum(filtered_energy_totals.values()) > 0:
-                fig2 = px.pie(
-                    values=list(filtered_energy_totals.values()),
-                    names=list(filtered_energy_totals.keys()),
-                    color=list(filtered_energy_totals.keys()), 
-                    color_discrete_map={ 
-                            'EV Charging': primary_purple, 'Air Conditioning': green,
-                            'Water Heater': salmon, 'Other Consumption': light_purple
-                    },
-                    hole=0.4
-                )
-                fig2.update_layout(
-                    legend_title="Energy Type", margin=dict(l=20, r=20, t=30, b=20),
-                    paper_bgcolor=white, plot_bgcolor=white, font=dict(color=dark_purple),
-                    legend=dict(font=dict(color=dark_purple))
-                )
-                fig2.update_traces(
-                    textinfo='percent+label', hovertemplate='%{label}<br>%{value:.1f} kWh<br>%{percent}',
-                    textfont=dict(color=dark_gray) 
-                )
-                st.plotly_chart(fig2, use_container_width=True)
-            else:
-                 st.caption("Energy distribution data not available or sums to zero.")
+    #     with plot_col2:
+    #         st.subheader("Total Energy Distribution")
+    #         # Use display names from energy_totals keys
+    #         filtered_energy_totals = {k: v for k, v in energy_totals.items() if v > 0}
+    #         if filtered_energy_totals and sum(filtered_energy_totals.values()) > 0:
+    #             fig2 = px.pie(
+    #                 values=list(filtered_energy_totals.values()),
+    #                 names=list(filtered_energy_totals.keys()),
+    #                 color=list(filtered_energy_totals.keys()), 
+    #                 color_discrete_map={ 
+    #                         'EV Charging': primary_purple, 'Air Conditioning': green,
+    #                         'Water Heater': salmon, 'Other Consumption': light_purple
+    #                 },
+    #                 hole=0.4
+    #             )
+    #             fig2.update_layout(
+    #                 legend_title="Energy Type", margin=dict(l=20, r=20, t=30, b=20),
+    #                 paper_bgcolor=white, plot_bgcolor=white, font=dict(color=dark_purple),
+    #                 legend=dict(font=dict(color=dark_purple))
+    #             )
+    #             fig2.update_traces(
+    #                 textinfo='percent+label', hovertemplate='%{label}<br>%{value:.1f} kWh<br>%{percent}',
+    #                 textfont=dict(color=dark_gray) 
+    #             )
+    #             st.plotly_chart(fig2, use_container_width=True)
+    #         else:
+    #              st.caption("Energy distribution data not available or sums to zero.")
 
-        # Key Metrics Section
-        st.subheader("Key Metrics")
-        metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-        with metric_col1:
-            st.metric(label="Total Homes", value=f"{total_unique_meters:,}")
-        with metric_col2:
-            # Use original column name for help text if needed
-            st.metric(label="Avg. Meter Consumption", value=f"{avg_meter_consumption:.1f} kWh", help="Average meter_consumption across unique meter_id/equipment_disagg_start combinations.")
-        with metric_col3:
-            # Use absolute value for display
-            st.metric(label="Avg. Solar Production (PV)", value=f"{avg_pv_prod:.1f} kWh", help="Average absolute equipment_consumption for detected PV systems (based on negative direction).")
-        with metric_col4:
-            st.metric(label="Consumption Identified", value=f"{pct_identified:.1f}%", help="% of total meter_consumption attributed to detected EV, AC, and WH equipment_consumption.")
+    #     # Key Metrics Section
+    #     st.subheader("Key Metrics")
+    #     metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+    #     with metric_col1:
+    #         st.metric(label="Total Homes", value=f"{total_unique_meters:,}")
+    #     with metric_col2:
+    #         # Use original column name for help text if needed
+    #         st.metric(label="Avg. Meter Consumption", value=f"{avg_meter_consumption:.1f} kWh", help="Average meter_consumption across unique meter_id/equipment_disagg_start combinations.")
+    #     with metric_col3:
+    #         # Use absolute value for display
+    #         st.metric(label="Avg. Solar Production (PV)", value=f"{avg_pv_prod:.1f} kWh", help="Average absolute equipment_consumption for detected PV systems (based on negative direction).")
+    #     with metric_col4:
+    #         st.metric(label="Consumption Identified", value=f"{pct_identified:.1f}%", help="% of total meter_consumption attributed to detected EV, AC, and WH equipment_consumption.")
 
-        # --- Prepare and Display Table 2 --- 
-        st.subheader("Table 2: Appliance Breakdown")
+    #     # --- Prepare and Display Table 2 --- 
+    #     st.subheader("Table 2: Appliance Breakdown")
         
-        # Add data dictionary explanation for Table 2 before displaying it
-        with st.expander("Table 2 Data Dictionary", expanded=False):
-            st.markdown("""
-            This table shows the detailed disaggregation results for specific equipment types within each meter's analysis window.
+    #     # Add data dictionary explanation for Table 2 before displaying it
+    #     with st.expander("Table 2 Data Dictionary", expanded=False):
+    #         st.markdown("""
+    #         This table shows the detailed disaggregation results for specific equipment types within each meter's analysis window.
 
-            *   **meter_id**: Links back to the meter in Table 1.
-            *   **equipment_type**: Code for the detected appliance (e.g., `EV`, `AC`, `PV`, `WH`).
-            *   **direction**: Indicates energy flow: `1` (consumption) or `-1` (generation). (Mapped to 'positive'/'negative' for calculations).
-            *   **meter_consumption**: The total net energy measured at the meter associated with the specific reference period. May be repeated across equipment types for the same period. Units: kWh.
-            *   **equipment_consumption**: The estimated energy consumed (`positive` direction/`1`) or generated (`negative` direction/`-1`) by this specific `equipment_type` for the reference period. Units: kWh.
-            *   **equipment_disagg_start**: The start date (YYYY-MM-DD) of the specific period for which the equipment consumption is reported (derived from Unix timestamp).
-            """)
+    #         *   **meter_id**: Links back to the meter in Table 1.
+    #         *   **equipment_type**: Code for the detected appliance (e.g., `EV`, `AC`, `PV`, `WH`).
+    #         *   **direction**: Indicates energy flow: `1` (consumption) or `-1` (generation). (Mapped to 'positive'/'negative' for calculations).
+    #         *   **meter_consumption**: The total net energy measured at the meter associated with the specific reference period. May be repeated across equipment types for the same period. Units: kWh.
+    #         *   **equipment_consumption**: The estimated energy consumed (`positive` direction/`1`) or generated (`negative` direction/`-1`) by this specific `equipment_type` for the reference period. Units: kWh.
+    #         *   **equipment_disagg_start**: The start date (YYYY-MM-DD) of the specific period for which the equipment consumption is reported (derived from Unix timestamp).
+    #         """)
         
-        if not df_details_processed.empty:
-            try:
-                # Select and order columns for the final display table using original names
-                # Use the formatted/mapped versions for display where appropriate
-                display_df_cols = [
-                    'meter_id', 
-                    'equipment_type', # Show original code
-                    'direction',      # Show original direction
-                    'meter_consumption', 
-                    'equipment_consumption', 
-                    'equipment_disagg_start_formatted' # Show formatted date
-                ]
-                display_df = df_details_processed[display_df_cols].copy()
+    #     if not df_details_processed.empty:
+    #         try:
+    #             # Select and order columns for the final display table using original names
+    #             # Use the formatted/mapped versions for display where appropriate
+    #             display_df_cols = [
+    #                 'meter_id', 
+    #                 'equipment_type', # Show original code
+    #                 'direction',      # Show original direction
+    #                 'meter_consumption', 
+    #                 'equipment_consumption', 
+    #                 'equipment_disagg_start_formatted' # Show formatted date
+    #             ]
+    #             display_df = df_details_processed[display_df_cols].copy()
 
-                # Rename only the formatted date column for final table header clarity
-                display_df = display_df.rename(columns={
-                    'equipment_disagg_start_formatted': 'equipment_disagg_start' 
-                }) 
+    #             # Rename only the formatted date column for final table header clarity
+    #             display_df = display_df.rename(columns={
+    #                 'equipment_disagg_start_formatted': 'equipment_disagg_start' 
+    #             }) 
 
-                # Set desired order (using the renamed formatted date column)
-                final_display_order = [
-                    'meter_id', 'equipment_type', 'direction', 
-                    'meter_consumption', 'equipment_consumption', 
-                    'equipment_disagg_start'
-                ]
-                display_df = display_df[final_display_order]
+    #             # Set desired order (using the renamed formatted date column)
+    #             final_display_order = [
+    #                 'meter_id', 'equipment_type', 'direction', 
+    #                 'meter_consumption', 'equipment_consumption', 
+    #                 'equipment_disagg_start'
+    #             ]
+    #             display_df = display_df[final_display_order]
 
-                # Display Table 2
-                st.dataframe(display_df, use_container_width=True)
+    #             # Display Table 2
+    #             st.dataframe(display_df, use_container_width=True)
                 
-                # Use original column for unique types
-                unique_appliance_types = df_details_processed['equipment_type'].unique()
-                st.caption(f"Detected Appliance Types in Details File: {', '.join(unique_appliance_types)}")
+    #             # Use original column for unique types
+    #             unique_appliance_types = df_details_processed['equipment_type'].unique()
+    #             st.caption(f"Detected Appliance Types in Details File: {', '.join(unique_appliance_types)}")
 
-            except Exception as e:
-                st.error(f"An error occurred preparing Table 2 for display: {e}")
-                st.exception(e)
-        else:
-             st.info("No data available for Appliance Breakdown Table.")
+    #         except Exception as e:
+    #             st.error(f"An error occurred preparing Table 2 for display: {e}")
+    #             st.exception(e)
+    #     else:
+    #          st.info("No data available for Appliance Breakdown Table.")
 
-        # --- Add Device Usage Heatmaps --- (Uses random data, updated device list)
-        st.markdown("### Device Usage Patterns")
-        st.markdown("Explore hourly and daily usage patterns for each device type.")
+    #     # --- Add Device Usage Heatmaps --- (Uses random data, updated device list)
+    #     st.markdown("### Device Usage Patterns")
+    #     st.markdown("Explore hourly and daily usage patterns for each device type.")
 
-        # Device selection for heatmaps (Use mapped display names from appliance_display_map)
-        heatmap_device_options = list(appliance_display_map.values())
-        # Add any types found in data but not in map, if necessary (unlikely with current map)
-        # known_types_in_data = df_details_processed['equipment_type'].unique()
-        # for type_code in known_types_in_data:
-        #     display_name = appliance_display_map.get(type_code, type_code)
-        #     if display_name not in heatmap_device_options:
-        #         heatmap_device_options.append(display_name)
+    #     # Device selection for heatmaps (Use mapped display names from appliance_display_map)
+    #     heatmap_device_options = list(appliance_display_map.values())
+    #     # Add any types found in data but not in map, if necessary (unlikely with current map)
+    #     # known_types_in_data = df_details_processed['equipment_type'].unique()
+    #     # for type_code in known_types_in_data:
+    #     #     display_name = appliance_display_map.get(type_code, type_code)
+    #     #     if display_name not in heatmap_device_options:
+    #     #         heatmap_device_options.append(display_name)
 
-        if not heatmap_device_options:
-             # Fallback if no known/mapped types found
-             heatmap_device_options = ['EV Charging', 'AC Usage', 'PV Usage'] 
-             st.warning("Using default device list for heatmaps as no known types were found in data.")
+    #     if not heatmap_device_options:
+    #          # Fallback if no known/mapped types found
+    #          heatmap_device_options = ['EV Charging', 'AC Usage', 'PV Usage'] 
+    #          st.warning("Using default device list for heatmaps as no known types were found in data.")
 
-        selected_device_heatmap = st.selectbox(
-            "Select Device to View Usage Patterns:",
-            heatmap_device_options,
-            key="heatmap_device_selector"
-        )
+    #     selected_device_heatmap = st.selectbox(
+    #         "Select Device to View Usage Patterns:",
+    #         heatmap_device_options,
+    #         key="heatmap_device_selector"
+    #     )
 
-        # Create two columns for the heatmaps
-        heatmap_col1, heatmap_col2 = st.columns(2)
+    #     # Create two columns for the heatmaps
+    #     heatmap_col1, heatmap_col2 = st.columns(2)
 
-        with heatmap_col1:
-            st.subheader("Weekly Usage Pattern")
+    #     with heatmap_col1:
+    #         st.subheader("Weekly Usage Pattern")
             
-            # Generate sample data for weekly pattern (24 hours x 7 days)
-            # (Keep sample data logic for now)
-            if selected_device_heatmap == "EV Charging":
-                # EV charging typically happens at night
-                weekly_data = np.random.normal(0.3, 0.1, size=(7, 24))
-                weekly_data[:, 18:23] *= 3  # Higher usage in evening
-                weekly_data[:, 0:5] *= 2    # Some usage in early morning
-            elif selected_device_heatmap == "AC Usage":
-                # AC usage peaks during afternoon
-                weekly_data = np.random.normal(0.4, 0.1, size=(7, 24))
-                weekly_data[:, 12:18] *= 2.5  # Higher usage in afternoon
-                weekly_data[:, 2:6] *= 0.5    # Lower usage in early morning
-            elif selected_device_heatmap == "Solar PV": # Match mapped name
-                # Solar generation peaks during daylight hours
-                weekly_data = np.zeros((7, 24))
-                weekly_data[:, 6:18] = np.random.normal(0.8, 0.2, size=(7, 12))  # Daylight hours
-                weekly_data[:, [6, 18]] *= 0.5  # Lower at dawn/dusk
-            else: # Default for other types like Water Heater
-                 weekly_data = np.random.rand(7, 24) * 0.5
+    #         # Generate sample data for weekly pattern (24 hours x 7 days)
+    #         # (Keep sample data logic for now)
+    #         if selected_device_heatmap == "EV Charging":
+    #             # EV charging typically happens at night
+    #             weekly_data = np.random.normal(0.3, 0.1, size=(7, 24))
+    #             weekly_data[:, 18:23] *= 3  # Higher usage in evening
+    #             weekly_data[:, 0:5] *= 2    # Some usage in early morning
+    #         elif selected_device_heatmap == "AC Usage":
+    #             # AC usage peaks during afternoon
+    #             weekly_data = np.random.normal(0.4, 0.1, size=(7, 24))
+    #             weekly_data[:, 12:18] *= 2.5  # Higher usage in afternoon
+    #             weekly_data[:, 2:6] *= 0.5    # Lower usage in early morning
+    #         elif selected_device_heatmap == "Solar PV": # Match mapped name
+    #             # Solar generation peaks during daylight hours
+    #             weekly_data = np.zeros((7, 24))
+    #             weekly_data[:, 6:18] = np.random.normal(0.8, 0.2, size=(7, 12))  # Daylight hours
+    #             weekly_data[:, [6, 18]] *= 0.5  # Lower at dawn/dusk
+    #         else: # Default for other types like Water Heater
+    #              weekly_data = np.random.rand(7, 24) * 0.5
 
-            # Ensure non-negative values
-            weekly_data = np.maximum(weekly_data, 0)
+    #         # Ensure non-negative values
+    #         weekly_data = np.maximum(weekly_data, 0)
 
-            # Create weekly heatmap with a more visible colorscale
-            fig_weekly = go.Figure(data=go.Heatmap(
-                z=weekly_data,
-                x=[f"{i:02d}:00" for i in range(24)],
-                y=['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-                colorscale='Purples',  # Using a predefined colorscale for better visibility
-                hoverongaps=False,
-                hovertemplate='Day: %{y}<br>Hour: %{x}<br>Usage: %{z:.2f}<extra></extra>'
-            ))
+    #         # Create weekly heatmap with a more visible colorscale
+    #         fig_weekly = go.Figure(data=go.Heatmap(
+    #             z=weekly_data,
+    #             x=[f"{i:02d}:00" for i in range(24)],
+    #             y=['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    #             colorscale='Purples',  # Using a predefined colorscale for better visibility
+    #             hoverongaps=False,
+    #             hovertemplate='Day: %{y}<br>Hour: %{x}<br>Usage: %{z:.2f}<extra></extra>'
+    #         ))
 
-            fig_weekly.update_layout(
-                title=f"Hourly {selected_device_heatmap} Pattern",
-                xaxis_title="Hour of Day",
-                yaxis_title="Day of Week",
-                height=400,
-                paper_bgcolor=white,
-                plot_bgcolor=white,
-                font=dict(color=dark_purple)
-            )
+    #         fig_weekly.update_layout(
+    #             title=f"Hourly {selected_device_heatmap} Pattern",
+    #             xaxis_title="Hour of Day",
+    #             yaxis_title="Day of Week",
+    #             height=400,
+    #             paper_bgcolor=white,
+    #             plot_bgcolor=white,
+    #             font=dict(color=dark_purple)
+    #         )
 
-            st.plotly_chart(fig_weekly, use_container_width=True)
+    #         st.plotly_chart(fig_weekly, use_container_width=True)
 
-        with heatmap_col2:
-            st.subheader("Monthly Usage Pattern")
+    #     with heatmap_col2:
+    #         st.subheader("Monthly Usage Pattern")
             
-            # Generate sample data for monthly pattern (7 days x 5 weeks)
-            # (Keep sample data logic for now)
-            if selected_device_heatmap == "EV Charging":
-                # EV charging more consistent through the month
-                monthly_data = np.random.normal(0.5, 0.2, size=(5, 7))
-            elif selected_device_heatmap == "AC Usage":
-                # AC usage varies with temperature patterns
-                monthly_data = np.random.normal(0.6, 0.3, size=(5, 7))
-                monthly_data[2:4] *= 1.5  # Higher usage in middle of month
-            elif selected_device_heatmap == "Solar PV": # Match mapped name
-                # Solar generation varies with weather
-                monthly_data = np.random.normal(0.7, 0.2, size=(5, 7))
-                monthly_data *= np.linspace(0.8, 1.2, 5)[:, np.newaxis]  # Trend across month
-            else: # Default for other types
-                 monthly_data = np.random.rand(5, 7) * 0.6
+    #         # Generate sample data for monthly pattern (7 days x 5 weeks)
+    #         # (Keep sample data logic for now)
+    #         if selected_device_heatmap == "EV Charging":
+    #             # EV charging more consistent through the month
+    #             monthly_data = np.random.normal(0.5, 0.2, size=(5, 7))
+    #         elif selected_device_heatmap == "AC Usage":
+    #             # AC usage varies with temperature patterns
+    #             monthly_data = np.random.normal(0.6, 0.3, size=(5, 7))
+    #             monthly_data[2:4] *= 1.5  # Higher usage in middle of month
+    #         elif selected_device_heatmap == "Solar PV": # Match mapped name
+    #             # Solar generation varies with weather
+    #             monthly_data = np.random.normal(0.7, 0.2, size=(5, 7))
+    #             monthly_data *= np.linspace(0.8, 1.2, 5)[:, np.newaxis]  # Trend across month
+    #         else: # Default for other types
+    #              monthly_data = np.random.rand(5, 7) * 0.6
 
-            # Ensure non-negative values
-            monthly_data = np.maximum(monthly_data, 0)
+    #         # Ensure non-negative values
+    #         monthly_data = np.maximum(monthly_data, 0)
 
-            # Create monthly heatmap with a more visible colorscale
-            fig_monthly = go.Figure(data=go.Heatmap(
-                z=monthly_data,
-                x=['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-                y=['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5'],
-                colorscale='Purples',  # Using a predefined colorscale for better visibility
-                hoverongaps=False,
-                hovertemplate='Week: %{y}<br>Day: %{x}<br>Usage: %{z:.2f}<extra></extra>'
-            ))
+    #         # Create monthly heatmap with a more visible colorscale
+    #         fig_monthly = go.Figure(data=go.Heatmap(
+    #             z=monthly_data,
+    #             x=['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    #             y=['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5'],
+    #             colorscale='Purples',  # Using a predefined colorscale for better visibility
+    #             hoverongaps=False,
+    #             hovertemplate='Week: %{y}<br>Day: %{x}<br>Usage: %{z:.2f}<extra></extra>'
+    #         ))
 
-            fig_monthly.update_layout(
-                title=f"Daily {selected_device_heatmap} Pattern",
-                xaxis_title="Day of Week",
-                yaxis_title="Week of Month",
-                height=400,
-                paper_bgcolor=white,
-                plot_bgcolor=white,
-                font=dict(color=dark_purple)
-            )
+    #         fig_monthly.update_layout(
+    #             title=f"Daily {selected_device_heatmap} Pattern",
+    #             xaxis_title="Day of Week",
+    #             yaxis_title="Week of Month",
+    #             height=400,
+    #             paper_bgcolor=white,
+    #             plot_bgcolor=white,
+    #             font=dict(color=dark_purple)
+    #         )
 
-            st.plotly_chart(fig_monthly, use_container_width=True)
+    #         st.plotly_chart(fig_monthly, use_container_width=True)
 
-        # Add explanatory text in expander
-        with st.expander("About Device Usage Patterns", expanded=False):
-            st.markdown(f"""
-            These heatmaps show typical usage patterns for {selected_device_heatmap.lower()}:
+    #     # Add explanatory text in expander
+    #     with st.expander("About Device Usage Patterns", expanded=False):
+    #         st.markdown(f"""
+    #         These heatmaps show typical usage patterns for {selected_device_heatmap.lower()}:
             
-            • The <b>Weekly Pattern</b> shows hourly usage across different days of the week
-            • The <b>Monthly Pattern</b> shows daily usage intensity across weeks
+    #         • The <b>Weekly Pattern</b> shows hourly usage across different days of the week
+    #         • The <b>Monthly Pattern</b> shows daily usage intensity across weeks
             
-            Darker colors indicate higher usage/activity levels.
-            """, unsafe_allow_html=True)
+    #         Darker colors indicate higher usage/activity levels.
+    #         """, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"An unexpected error occurred on the Sample Output page: {e}")
