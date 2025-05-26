@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
 import plotly.graph_objects as go
-import random
+import uuid
 from datetime import datetime, timedelta
 import folium
 from streamlit_folium import folium_static
@@ -248,6 +248,40 @@ st.markdown("""
 # Define the banner path once at the top of the script
 banner_path = "ECMX_linkedinheader_SN.png"  
 
+# Helper function for generating random IDs
+def generate_random_id(prefix="ID_"):
+    return f"{prefix}{str(uuid.uuid4().hex)[:8].upper()}"
+
+# Helper function for formatting timestamps 
+def format_timestamp_column(df, column_name, target_format='%Y-%m-%d', is_unix=True):
+    if column_name not in df.columns:
+        # st.warning(f"Timestamp column '{column_name}' not found in DataFrame for formatting.")
+        return df # Return df unmodified if column not found
+    
+    temp_col = df[column_name].copy()
+    formatted_col_name = column_name + '_formatted'
+    
+    if is_unix:
+        temp_col = pd.to_numeric(temp_col, errors='coerce')
+        dt_series = pd.to_datetime(temp_col, unit='s', errors='coerce')
+    else:
+        dt_series = pd.to_datetime(temp_col, errors='coerce')
+        
+    df[formatted_col_name] = dt_series.dt.strftime(target_format)
+    # Handle NaT explicitly after attempting to format
+    # NaNs in dt_series (from coercion errors) will lead to NaNs here, fill them.
+    df[formatted_col_name] = df[formatted_col_name].fillna('Invalid Date')
+    
+    # Check if all valid datetimes became 'Invalid Date' due to strftime issue (unlikely with common formats)
+    # or if the source was largely unparseable.
+    if not dt_series.isna().all() and df[formatted_col_name].replace('Invalid Date', pd.NaT).isna().all():
+         st.warning(f"All valid entries in '{column_name}' resulted in 'Invalid Date' after formatting. Check target_format or source data.")
+    elif dt_series.isna().sum() > 0 and (df[formatted_col_name] == 'Invalid Date').sum() > dt_series.isna().sum() :
+         # This means some non-NaT datetimes also failed to format.
+         pass # Potentially log this if it's a concern.
+
+    return df
+
 # Add page selection at the top (now with three options)
 page = st.sidebar.radio("Select Page", ["Sample Output", "Performance Metrics", "Interactive Map"], index=0) # Default to Sample Output
 
@@ -263,13 +297,235 @@ except Exception as e:
 selected_model = "V6" # Default model
 
 if page == "Sample Output":
-    # Sample Output page code goes here
-    st.title("Energy Disaggregation Model: Output Structure Example")
+    st.title("Energy Disaggregation Model: Sample Output")
+    st.markdown("""
+    This page displays sample outputs from the energy disaggregation model. 
+    It includes detailed event windows and a monthly breakdown of appliance consumption.
+    The data presented is based on a small cohort of customers (9-10) for illustrative purposes.
+    """)
+
+    # Add disclaimer about data anonymization
+    st.info("""
+    <i class="fas fa-user-secret"></i> **Data Anonymization Note:** 
+    To protect privacy, `custid` and `meterid` values in the tables below have been replaced with randomly generated identifiers. 
+    The underlying data relationships are maintained.
+    """, unsafe_allow_html=True)
+
+    # --- Load and Anonymize Data ---
+    @st.cache_data
+    def load_and_anonymize_data(details_path, meters_path):
+        try:
+            df_details = pd.read_csv(details_path)
+            df_meters = pd.read_csv(meters_path)
+        except FileNotFoundError as e:
+            st.error(f"Error: One or both data files not found. Please check paths: {e}")
+            return pd.DataFrame(), pd.DataFrame(), {}
+        except Exception as e:
+            st.error(f"Error loading CSV files: {e}")
+            return pd.DataFrame(), pd.DataFrame(), {}
+
+        # Ensure custid and meterid are strings for consistent processing
+        for df, name in [(df_details, "Details"), (df_meters, "Meters")]:
+            for col in ['custid', 'meterid']:
+                if col in df.columns:
+                    df[col] = df[col].astype(str)
+                else:
+                    st.warning(f"Column '{col}' not found in {name} data during anonymization prep.")
+
+
+        all_custids = pd.Series(dtype=str)
+        if 'custid' in df_details.columns:
+            all_custids = pd.concat([all_custids, df_details['custid']], ignore_index=True)
+        if 'custid' in df_meters.columns:
+            all_custids = pd.concat([all_custids, df_meters['custid']], ignore_index=True)
+        
+        unique_custids = all_custids.dropna().unique()
+        custid_map = {orig_id: generate_random_id("CUST_") for orig_id in unique_custids}
+
+        all_meterids = pd.Series(dtype=str)
+        if 'meterid' in df_details.columns:
+            all_meterids = pd.concat([all_meterids, df_details['meterid']], ignore_index=True)
+        if 'meterid' in df_meters.columns:
+             all_meterids = pd.concat([all_meterids, df_meters['meterid']], ignore_index=True)
+
+        unique_meterids = all_meterids.dropna().unique()
+        meterid_map = {orig_id: generate_random_id("MTR_") for orig_id in unique_meterids}
+        
+        id_maps = {'custid': custid_map, 'meterid': meterid_map}
+
+        if 'custid' in df_details.columns:
+            df_details['custid_anon'] = df_details['custid'].map(custid_map)
+        if 'meterid' in df_details.columns:
+            df_details['meterid_anon'] = df_details['meterid'].map(meterid_map)
+        
+        if 'custid' in df_meters.columns:
+            df_meters['custid_anon'] = df_meters['custid'].map(custid_map)
+        if 'meterid' in df_meters.columns:
+            df_meters['meterid_anon'] = df_meters['meterid'].map(meterid_map)
+            
+        return df_details, df_meters, id_maps
+
+    details_file = "disagg_details_new_cohort_updated_1.csv"
+    meters_file = "disagg_meters_new_cohort_updated_1.csv"
+    df_details_orig, df_meters_orig, id_maps = load_and_anonymize_data(details_file, meters_file)
+
+    if df_details_orig.empty and df_meters_orig.empty: # Only stop if both are empty due to load error
+        st.warning("Could not load data files. Ensure they are in the correct location and format: " + f"'{details_file}', '{meters_file}'")
+        st.stop()
+    elif df_details_orig.empty:
+        st.warning(f"Details data file '{details_file}' is empty or could not be loaded properly.")
+    elif df_meters_orig.empty:
+        st.warning(f"Meters data file '{meters_file}' is empty or could not be loaded properly.")
+
+
+    # --- Table 1: Disaggregation Event Windows ---
+    st.subheader("Table 1: Disaggregation Event Windows")
+    st.markdown("This table shows individual appliance usage events detected by the model.")
     
-    # Maintenance message
-    st.warning("⚠️ This page is currently under maintenance. Please check back later.")
-    st.info("We are updating the data processing pipeline to improve performance with larger datasets.")
-    st.stop()  # Stop execution here to prevent the commented code from running
+    if not df_details_orig.empty:
+        df_details_table1 = df_details_orig.copy()
+
+        # Format timestamps for Table 1 (assuming Unix timestamps)
+        df_details_table1 = format_timestamp_column(df_details_table1, 'window_start', '%Y-%m-%d %H:%M:%S', is_unix=True)
+        df_details_table1 = format_timestamp_column(df_details_table1, 'window_stop', '%Y-%m-%d %H:%M:%S', is_unix=True)
+
+        cols_table1_display_map = {
+            'custid_anon': 'Customer ID (Anon)',
+            'meterid_anon': 'Meter ID (Anon)',
+            'window_start_formatted': 'Event Start',
+            'window_stop_formatted': 'Event Stop',
+            'appliance_type': 'Appliance',
+            'process_status': 'Status',
+            'energy_wh': 'Energy (Wh)'
+        }
+        
+        actual_cols_table1 = [col for col in cols_table1_display_map.keys() if col in df_details_table1.columns]
+        
+        if actual_cols_table1:
+            st.dataframe(df_details_table1[actual_cols_table1].rename(columns=cols_table1_display_map), height=300, use_container_width=True)
+            missing_cols_t1 = [v for k, v in cols_table1_display_map.items() if k not in actual_cols_table1]
+            if missing_cols_t1:
+                 st.caption(f"Note: The following expected columns are not shown as they were not found in the source data: {', '.join(missing_cols_t1)}.")
+        else:
+            st.warning("Not enough data columns found in the details file to display Table 1.")
+    else:
+        st.info(f"No data loaded from '{details_file}' to display Table 1.")
+
+    # --- Table 2: Monthly Appliance Breakdown ---
+    st.subheader("Table 2: Monthly Appliance Energy Breakdown")
+    st.markdown("This table summarizes the estimated monthly energy consumption or generation for each appliance, compared to the total grid import/export for that month.")
+
+    if not df_details_orig.empty and not df_meters_orig.empty:
+        df_details_for_table2 = df_details_orig.copy()
+        df_meters_for_table2 = df_meters_orig.copy()
+
+        # Prepare df_details: extract reference_month, aggregate energy
+        if 'window_start' in df_details_for_table2.columns and 'energy_wh' in df_details_for_table2.columns and \
+           'custid_anon' in df_details_for_table2.columns and 'meterid_anon' in df_details_for_table2.columns and \
+           'appliance_type' in df_details_for_table2.columns:
+            
+            temp_ws_col = pd.to_numeric(df_details_for_table2['window_start'], errors='coerce')
+            df_details_for_table2['reference_month_dt'] = pd.to_datetime(temp_ws_col, unit='s', errors='coerce')
+            df_details_for_table2['reference_month_str'] = df_details_for_table2['reference_month_dt'].dt.strftime('%Y-%m')
+
+            appliance_energy_long = df_details_for_table2.groupby(
+                ['custid_anon', 'meterid_anon', 'reference_month_str', 'appliance_type'],
+                as_index=False
+            )['energy_wh'].sum()
+            appliance_energy_long['direction'] = appliance_energy_long['appliance_type'].apply(
+                lambda x: 'generation' if str(x).lower() == 'pv' else 'consumption'
+            )
+        else:
+            st.error("Details data is missing one or more required columns for Table 2: 'window_start', 'energy_wh', 'custid_anon', 'meterid_anon', 'appliance_type'.")
+            appliance_energy_long = pd.DataFrame()
+
+        # Prepare df_meters: extract reference_month, get grid values
+        if 'process_date' in df_meters_for_table2.columns and 'grid' in df_meters_for_table2.columns and \
+           'custid_anon' in df_meters_for_table2.columns and 'meterid_anon' in df_meters_for_table2.columns:
+            
+            df_meters_for_table2['reference_month_dt'] = pd.to_datetime(df_meters_for_table2['process_date'], errors='coerce')
+            df_meters_for_table2['reference_month_str'] = df_meters_for_table2['reference_month_dt'].dt.strftime('%Y-%m')
+            
+            # Ensure 'grid' is numeric
+            df_meters_for_table2['grid'] = pd.to_numeric(df_meters_for_table2['grid'], errors='coerce').fillna(0)
+
+            # Aggregate grid energy per custid, meterid, reference_month
+            # This assumes 'grid' in disagg_meters is already at the correct monthly aggregation or needs summing up if multiple entries exist.
+            # If 'grid' is per-customer-per-month, direct use might be fine. Grouping to be safe if structure is unknown.
+            df_meters_agg = df_meters_for_table2.groupby(
+                ['custid_anon', 'meterid_anon', 'reference_month_str'],
+                as_index=False
+            )['grid'].sum()
+        else:
+            st.error("Meters data is missing one or more required columns for Table 2: 'process_date', 'grid', 'custid_anon', 'meterid_anon'.")
+            df_meters_agg = pd.DataFrame()
+
+        # Merge and QC
+        if not appliance_energy_long.empty and not df_meters_agg.empty:
+            df_table2_merged = pd.merge(
+                appliance_energy_long,
+                df_meters_agg,
+                on=['custid_anon', 'meterid_anon', 'reference_month_str'],
+                how='left'
+            )
+            df_table2_merged['grid'] = df_table2_merged['grid'].fillna(0)
+            df_table2_merged['energy_wh'] = pd.to_numeric(df_table2_merged['energy_wh'], errors='coerce').fillna(0)
+
+            # --- QC Step ---
+            df_table2_qc = df_table2_merged.copy()
+            df_table2_qc['consumption_energy_val'] = df_table2_qc.apply(
+                lambda row: row['energy_wh'] if row['direction'] == 'consumption' else 0, axis=1
+            )
+
+            def qc_consumption_group(group):
+                grid_value = group['grid'].first() 
+                total_identified_consumption = group['consumption_energy_val'].sum()
+
+                if grid_value > 0 and total_identified_consumption > grid_value:
+                    scaling_factor = grid_value / total_identified_consumption
+                    group.loc[group['direction'] == 'consumption', 'energy_wh'] = group.loc[group['direction'] == 'consumption', 'energy_wh'] * scaling_factor
+                elif grid_value <= 0:
+                    group.loc[group['direction'] == 'consumption', 'energy_wh'] = 0
+                return group
+
+            # Group by the unique monthly meter context before applying QC
+            grouped_for_qc = df_table2_qc.groupby(['custid_anon', 'meterid_anon', 'reference_month_str'], group_keys=False)
+            df_table2_final = grouped_for_qc.apply(qc_consumption_group).reset_index(drop=True)
+            
+            # Format reference_month for display ('Month YYYY')
+            df_table2_final['month_dt_display'] = pd.to_datetime(df_table2_final['reference_month_str'] + '-01', errors='coerce')
+            df_table2_final['Month'] = df_table2_final['month_dt_display'].dt.strftime('%B %Y')
+            df_table2_final['Month'] = df_table2_final['Month'].fillna('Invalid Month')
+
+            cols_table2_display_map = {
+                'custid_anon': 'Customer ID (Anon)',
+                'meterid_anon': 'Meter ID (Anon)',
+                'Month': 'Month',
+                'appliance_type': 'Appliance',
+                'energy_wh': 'Energy (Wh) [QC]',
+                'direction': 'Direction',
+                'grid': 'Total Grid (Wh)'
+            }
+            actual_cols_table2 = [col for col in cols_table2_display_map.keys() if col in df_table2_final.columns]
+            
+            if actual_cols_table2:
+                st.dataframe(df_table2_final[actual_cols_table2].rename(columns=cols_table2_display_map), height=400, use_container_width=True)
+                missing_cols_t2 = [v for k,v in cols_table2_display_map.items() if k not in actual_cols_table2]
+                if missing_cols_t2:
+                    st.caption(f"Note: The following expected columns are not shown as they were not found in the processed data: {', '.join(missing_cols_t2)}.")
+
+            else:
+                st.info("No data to display for the monthly appliance breakdown after processing.")
+        else:
+            st.info("Could not generate Table 2 due to missing processed data from details or meters files.")
+    elif df_details_orig.empty or df_meters_orig.empty:
+        st.info("Table 2 (Monthly Breakdown) cannot be generated as one or both data files could not be loaded.")
+    else: # Should not happen if previous checks catch empty DFs
+        st.error("An unexpected issue occurred preparing data for Table 2.")
+
+
+    st.markdown("---")
+    st.caption("Data presented is for illustrative purposes. Energy values are estimates from the model. 'Energy (Wh) [QC]' indicates values have been quality-controlled against grid totals.")
 
 elif page == "Performance Metrics":
     # Performance Metrics page
@@ -671,7 +927,7 @@ elif page == "Performance Metrics":
         # Determine which model has best average performance
         trend_df['FPR_inv'] = 100 - trend_df['FPR (%)']  # Invert FPR so higher is better
         trend_df['avg_score'] = (trend_df['DPSPerc (%)'] + trend_df['FPR_inv'] + trend_df['TECA (%)']) / 3
-        best_overall_display = trend_df.loc[trend_df['avg_score'].idxmax()]['Model']
+        best_overall_display = trend_df.loc[trend_df['avg_score'].idxmax()]["Model"]
         best_overall = model_display_to_key[best_overall_display]
 
         # Add highlight for the best overall model - using a vertical bar instead of rectangle
