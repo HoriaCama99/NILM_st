@@ -490,12 +490,15 @@ if page == "Sample Output":
 
             def qc_consumption_group(group):
                 # Use grid_total_wh which is the sum of 'meter_consumption' for the month
-                grid_value = group['grid_total_wh'].first() 
+                grid_value = group['grid_total_wh'].iloc[0] # Changed from .first() to .iloc[0]
                 total_identified_consumption = group['consumption_energy_val'].sum()
 
                 if grid_value > 0 and total_identified_consumption > grid_value:
-                    scaling_factor = grid_value / total_identified_consumption
-                    group.loc[group['direction'].str.lower() != 'generation', 'energy_wh_appliance'] = group.loc[group['direction'].str.lower() != 'generation', 'energy_wh_appliance'] * scaling_factor
+                    if total_identified_consumption > 0: # Avoid division by zero if consumption is zero but grid is positive
+                        scaling_factor = grid_value / total_identified_consumption
+                        group.loc[group['direction'].str.lower() != 'generation', 'energy_wh_appliance'] = group.loc[group['direction'].str.lower() != 'generation', 'energy_wh_appliance'] * scaling_factor
+                    else: # total_identified_consumption is 0, grid_value > 0. No scaling needed, consumption already 0 or less.
+                        pass 
                 elif grid_value <= 0:
                     group.loc[group['direction'].str.lower() != 'generation', 'energy_wh_appliance'] = 0
                 return group
