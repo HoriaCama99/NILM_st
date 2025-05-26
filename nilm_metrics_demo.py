@@ -381,7 +381,40 @@ if page == "Sample Output":
     elif df_meters_orig.empty:
         st.warning(f"Meters data file '{meters_file}' is empty or could not be loaded properly.")
 
-    # --- REORDERED: Table 2 (Monthly Appliance Breakdown) first ---
+    # --- Table 1: Disaggregation Event Windows (Restored to be first) ---
+    st.subheader("Table 1: Disaggregation Event Windows")
+    st.markdown("This table shows individual appliance usage events detected by the model.")
+    
+    if not df_details_orig.empty:
+        df_details_table1 = df_details_orig.copy()
+        df_details_table1 = format_timestamp_column(df_details_table1, 'equipment_disagg_start', '%Y-%m-%d %H:%M:%S', is_unix=True)
+        df_details_table1 = format_timestamp_column(df_details_table1, 'equipment_disagg_end', '%Y-%m-%d %H:%M:%S', is_unix=True)
+        cols_table1_display_map = {
+            'custid_anon': 'Customer ID (Anon)',
+            'meterid_anon': 'Meter ID (Anon)',
+            'equipment_disagg_start_formatted': 'Event Start',
+            'equipment_disagg_end_formatted': 'Event Stop',
+            'equipment_type': 'Appliance',
+            'equipment_detected': 'Status',
+            'direction': 'Direction',
+            'equipment_consumption': 'Energy (Wh)',
+            'uom': 'UOM',
+            'interval_count': 'Interval Count'
+        }
+        actual_cols_table1 = [col for col in cols_table1_display_map.keys() if col in df_details_table1.columns]
+        if actual_cols_table1:
+            st.dataframe(df_details_table1[actual_cols_table1].rename(columns=cols_table1_display_map), height=300, use_container_width=True)
+            missing_cols_t1 = [v for k, v in cols_table1_display_map.items() if k not in actual_cols_table1]
+            if missing_cols_t1:
+                 st.caption(f"Note: The following expected columns are not shown as they were not found in the source data: {', '.join(missing_cols_t1)}.")
+        else:
+            st.warning("Not enough data columns found in the details file to display Table 1.")
+    else:
+        st.info(f"No data loaded from '{details_file}' to display Table 1.")
+
+    st.markdown("---") # Separator after Table 1
+
+    # --- Table 2: Monthly Appliance Energy Breakdown (Restored to be second) ---
     st.subheader("Table 2: Monthly Appliance Energy Breakdown")
     st.markdown("This table summarizes the estimated monthly energy consumption or generation for each appliance, compared to the total meter consumption for that month.")
 
@@ -390,7 +423,6 @@ if page == "Sample Output":
 
     if not df_details_orig.empty: # Table 2 now primarily relies on details_orig
         df_details_for_table2 = df_details_orig.copy()
-        # df_meters_for_table2 = df_meters_orig.copy() # Still loaded if needed for other things, but not primary for table 2 grid
 
         required_details_cols_t2 = [
             'custid_anon', 'meterid_anon', 'equipment_disagg_start', 
@@ -473,7 +505,7 @@ if page == "Sample Output":
                         display_df_table2 = display_df_table2.rename(columns={'equipment_type':'Appliance'})
                     elif 'Appliance' not in display_df_table2.columns and 'appliance_type' in display_df_table2.columns:
                         display_df_table2 = display_df_table2.rename(columns={'appliance_type':'Appliance'})
-                    st.dataframe(display_df_table2, height=300, use_container_width=True) # Adjusted height for Table 2
+                    st.dataframe(display_df_table2, height=300, use_container_width=True) 
                     missing_cols_t2 = [v for k,v in cols_table2_display_map.items() if k not in actual_cols_table2]
                     if missing_cols_t2:
                         st.caption(f"Note: The following expected columns are not shown as they were not found in the processed data: {', '.join(missing_cols_t2)}.")
@@ -483,7 +515,6 @@ if page == "Sample Output":
                 st.info("Could not generate Table 2 due to missing processed data from appliance energy or monthly total meter consumption.")
         else:
             st.error(f"Details data is missing one or more required columns for Table 2: {missing_req_details_cols}. Table 2 cannot be generated.")
-    # Removed the elif for df_meters_orig.empty as Table 2 doesn't primarily depend on it now
     elif df_details_orig.empty:
         st.info("Table 2 (Monthly Breakdown) cannot be generated as the details data file could not be loaded or is empty.")
     else:
@@ -491,127 +522,11 @@ if page == "Sample Output":
 
     st.markdown("---") # Separator after Table 2
 
-    # --- REORDERED: Table 1 (Disaggregation Event Windows) second ---
-    st.subheader("Table 1: Disaggregation Event Windows")
-    st.markdown("This table shows individual appliance usage events detected by the model.")
-    
-    if not df_details_orig.empty:
-        df_details_table1 = df_details_orig.copy()
-        df_details_table1 = format_timestamp_column(df_details_table1, 'equipment_disagg_start', '%Y-%m-%d %H:%M:%S', is_unix=True)
-        df_details_table1 = format_timestamp_column(df_details_table1, 'equipment_disagg_end', '%Y-%m-%d %H:%M:%S', is_unix=True)
-        cols_table1_display_map = {
-            'custid_anon': 'Customer ID (Anon)',
-            'meterid_anon': 'Meter ID (Anon)',
-            'equipment_disagg_start_formatted': 'Event Start',
-            'equipment_disagg_end_formatted': 'Event Stop',
-            'equipment_type': 'Appliance',
-            'equipment_detected': 'Status',
-            'direction': 'Direction',
-            'equipment_consumption': 'Energy (Wh)',
-            'uom': 'UOM',
-            'interval_count': 'Interval Count'
-        }
-        actual_cols_table1 = [col for col in cols_table1_display_map.keys() if col in df_details_table1.columns]
-        if actual_cols_table1:
-            st.dataframe(df_details_table1[actual_cols_table1].rename(columns=cols_table1_display_map), height=300, use_container_width=True) # Adjusted height for Table 1
-            missing_cols_t1 = [v for k, v in cols_table1_display_map.items() if k not in actual_cols_table1]
-            if missing_cols_t1:
-                 st.caption(f"Note: The following expected columns are not shown as they were not found in the source data: {', '.join(missing_cols_t1)}.")
-        else:
-            st.warning("Not enough data columns found in the details file to display Table 1.")
-    else:
-        st.info(f"No data loaded from '{details_file}' to display Table 1.")
+    # --- Appliance Usage Heatmaps (REMOVED) ---
+    # The following section for heatmaps has been removed as per user request.
+    # st.subheader("Appliance Usage Heatmaps")
+    # ... (heatmap code was here) ...
 
-    st.markdown("---") # Separator after Table 1
-
-    # --- Appliance Usage Heatmaps ---
-    st.subheader("Appliance Usage Heatmaps")
-
-    if not df_details_orig.empty and 'equipment_type' in df_details_orig.columns and 'equipment_disagg_start' in df_details_orig.columns and 'equipment_consumption' in df_details_orig.columns:
-        df_heatmaps = df_details_orig.copy()
-        df_heatmaps['equipment_consumption'] = pd.to_numeric(df_heatmaps['equipment_consumption'], errors='coerce').fillna(0)
-        df_heatmaps['timestamp'] = pd.to_datetime(df_heatmaps['equipment_disagg_start'], unit='s', errors='coerce')
-        df_heatmaps = df_heatmaps.dropna(subset=['timestamp']) # Drop rows where timestamp conversion failed
-
-        available_appliances = sorted(df_heatmaps['equipment_type'].dropna().unique())
-        if not available_appliances:
-            st.info("No appliance data available to generate heatmaps.")
-        else:
-            selected_appliance_heatmap = st.selectbox(
-                "Select Appliance for Heatmap:", 
-                options=available_appliances,
-                index=0 if available_appliances else -1 # Handle empty list
-            )
-
-            if selected_appliance_heatmap:
-                df_appliance_specific = df_heatmaps[df_heatmaps['equipment_type'] == selected_appliance_heatmap].copy()
-
-                if df_appliance_specific.empty:
-                    st.info(f"No data found for appliance '{selected_appliance_heatmap}' to generate heatmaps.")
-                else:
-                    tab_daily, tab_monthly = st.tabs(["Daily View Heatmap", "Monthly View Heatmap"])
-
-                    with tab_daily:
-                        st.markdown(f"**Hourly Energy Consumption for {selected_appliance_heatmap} (Wh) - Daily View**")
-                        df_appliance_specific['date'] = df_appliance_specific['timestamp'].dt.date
-                        df_appliance_specific['hour'] = df_appliance_specific['timestamp'].dt.hour
-                        
-                        daily_heatmap_data = df_appliance_specific.groupby(['date', 'hour'])['equipment_consumption'].sum().unstack(fill_value=0)
-                        
-                        if not daily_heatmap_data.empty:
-                            # Ensure all hours 0-23 are present, even if no consumption
-                            all_hours = pd.Index(range(24), name='hour')
-                            daily_heatmap_data = daily_heatmap_data.reindex(columns=all_hours, fill_value=0)
-                            # Sort rows by date
-                            daily_heatmap_data = daily_heatmap_data.sort_index()
-
-                            fig_daily = px.imshow(
-                                daily_heatmap_data,
-                                labels=dict(x="Hour of Day", y="Date", color="Energy (Wh)"),
-                                x=daily_heatmap_data.columns, # Hours
-                                y=daily_heatmap_data.index,  # Dates
-                                aspect="auto",
-                                color_continuous_scale=px.colors.sequential.Viridis
-                            )
-                            fig_daily.update_xaxes(side="bottom", tickmode='array', tickvals=list(range(24)), ticktext=[str(h) for h in range(24)])
-                            fig_daily.update_layout(title_text='', title_x=0.5, height=max(400, 50 + len(daily_heatmap_data.index) * 20))
-                            st.plotly_chart(fig_daily, use_container_width=True)
-                        else:
-                            st.info(f"No daily consumption data to display for {selected_appliance_heatmap}.")
-
-                    with tab_monthly:
-                        st.markdown(f"**Daily Energy Consumption for {selected_appliance_heatmap} (Wh) - Monthly View**")
-                        df_appliance_specific['year_month'] = df_appliance_specific['timestamp'].dt.to_period('M').astype(str)
-                        df_appliance_specific['day_of_month'] = df_appliance_specific['timestamp'].dt.day
-                        
-                        monthly_heatmap_data = df_appliance_specific.groupby(['year_month', 'day_of_month'])['equipment_consumption'].sum().unstack(fill_value=0)
-
-                        if not monthly_heatmap_data.empty:
-                            # Ensure all days 1-31 are present
-                            all_days = pd.Index(range(1, 32), name='day_of_month')
-                            monthly_heatmap_data = monthly_heatmap_data.reindex(columns=all_days, fill_value=0)
-                            # Sort rows by month
-                            monthly_heatmap_data = monthly_heatmap_data.sort_index()
-
-                            fig_monthly = px.imshow(
-                                monthly_heatmap_data,
-                                labels=dict(x="Day of Month", y="Month", color="Energy (Wh)"),
-                                x=monthly_heatmap_data.columns, # Days
-                                y=monthly_heatmap_data.index,  # Year-Months
-                                aspect="auto",
-                                color_continuous_scale=px.colors.sequential.Plasma
-                            )
-                            fig_monthly.update_xaxes(side="bottom", tickmode='array', tickvals=list(range(1,32)), ticktext=[str(d) for d in range(1,32)])
-                            fig_monthly.update_layout(title_text='', title_x=0.5, height=max(400, 50 + len(monthly_heatmap_data.index) * 30))
-                            st.plotly_chart(fig_monthly, use_container_width=True)
-                        else:
-                            st.info(f"No monthly consumption data to display for {selected_appliance_heatmap}.")
-            else:
-                st.info("Please select an appliance to view heatmaps.")
-    else:
-        st.info("Heatmap data requirements not met. Ensure 'equipment_type', 'equipment_disagg_start', and 'equipment_consumption' columns are present in the details CSV.")
-
-    st.markdown("---")
     st.caption("Data presented is for illustrative purposes. Energy values are estimates from the model. 'Energy (Wh) [QC]' indicates values have been quality-controlled against total meter consumption for the month.")
 
 elif page == "Performance Metrics":
