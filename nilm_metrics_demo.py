@@ -305,7 +305,7 @@ if page == "Sample Output":
     """)
 
     # Add disclaimer about data anonymization
-    st.info("""
+    st.markdown("""
     <i class="fas fa-user-secret"></i> **Data Anonymization Note:** 
     To protect privacy, `custid` and `meterid` values in the tables below have been replaced with randomly generated identifiers. 
     The underlying data relationships are maintained.
