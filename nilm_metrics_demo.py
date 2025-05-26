@@ -381,55 +381,17 @@ if page == "Sample Output":
     elif df_meters_orig.empty:
         st.warning(f"Meters data file '{meters_file}' is empty or could not be loaded properly.")
 
-
-    # --- Table 1: Disaggregation Event Windows ---
-    st.subheader("Table 1: Disaggregation Event Windows")
-    st.markdown("This table shows individual appliance usage events detected by the model.")
-    
-    if not df_details_orig.empty:
-        df_details_table1 = df_details_orig.copy()
-
-        # Format timestamps for Table 1 (assuming Unix timestamps)
-        # Using new column names from user input
-        df_details_table1 = format_timestamp_column(df_details_table1, 'equipment_disagg_start', '%Y-%m-%d %H:%M:%S', is_unix=True)
-        df_details_table1 = format_timestamp_column(df_details_table1, 'equipment_disagg_end', '%Y-%m-%d %H:%M:%S', is_unix=True)
-
-        cols_table1_display_map = {
-            'custid_anon': 'Customer ID (Anon)',
-            'meterid_anon': 'Meter ID (Anon)',
-            'equipment_disagg_start_formatted': 'Event Start',
-            'equipment_disagg_end_formatted': 'Event Stop',
-            'equipment_type': 'Appliance',
-            'equipment_detected': 'Status',
-            'direction': 'Direction', # Added based on new CSV structure
-            'equipment_consumption': 'Energy (Wh)',
-            'uom': 'UOM', # Added based on new CSV structure
-            'interval_count': 'Interval Count' # Added based on new CSV structure
-        }
-        
-        actual_cols_table1 = [col for col in cols_table1_display_map.keys() if col in df_details_table1.columns]
-        
-        if actual_cols_table1:
-            st.dataframe(df_details_table1[actual_cols_table1].rename(columns=cols_table1_display_map), height=300, use_container_width=True)
-            missing_cols_t1 = [v for k, v in cols_table1_display_map.items() if k not in actual_cols_table1]
-            if missing_cols_t1:
-                 st.caption(f"Note: The following expected columns are not shown as they were not found in the source data: {', '.join(missing_cols_t1)}.")
-        else:
-            st.warning("Not enough data columns found in the details file to display Table 1.")
-    else:
-        st.info(f"No data loaded from '{details_file}' to display Table 1.")
-
-    # --- Table 2: Monthly Appliance Breakdown ---
+    # --- REORDERED: Table 2 (Monthly Appliance Breakdown) first ---
     st.subheader("Table 2: Monthly Appliance Energy Breakdown")
-    st.markdown("This table summarizes the estimated monthly energy consumption or generation for each appliance, compared to the total grid import/export for that month.")
+    st.markdown("This table summarizes the estimated monthly energy consumption or generation for each appliance, compared to the total meter consumption for that month.")
 
-    if not df_details_orig.empty and not df_meters_orig.empty:
+    # Initialize df_table2_final to an empty DataFrame to ensure it exists
+    df_table2_final = pd.DataFrame()
+
+    if not df_details_orig.empty: # Table 2 now primarily relies on details_orig
         df_details_for_table2 = df_details_orig.copy()
-        df_meters_for_table2 = df_meters_orig.copy() # Still loaded, though less central to Table 2 now
+        # df_meters_for_table2 = df_meters_orig.copy() # Still loaded if needed for other things, but not primary for table 2 grid
 
-        # Prepare df_details: extract reference_month, aggregate energy
-        # Key columns from details file based on new structure:
-        # custid_anon, meterid_anon, equipment_disagg_start, equipment_type, equipment_consumption, direction, meter_consumption
         required_details_cols_t2 = [
             'custid_anon', 'meterid_anon', 'equipment_disagg_start', 
             'equipment_type', 'equipment_consumption', 'direction', 'meter_consumption'
@@ -441,119 +403,213 @@ if page == "Sample Output":
             df_details_for_table2['reference_month_dt'] = pd.to_datetime(temp_ws_col, unit='s', errors='coerce')
             df_details_for_table2['reference_month_str'] = df_details_for_table2['reference_month_dt'].dt.strftime('%Y-%m')
 
-            # Ensure numeric types for aggregation
             df_details_for_table2['equipment_consumption'] = pd.to_numeric(df_details_for_table2['equipment_consumption'], errors='coerce').fillna(0)
             df_details_for_table2['meter_consumption'] = pd.to_numeric(df_details_for_table2['meter_consumption'], errors='coerce').fillna(0)
 
-            # Aggregate appliance energy (equipment_consumption)
             appliance_energy_long = df_details_for_table2.groupby(
-                ['custid_anon', 'meterid_anon', 'reference_month_str', 'equipment_type', 'direction'], # direction is now from source
+                ['custid_anon', 'meterid_anon', 'reference_month_str', 'equipment_type', 'direction'],
                 as_index=False
             )['equipment_consumption'].sum()
-            # Rename for clarity before merge/QC
             appliance_energy_long = appliance_energy_long.rename(columns={'equipment_consumption': 'energy_wh_appliance'})
             
-            # Aggregate total meter consumption (meter_consumption) to serve as 'grid' total for the month
-            # This assumes meter_consumption in details is granular enough to be summed up meaningfully per month.
-            # If meter_consumption is already a monthly total per event row, use .first() or .mean() if appropriate, but sum is safer if it is event-level.
             monthly_total_meter_consumption = df_details_for_table2.groupby(
                 ['custid_anon', 'meterid_anon', 'reference_month_str'],
                 as_index=False
             )['meter_consumption'].sum().rename(columns={'meter_consumption': 'grid_total_wh'})
 
-        else:
-            st.error(f"Details data is missing one or more required columns for Table 2: {missing_req_details_cols}.")
-            appliance_energy_long = pd.DataFrame()
-            monthly_total_meter_consumption = pd.DataFrame()
+            if not appliance_energy_long.empty and not monthly_total_meter_consumption.empty:
+                df_table2_merged = pd.merge(
+                    appliance_energy_long,
+                    monthly_total_meter_consumption,
+                    on=['custid_anon', 'meterid_anon', 'reference_month_str'],
+                    how='left'
+                )
+                df_table2_merged['grid_total_wh'] = df_table2_merged['grid_total_wh'].fillna(0)
+                df_table2_merged['energy_wh_appliance'] = pd.to_numeric(df_table2_merged['energy_wh_appliance'], errors='coerce').fillna(0)
 
-        # df_meters_agg is no longer the primary source for grid data, but we load df_meters_orig earlier.
-        # If df_meters_orig contained other monthly metadata needed, it could be prepared here.
-        # For now, we directly use monthly_total_meter_consumption from details data.
+                df_table2_qc = df_table2_merged.copy()
+                df_table2_qc['consumption_energy_val'] = df_table2_qc.apply(
+                    lambda row: row['energy_wh_appliance'] if str(row['direction']).lower() != 'generation' else 0, axis=1
+                )
 
-        # Merge and QC
-        if not appliance_energy_long.empty and not monthly_total_meter_consumption.empty:
-            df_table2_merged = pd.merge(
-                appliance_energy_long,
-                monthly_total_meter_consumption,
-                on=['custid_anon', 'meterid_anon', 'reference_month_str'],
-                how='left'
-            )
-            df_table2_merged['grid_total_wh'] = df_table2_merged['grid_total_wh'].fillna(0)
-            df_table2_merged['energy_wh_appliance'] = pd.to_numeric(df_table2_merged['energy_wh_appliance'], errors='coerce').fillna(0)
+                def qc_consumption_group(group):
+                    grid_value = group['grid_total_wh'].iloc[0]
+                    total_identified_consumption = group['consumption_energy_val'].sum()
+                    if grid_value > 0 and total_identified_consumption > grid_value:
+                        if total_identified_consumption > 0:
+                            scaling_factor = grid_value / total_identified_consumption
+                            group.loc[group['direction'].str.lower() != 'generation', 'energy_wh_appliance'] = group.loc[group['direction'].str.lower() != 'generation', 'energy_wh_appliance'] * scaling_factor
+                        else: pass
+                    elif grid_value <= 0:
+                        group.loc[group['direction'].str.lower() != 'generation', 'energy_wh_appliance'] = 0
+                    return group
 
-            # --- QC Step ---
-            df_table2_qc = df_table2_merged.copy()
-            # Use 'direction' column directly from source for QC logic
-            df_table2_qc['consumption_energy_val'] = df_table2_qc.apply(
-                lambda row: row['energy_wh_appliance'] if str(row['direction']).lower() != 'generation' else 0, axis=1 # Assuming 'generation' marks PV-like direction
-            )
+                grouped_for_qc = df_table2_qc.groupby(['custid_anon', 'meterid_anon', 'reference_month_str'], group_keys=False)
+                df_table2_final = grouped_for_qc.apply(qc_consumption_group).reset_index(drop=True)
+                
+                df_table2_final['month_dt_display'] = pd.to_datetime(df_table2_final['reference_month_str'] + '-01', errors='coerce')
+                df_table2_final['Month'] = df_table2_final['month_dt_display'].dt.strftime('%B %Y')
+                df_table2_final['Month'] = df_table2_final['Month'].fillna('Invalid Month')
 
-            def qc_consumption_group(group):
-                # Use grid_total_wh which is the sum of 'meter_consumption' for the month
-                grid_value = group['grid_total_wh'].iloc[0] # Changed from .first() to .iloc[0]
-                total_identified_consumption = group['consumption_energy_val'].sum()
+                cols_table2_display_map = {
+                    'custid_anon': 'Customer ID (Anon)',
+                    'meterid_anon': 'Meter ID (Anon)',
+                    'Month': 'Month',
+                    'equipment_type': 'Appliance',
+                    'energy_wh_appliance': 'Energy (Wh) [QC]',
+                    'direction': 'Direction',
+                    'grid_total_wh': 'Total Meter (Wh)'
+                }
+                if 'equipment_type' not in df_table2_final.columns and 'appliance_type' in df_table2_final.columns:
+                     cols_table2_display_map['appliance_type'] = cols_table2_display_map.pop('equipment_type')
+                elif 'equipment_type' not in df_table2_final.columns:
+                     st.warning("Could not find appliance type column for Table 2 display map.")
 
-                if grid_value > 0 and total_identified_consumption > grid_value:
-                    if total_identified_consumption > 0: # Avoid division by zero if consumption is zero but grid is positive
-                        scaling_factor = grid_value / total_identified_consumption
-                        group.loc[group['direction'].str.lower() != 'generation', 'energy_wh_appliance'] = group.loc[group['direction'].str.lower() != 'generation', 'energy_wh_appliance'] * scaling_factor
-                    else: # total_identified_consumption is 0, grid_value > 0. No scaling needed, consumption already 0 or less.
-                        pass 
-                elif grid_value <= 0:
-                    group.loc[group['direction'].str.lower() != 'generation', 'energy_wh_appliance'] = 0
-                return group
-
-            # Group by the unique monthly meter context before applying QC
-            grouped_for_qc = df_table2_qc.groupby(['custid_anon', 'meterid_anon', 'reference_month_str'], group_keys=False)
-            df_table2_final = grouped_for_qc.apply(qc_consumption_group).reset_index(drop=True)
-            
-            # Format reference_month for display ('Month YYYY')
-            df_table2_final['month_dt_display'] = pd.to_datetime(df_table2_final['reference_month_str'] + '-01', errors='coerce')
-            df_table2_final['Month'] = df_table2_final['month_dt_display'].dt.strftime('%B %Y')
-            df_table2_final['Month'] = df_table2_final['Month'].fillna('Invalid Month')
-
-            cols_table2_display_map = {
-                'custid_anon': 'Customer ID (Anon)',
-                'meterid_anon': 'Meter ID (Anon)',
-                'Month': 'Month',
-                'equipment_type': 'Appliance', # Source column name
-                'energy_wh_appliance': 'Energy (Wh) [QC]', # QC'd column
-                'direction': 'Direction',
-                'grid_total_wh': 'Total Meter (Wh)' # Renamed from 'Total Grid (Wh)' to reflect source
-            }
-            # Ensure we use the correct appliance type column name from appliance_energy_long merge if renamed
-            if 'equipment_type' not in df_table2_final.columns and 'appliance_type' in df_table2_final.columns: # if it was renamed earlier
-                 cols_table2_display_map['appliance_type'] = cols_table2_display_map.pop('equipment_type')
-            elif 'equipment_type' not in df_table2_final.columns: # if neither equipment_type nor appliance_type is present
-                 # find the original appliance type column name if possible, or handle error
-                 st.warning("Could not find appliance type column for Table 2 display map.")
-
-
-            actual_cols_table2 = [col for col in cols_table2_display_map.keys() if col in df_table2_final.columns]
-            # Rename 'equipment_type' to 'Appliance' for display from the map
-            display_df_table2 = df_table2_final[actual_cols_table2].rename(columns=cols_table2_display_map)
-            
-            if actual_cols_table2:
-                # Final check for Appliance column name for display
-                if 'Appliance' not in display_df_table2.columns and 'equipment_type' in display_df_table2.columns:
-                    display_df_table2 = display_df_table2.rename(columns={'equipment_type':'Appliance'})
-                elif 'Appliance' not in display_df_table2.columns and 'appliance_type' in display_df_table2.columns:
-                    display_df_table2 = display_df_table2.rename(columns={'appliance_type':'Appliance'})
-
-                st.dataframe(display_df_table2, height=400, use_container_width=True)
-                missing_cols_t2 = [v for k,v in cols_table2_display_map.items() if k not in actual_cols_table2]
-                if missing_cols_t2:
-                    st.caption(f"Note: The following expected columns are not shown as they were not found in the processed data: {', '.join(missing_cols_t2)}.")
-
+                actual_cols_table2 = [col for col in cols_table2_display_map.keys() if col in df_table2_final.columns]
+                display_df_table2 = df_table2_final[actual_cols_table2].rename(columns=cols_table2_display_map)
+                
+                if actual_cols_table2:
+                    if 'Appliance' not in display_df_table2.columns and 'equipment_type' in display_df_table2.columns:
+                        display_df_table2 = display_df_table2.rename(columns={'equipment_type':'Appliance'})
+                    elif 'Appliance' not in display_df_table2.columns and 'appliance_type' in display_df_table2.columns:
+                        display_df_table2 = display_df_table2.rename(columns={'appliance_type':'Appliance'})
+                    st.dataframe(display_df_table2, height=300, use_container_width=True) # Adjusted height for Table 2
+                    missing_cols_t2 = [v for k,v in cols_table2_display_map.items() if k not in actual_cols_table2]
+                    if missing_cols_t2:
+                        st.caption(f"Note: The following expected columns are not shown as they were not found in the processed data: {', '.join(missing_cols_t2)}.")
+                else:
+                    st.info("No data to display for the monthly appliance breakdown after processing.")
             else:
-                st.info("No data to display for the monthly appliance breakdown after processing.")
+                st.info("Could not generate Table 2 due to missing processed data from appliance energy or monthly total meter consumption.")
         else:
-            st.info("Could not generate Table 2 due to missing processed data from details or meters files.")
-    elif df_details_orig.empty or df_meters_orig.empty:
-        st.info("Table 2 (Monthly Breakdown) cannot be generated as one or both data files could not be loaded.")
-    else: # Should not happen if previous checks catch empty DFs
+            st.error(f"Details data is missing one or more required columns for Table 2: {missing_req_details_cols}. Table 2 cannot be generated.")
+    # Removed the elif for df_meters_orig.empty as Table 2 doesn't primarily depend on it now
+    elif df_details_orig.empty:
+        st.info("Table 2 (Monthly Breakdown) cannot be generated as the details data file could not be loaded or is empty.")
+    else:
         st.error("An unexpected issue occurred preparing data for Table 2.")
 
+    st.markdown("---") # Separator after Table 2
+
+    # --- REORDERED: Table 1 (Disaggregation Event Windows) second ---
+    st.subheader("Table 1: Disaggregation Event Windows")
+    st.markdown("This table shows individual appliance usage events detected by the model.")
+    
+    if not df_details_orig.empty:
+        df_details_table1 = df_details_orig.copy()
+        df_details_table1 = format_timestamp_column(df_details_table1, 'equipment_disagg_start', '%Y-%m-%d %H:%M:%S', is_unix=True)
+        df_details_table1 = format_timestamp_column(df_details_table1, 'equipment_disagg_end', '%Y-%m-%d %H:%M:%S', is_unix=True)
+        cols_table1_display_map = {
+            'custid_anon': 'Customer ID (Anon)',
+            'meterid_anon': 'Meter ID (Anon)',
+            'equipment_disagg_start_formatted': 'Event Start',
+            'equipment_disagg_end_formatted': 'Event Stop',
+            'equipment_type': 'Appliance',
+            'equipment_detected': 'Status',
+            'direction': 'Direction',
+            'equipment_consumption': 'Energy (Wh)',
+            'uom': 'UOM',
+            'interval_count': 'Interval Count'
+        }
+        actual_cols_table1 = [col for col in cols_table1_display_map.keys() if col in df_details_table1.columns]
+        if actual_cols_table1:
+            st.dataframe(df_details_table1[actual_cols_table1].rename(columns=cols_table1_display_map), height=300, use_container_width=True) # Adjusted height for Table 1
+            missing_cols_t1 = [v for k, v in cols_table1_display_map.items() if k not in actual_cols_table1]
+            if missing_cols_t1:
+                 st.caption(f"Note: The following expected columns are not shown as they were not found in the source data: {', '.join(missing_cols_t1)}.")
+        else:
+            st.warning("Not enough data columns found in the details file to display Table 1.")
+    else:
+        st.info(f"No data loaded from '{details_file}' to display Table 1.")
+
+    st.markdown("---") # Separator after Table 1
+
+    # --- Appliance Usage Heatmaps ---
+    st.subheader("Appliance Usage Heatmaps")
+
+    if not df_details_orig.empty and 'equipment_type' in df_details_orig.columns and 'equipment_disagg_start' in df_details_orig.columns and 'equipment_consumption' in df_details_orig.columns:
+        df_heatmaps = df_details_orig.copy()
+        df_heatmaps['equipment_consumption'] = pd.to_numeric(df_heatmaps['equipment_consumption'], errors='coerce').fillna(0)
+        df_heatmaps['timestamp'] = pd.to_datetime(df_heatmaps['equipment_disagg_start'], unit='s', errors='coerce')
+        df_heatmaps = df_heatmaps.dropna(subset=['timestamp']) # Drop rows where timestamp conversion failed
+
+        available_appliances = sorted(df_heatmaps['equipment_type'].dropna().unique())
+        if not available_appliances:
+            st.info("No appliance data available to generate heatmaps.")
+        else:
+            selected_appliance_heatmap = st.selectbox(
+                "Select Appliance for Heatmap:", 
+                options=available_appliances,
+                index=0 if available_appliances else -1 # Handle empty list
+            )
+
+            if selected_appliance_heatmap:
+                df_appliance_specific = df_heatmaps[df_heatmaps['equipment_type'] == selected_appliance_heatmap].copy()
+
+                if df_appliance_specific.empty:
+                    st.info(f"No data found for appliance '{selected_appliance_heatmap}' to generate heatmaps.")
+                else:
+                    tab_daily, tab_monthly = st.tabs(["Daily View Heatmap", "Monthly View Heatmap"])
+
+                    with tab_daily:
+                        st.markdown(f"**Hourly Energy Consumption for {selected_appliance_heatmap} (Wh) - Daily View**")
+                        df_appliance_specific['date'] = df_appliance_specific['timestamp'].dt.date
+                        df_appliance_specific['hour'] = df_appliance_specific['timestamp'].dt.hour
+                        
+                        daily_heatmap_data = df_appliance_specific.groupby(['date', 'hour'])['equipment_consumption'].sum().unstack(fill_value=0)
+                        
+                        if not daily_heatmap_data.empty:
+                            # Ensure all hours 0-23 are present, even if no consumption
+                            all_hours = pd.Index(range(24), name='hour')
+                            daily_heatmap_data = daily_heatmap_data.reindex(columns=all_hours, fill_value=0)
+                            # Sort rows by date
+                            daily_heatmap_data = daily_heatmap_data.sort_index()
+
+                            fig_daily = px.imshow(
+                                daily_heatmap_data,
+                                labels=dict(x="Hour of Day", y="Date", color="Energy (Wh)"),
+                                x=daily_heatmap_data.columns, # Hours
+                                y=daily_heatmap_data.index,  # Dates
+                                aspect="auto",
+                                color_continuous_scale=px.colors.sequential.Viridis
+                            )
+                            fig_daily.update_xaxes(side="bottom", tickmode='array', tickvals=list(range(24)), ticktext=[str(h) for h in range(24)])
+                            fig_daily.update_layout(title_text='', title_x=0.5, height=max(400, 50 + len(daily_heatmap_data.index) * 20))
+                            st.plotly_chart(fig_daily, use_container_width=True)
+                        else:
+                            st.info(f"No daily consumption data to display for {selected_appliance_heatmap}.")
+
+                    with tab_monthly:
+                        st.markdown(f"**Daily Energy Consumption for {selected_appliance_heatmap} (Wh) - Monthly View**")
+                        df_appliance_specific['year_month'] = df_appliance_specific['timestamp'].dt.to_period('M').astype(str)
+                        df_appliance_specific['day_of_month'] = df_appliance_specific['timestamp'].dt.day
+                        
+                        monthly_heatmap_data = df_appliance_specific.groupby(['year_month', 'day_of_month'])['equipment_consumption'].sum().unstack(fill_value=0)
+
+                        if not monthly_heatmap_data.empty:
+                            # Ensure all days 1-31 are present
+                            all_days = pd.Index(range(1, 32), name='day_of_month')
+                            monthly_heatmap_data = monthly_heatmap_data.reindex(columns=all_days, fill_value=0)
+                            # Sort rows by month
+                            monthly_heatmap_data = monthly_heatmap_data.sort_index()
+
+                            fig_monthly = px.imshow(
+                                monthly_heatmap_data,
+                                labels=dict(x="Day of Month", y="Month", color="Energy (Wh)"),
+                                x=monthly_heatmap_data.columns, # Days
+                                y=monthly_heatmap_data.index,  # Year-Months
+                                aspect="auto",
+                                color_continuous_scale=px.colors.sequential.Plasma
+                            )
+                            fig_monthly.update_xaxes(side="bottom", tickmode='array', tickvals=list(range(1,32)), ticktext=[str(d) for d in range(1,32)])
+                            fig_monthly.update_layout(title_text='', title_x=0.5, height=max(400, 50 + len(monthly_heatmap_data.index) * 30))
+                            st.plotly_chart(fig_monthly, use_container_width=True)
+                        else:
+                            st.info(f"No monthly consumption data to display for {selected_appliance_heatmap}.")
+            else:
+                st.info("Please select an appliance to view heatmaps.")
+    else:
+        st.info("Heatmap data requirements not met. Ensure 'equipment_type', 'equipment_disagg_start', and 'equipment_consumption' columns are present in the details CSV.")
 
     st.markdown("---")
     st.caption("Data presented is for illustrative purposes. Energy values are estimates from the model. 'Energy (Wh) [QC]' indicates values have been quality-controlled against total meter consumption for the month.")
