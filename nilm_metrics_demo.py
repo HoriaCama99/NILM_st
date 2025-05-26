@@ -313,7 +313,7 @@ if page == "Sample Output":
 
     # --- Load and Anonymize Data ---
     @st.cache_data
-    def load_and_anonymize_data(details_path, meters_path):
+    def load_and_anonymize_data(details_path, meters_path, cust_id_col_name='custid', meter_id_col_name='meter_id'):
         try:
             df_details = pd.read_csv(details_path)
             df_meters = pd.read_csv(meters_path)
@@ -324,50 +324,54 @@ if page == "Sample Output":
             st.error(f"Error loading CSV files: {e}")
             return pd.DataFrame(), pd.DataFrame(), {}
 
-        # Ensure custid and meterid are strings for consistent processing
+        # Ensure custid and meter_id are strings for consistent processing
         for df, name in [(df_details, "Details"), (df_meters, "Meters")]:
-            for col in ['custid', 'meterid']:
+            for col, expected_col_name in [(cust_id_col_name, 'Customer ID'), (meter_id_col_name, 'Meter ID')]:
                 if col in df.columns:
                     df[col] = df[col].astype(str)
                 else:
-                    st.warning(f"Column '{col}' not found in {name} data during anonymization prep.")
-
+                    st.warning(f"Column '{col}' (expected for {expected_col_name}) not found in {name} data.")
 
         all_custids = pd.Series(dtype=str)
-        if 'custid' in df_details.columns:
-            all_custids = pd.concat([all_custids, df_details['custid']], ignore_index=True)
-        if 'custid' in df_meters.columns:
-            all_custids = pd.concat([all_custids, df_meters['custid']], ignore_index=True)
+        if cust_id_col_name in df_details.columns:
+            all_custids = pd.concat([all_custids, df_details[cust_id_col_name]], ignore_index=True)
+        if cust_id_col_name in df_meters.columns:
+            all_custids = pd.concat([all_custids, df_meters[cust_id_col_name]], ignore_index=True)
         
         unique_custids = all_custids.dropna().unique()
         custid_map = {orig_id: generate_random_id("CUST_") for orig_id in unique_custids}
 
         all_meterids = pd.Series(dtype=str)
-        if 'meterid' in df_details.columns:
-            all_meterids = pd.concat([all_meterids, df_details['meterid']], ignore_index=True)
-        if 'meterid' in df_meters.columns:
-             all_meterids = pd.concat([all_meterids, df_meters['meterid']], ignore_index=True)
+        if meter_id_col_name in df_details.columns:
+            all_meterids = pd.concat([all_meterids, df_details[meter_id_col_name]], ignore_index=True)
+        if meter_id_col_name in df_meters.columns:
+             all_meterids = pd.concat([all_meterids, df_meters[meter_id_col_name]], ignore_index=True)
 
         unique_meterids = all_meterids.dropna().unique()
+        # Store map against the original column name for clarity if needed later, though generation is universal
         meterid_map = {orig_id: generate_random_id("MTR_") for orig_id in unique_meterids}
         
-        id_maps = {'custid': custid_map, 'meterid': meterid_map}
+        id_maps = {cust_id_col_name: custid_map, meter_id_col_name: meterid_map}
 
-        if 'custid' in df_details.columns:
-            df_details['custid_anon'] = df_details['custid'].map(custid_map)
-        if 'meterid' in df_details.columns:
-            df_details['meterid_anon'] = df_details['meterid'].map(meterid_map)
+        # Create anonymized columns
+        if cust_id_col_name in df_details.columns:
+            df_details['custid_anon'] = df_details[cust_id_col_name].map(custid_map)
+        if meter_id_col_name in df_details.columns:
+            df_details['meterid_anon'] = df_details[meter_id_col_name].map(meterid_map)
         
-        if 'custid' in df_meters.columns:
-            df_meters['custid_anon'] = df_meters['custid'].map(custid_map)
-        if 'meterid' in df_meters.columns:
-            df_meters['meterid_anon'] = df_meters['meterid'].map(meterid_map)
+        if cust_id_col_name in df_meters.columns:
+            df_meters['custid_anon'] = df_meters[cust_id_col_name].map(custid_map)
+        if meter_id_col_name in df_meters.columns:
+            df_meters['meterid_anon'] = df_meters[meter_id_col_name].map(meterid_map)
             
         return df_details, df_meters, id_maps
 
     details_file = "disagg_details_new_cohort_updated_1.csv"
     meters_file = "disagg_meters_new_cohort_updated_1.csv"
-    df_details_orig, df_meters_orig, id_maps = load_and_anonymize_data(details_file, meters_file)
+    # Pass the correct column names for meter_id
+    df_details_orig, df_meters_orig, id_maps = load_and_anonymize_data(
+        details_file, meters_file, cust_id_col_name='custid', meter_id_col_name='meter_id'
+    )
 
     if df_details_orig.empty and df_meters_orig.empty: # Only stop if both are empty due to load error
         st.warning("Could not load data files. Ensure they are in the correct location and format: " + f"'{details_file}', '{meters_file}'")
@@ -386,17 +390,21 @@ if page == "Sample Output":
         df_details_table1 = df_details_orig.copy()
 
         # Format timestamps for Table 1 (assuming Unix timestamps)
-        df_details_table1 = format_timestamp_column(df_details_table1, 'window_start', '%Y-%m-%d %H:%M:%S', is_unix=True)
-        df_details_table1 = format_timestamp_column(df_details_table1, 'window_stop', '%Y-%m-%d %H:%M:%S', is_unix=True)
+        # Using new column names from user input
+        df_details_table1 = format_timestamp_column(df_details_table1, 'equipment_disagg_start', '%Y-%m-%d %H:%M:%S', is_unix=True)
+        df_details_table1 = format_timestamp_column(df_details_table1, 'equipment_disagg_end', '%Y-%m-%d %H:%M:%S', is_unix=True)
 
         cols_table1_display_map = {
             'custid_anon': 'Customer ID (Anon)',
             'meterid_anon': 'Meter ID (Anon)',
-            'window_start_formatted': 'Event Start',
-            'window_stop_formatted': 'Event Stop',
-            'appliance_type': 'Appliance',
-            'process_status': 'Status',
-            'energy_wh': 'Energy (Wh)'
+            'equipment_disagg_start_formatted': 'Event Start',
+            'equipment_disagg_end_formatted': 'Event Stop',
+            'equipment_type': 'Appliance',
+            'equipment_detected': 'Status',
+            'direction': 'Direction', # Added based on new CSV structure
+            'equipment_consumption': 'Energy (Wh)',
+            'uom': 'UOM', # Added based on new CSV structure
+            'interval_count': 'Interval Count' # Added based on new CSV structure
         }
         
         actual_cols_table1 = [col for col in cols_table1_display_map.keys() if col in df_details_table1.columns]
@@ -417,75 +425,79 @@ if page == "Sample Output":
 
     if not df_details_orig.empty and not df_meters_orig.empty:
         df_details_for_table2 = df_details_orig.copy()
-        df_meters_for_table2 = df_meters_orig.copy()
+        df_meters_for_table2 = df_meters_orig.copy() # Still loaded, though less central to Table 2 now
 
         # Prepare df_details: extract reference_month, aggregate energy
-        if 'window_start' in df_details_for_table2.columns and 'energy_wh' in df_details_for_table2.columns and \
-           'custid_anon' in df_details_for_table2.columns and 'meterid_anon' in df_details_for_table2.columns and \
-           'appliance_type' in df_details_for_table2.columns:
-            
-            temp_ws_col = pd.to_numeric(df_details_for_table2['window_start'], errors='coerce')
+        # Key columns from details file based on new structure:
+        # custid_anon, meterid_anon, equipment_disagg_start, equipment_type, equipment_consumption, direction, meter_consumption
+        required_details_cols_t2 = [
+            'custid_anon', 'meterid_anon', 'equipment_disagg_start', 
+            'equipment_type', 'equipment_consumption', 'direction', 'meter_consumption'
+        ]
+        missing_req_details_cols = [col for col in required_details_cols_t2 if col not in df_details_for_table2.columns]
+
+        if not missing_req_details_cols:
+            temp_ws_col = pd.to_numeric(df_details_for_table2['equipment_disagg_start'], errors='coerce')
             df_details_for_table2['reference_month_dt'] = pd.to_datetime(temp_ws_col, unit='s', errors='coerce')
             df_details_for_table2['reference_month_str'] = df_details_for_table2['reference_month_dt'].dt.strftime('%Y-%m')
 
+            # Ensure numeric types for aggregation
+            df_details_for_table2['equipment_consumption'] = pd.to_numeric(df_details_for_table2['equipment_consumption'], errors='coerce').fillna(0)
+            df_details_for_table2['meter_consumption'] = pd.to_numeric(df_details_for_table2['meter_consumption'], errors='coerce').fillna(0)
+
+            # Aggregate appliance energy (equipment_consumption)
             appliance_energy_long = df_details_for_table2.groupby(
-                ['custid_anon', 'meterid_anon', 'reference_month_str', 'appliance_type'],
+                ['custid_anon', 'meterid_anon', 'reference_month_str', 'equipment_type', 'direction'], # direction is now from source
                 as_index=False
-            )['energy_wh'].sum()
-            appliance_energy_long['direction'] = appliance_energy_long['appliance_type'].apply(
-                lambda x: 'generation' if str(x).lower() == 'pv' else 'consumption'
-            )
-        else:
-            st.error("Details data is missing one or more required columns for Table 2: 'window_start', 'energy_wh', 'custid_anon', 'meterid_anon', 'appliance_type'.")
-            appliance_energy_long = pd.DataFrame()
-
-        # Prepare df_meters: extract reference_month, get grid values
-        if 'process_date' in df_meters_for_table2.columns and 'grid' in df_meters_for_table2.columns and \
-           'custid_anon' in df_meters_for_table2.columns and 'meterid_anon' in df_meters_for_table2.columns:
+            )['equipment_consumption'].sum()
+            # Rename for clarity before merge/QC
+            appliance_energy_long = appliance_energy_long.rename(columns={'equipment_consumption': 'energy_wh_appliance'})
             
-            df_meters_for_table2['reference_month_dt'] = pd.to_datetime(df_meters_for_table2['process_date'], errors='coerce')
-            df_meters_for_table2['reference_month_str'] = df_meters_for_table2['reference_month_dt'].dt.strftime('%Y-%m')
-            
-            # Ensure 'grid' is numeric
-            df_meters_for_table2['grid'] = pd.to_numeric(df_meters_for_table2['grid'], errors='coerce').fillna(0)
-
-            # Aggregate grid energy per custid, meterid, reference_month
-            # This assumes 'grid' in disagg_meters is already at the correct monthly aggregation or needs summing up if multiple entries exist.
-            # If 'grid' is per-customer-per-month, direct use might be fine. Grouping to be safe if structure is unknown.
-            df_meters_agg = df_meters_for_table2.groupby(
+            # Aggregate total meter consumption (meter_consumption) to serve as 'grid' total for the month
+            # This assumes meter_consumption in details is granular enough to be summed up meaningfully per month.
+            # If meter_consumption is already a monthly total per event row, use .first() or .mean() if appropriate, but sum is safer if it is event-level.
+            monthly_total_meter_consumption = df_details_for_table2.groupby(
                 ['custid_anon', 'meterid_anon', 'reference_month_str'],
                 as_index=False
-            )['grid'].sum()
+            )['meter_consumption'].sum().rename(columns={'meter_consumption': 'grid_total_wh'})
+
         else:
-            st.error("Meters data is missing one or more required columns for Table 2: 'process_date', 'grid', 'custid_anon', 'meterid_anon'.")
-            df_meters_agg = pd.DataFrame()
+            st.error(f"Details data is missing one or more required columns for Table 2: {missing_req_details_cols}.")
+            appliance_energy_long = pd.DataFrame()
+            monthly_total_meter_consumption = pd.DataFrame()
+
+        # df_meters_agg is no longer the primary source for grid data, but we load df_meters_orig earlier.
+        # If df_meters_orig contained other monthly metadata needed, it could be prepared here.
+        # For now, we directly use monthly_total_meter_consumption from details data.
 
         # Merge and QC
-        if not appliance_energy_long.empty and not df_meters_agg.empty:
+        if not appliance_energy_long.empty and not monthly_total_meter_consumption.empty:
             df_table2_merged = pd.merge(
                 appliance_energy_long,
-                df_meters_agg,
+                monthly_total_meter_consumption,
                 on=['custid_anon', 'meterid_anon', 'reference_month_str'],
                 how='left'
             )
-            df_table2_merged['grid'] = df_table2_merged['grid'].fillna(0)
-            df_table2_merged['energy_wh'] = pd.to_numeric(df_table2_merged['energy_wh'], errors='coerce').fillna(0)
+            df_table2_merged['grid_total_wh'] = df_table2_merged['grid_total_wh'].fillna(0)
+            df_table2_merged['energy_wh_appliance'] = pd.to_numeric(df_table2_merged['energy_wh_appliance'], errors='coerce').fillna(0)
 
             # --- QC Step ---
             df_table2_qc = df_table2_merged.copy()
+            # Use 'direction' column directly from source for QC logic
             df_table2_qc['consumption_energy_val'] = df_table2_qc.apply(
-                lambda row: row['energy_wh'] if row['direction'] == 'consumption' else 0, axis=1
+                lambda row: row['energy_wh_appliance'] if str(row['direction']).lower() != 'generation' else 0, axis=1 # Assuming 'generation' marks PV-like direction
             )
 
             def qc_consumption_group(group):
-                grid_value = group['grid'].first() 
+                # Use grid_total_wh which is the sum of 'meter_consumption' for the month
+                grid_value = group['grid_total_wh'].first() 
                 total_identified_consumption = group['consumption_energy_val'].sum()
 
                 if grid_value > 0 and total_identified_consumption > grid_value:
                     scaling_factor = grid_value / total_identified_consumption
-                    group.loc[group['direction'] == 'consumption', 'energy_wh'] = group.loc[group['direction'] == 'consumption', 'energy_wh'] * scaling_factor
+                    group.loc[group['direction'].str.lower() != 'generation', 'energy_wh_appliance'] = group.loc[group['direction'].str.lower() != 'generation', 'energy_wh_appliance'] * scaling_factor
                 elif grid_value <= 0:
-                    group.loc[group['direction'] == 'consumption', 'energy_wh'] = 0
+                    group.loc[group['direction'].str.lower() != 'generation', 'energy_wh_appliance'] = 0
                 return group
 
             # Group by the unique monthly meter context before applying QC
@@ -501,15 +513,31 @@ if page == "Sample Output":
                 'custid_anon': 'Customer ID (Anon)',
                 'meterid_anon': 'Meter ID (Anon)',
                 'Month': 'Month',
-                'appliance_type': 'Appliance',
-                'energy_wh': 'Energy (Wh) [QC]',
+                'equipment_type': 'Appliance', # Source column name
+                'energy_wh_appliance': 'Energy (Wh) [QC]', # QC'd column
                 'direction': 'Direction',
-                'grid': 'Total Grid (Wh)'
+                'grid_total_wh': 'Total Meter (Wh)' # Renamed from 'Total Grid (Wh)' to reflect source
             }
+            # Ensure we use the correct appliance type column name from appliance_energy_long merge if renamed
+            if 'equipment_type' not in df_table2_final.columns and 'appliance_type' in df_table2_final.columns: # if it was renamed earlier
+                 cols_table2_display_map['appliance_type'] = cols_table2_display_map.pop('equipment_type')
+            elif 'equipment_type' not in df_table2_final.columns: # if neither equipment_type nor appliance_type is present
+                 # find the original appliance type column name if possible, or handle error
+                 st.warning("Could not find appliance type column for Table 2 display map.")
+
+
             actual_cols_table2 = [col for col in cols_table2_display_map.keys() if col in df_table2_final.columns]
+            # Rename 'equipment_type' to 'Appliance' for display from the map
+            display_df_table2 = df_table2_final[actual_cols_table2].rename(columns=cols_table2_display_map)
             
             if actual_cols_table2:
-                st.dataframe(df_table2_final[actual_cols_table2].rename(columns=cols_table2_display_map), height=400, use_container_width=True)
+                # Final check for Appliance column name for display
+                if 'Appliance' not in display_df_table2.columns and 'equipment_type' in display_df_table2.columns:
+                    display_df_table2 = display_df_table2.rename(columns={'equipment_type':'Appliance'})
+                elif 'Appliance' not in display_df_table2.columns and 'appliance_type' in display_df_table2.columns:
+                    display_df_table2 = display_df_table2.rename(columns={'appliance_type':'Appliance'})
+
+                st.dataframe(display_df_table2, height=400, use_container_width=True)
                 missing_cols_t2 = [v for k,v in cols_table2_display_map.items() if k not in actual_cols_table2]
                 if missing_cols_t2:
                     st.caption(f"Note: The following expected columns are not shown as they were not found in the processed data: {', '.join(missing_cols_t2)}.")
@@ -525,7 +553,7 @@ if page == "Sample Output":
 
 
     st.markdown("---")
-    st.caption("Data presented is for illustrative purposes. Energy values are estimates from the model. 'Energy (Wh) [QC]' indicates values have been quality-controlled against grid totals.")
+    st.caption("Data presented is for illustrative purposes. Energy values are estimates from the model. 'Energy (Wh) [QC]' indicates values have been quality-controlled against total meter consumption for the month.")
 
 elif page == "Performance Metrics":
     # Performance Metrics page
